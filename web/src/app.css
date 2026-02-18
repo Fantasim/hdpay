@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+
+@theme {
+	/* Colors — Backgrounds */
+	--color-bg-primary: #0f1117;
+	--color-bg-secondary: #13151c;
+	--color-bg-surface: #1a1d27;
+	--color-bg-surface-hover: #22252f;
+	--color-bg-surface-active: #282b36;
+	--color-bg-elevated: #1e2130;
+	--color-bg-input: #161821;
+
+	/* Colors — Sidebar */
+	--color-sidebar-bg: #111318;
+	--color-sidebar-hover: #1a1d27;
+	--color-sidebar-active: #1e2130;
+	--color-sidebar-border: #1f2230;
+
+	/* Colors — Text */
+	--color-text-primary: #e8eaed;
+	--color-text-secondary: #9ba1b0;
+	--color-text-muted: #6b7280;
+	--color-text-disabled: #4b5060;
+
+	/* Colors — Accent */
+	--color-accent: #5e6ad2;
+	--color-accent-hover: #7c85e0;
+	--color-accent-muted: rgba(94, 106, 210, 0.15);
+	--color-accent-text: #a5adff;
+
+	/* Colors — Border */
+	--color-border: #2a2d3a;
+	--color-border-subtle: #1f2230;
+	--color-border-hover: #3a3d4a;
+	--color-border-focus: #5e6ad2;
+
+	/* Colors — Chain */
+	--color-btc: #f7931a;
+	--color-btc-muted: rgba(247, 147, 26, 0.15);
+	--color-bsc: #F0B90B;
+	--color-bsc-muted: rgba(240, 185, 11, 0.15);
+	--color-sol: #9945FF;
+	--color-sol-muted: rgba(153, 69, 255, 0.15);
+
+	/* Colors — Status */
+	--color-success: #4ade80;
+	--color-success-muted: rgba(74, 222, 128, 0.15);
+	--color-error: #ef4444;
+	--color-error-muted: rgba(239, 68, 68, 0.15);
+	--color-warning: #f59e0b;
+	--color-warning-muted: rgba(245, 158, 11, 0.15);
+	--color-info: #60a5fa;
+	--color-info-muted: rgba(96, 165, 250, 0.15);
+
+	/* Typography */
+	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+
+	/* Layout */
+	--sidebar-width: 240px;
+	--header-height: 56px;
+}
+
+/* Base styles */
+body {
+	margin: 0;
+	padding: 0;
+	background-color: var(--color-bg-primary);
+	color: var(--color-text-primary);
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-border-hover);
+}
+
+/* Mono text utility */
+.font-mono {
+	font-family: var(--font-mono);
+}

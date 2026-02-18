@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HDPay — Component Gallery</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <link rel="stylesheet" href="../styles/components.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    .gallery {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-8);
+    }
+    .gallery h1 {
+      font-size: var(--font-size-3xl);
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-2);
+      letter-spacing: var(--tracking-tight);
+    }
+    .gallery > p {
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-12);
+    }
+    .gallery section {
+      margin-bottom: var(--space-12);
+    }
+    .gallery section > h2 {
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--color-border-subtle);
+      letter-spacing: var(--tracking-tight);
+    }
+    .gallery section > h3 {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-3);
+      margin-top: var(--space-6);
+    }
+    .demo-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-4);
+    }
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    .demo-label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: var(--space-2);
+    }
+    .demo-box {
+      padding: var(--space-4);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+    }
+    .color-swatch {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+    }
+    .color-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+    .color-meta {
+      font-size: var(--font-size-sm);
+    }
+    .color-name {
+      color: var(--color-text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+    .color-value {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+    }
+  </style>
+</head>
+<body>
+  <div class="gallery">
+    <h1>HDPay — Component Gallery</h1>
+    <p>These components will be reused in the actual project build. All values reference design tokens from tokens.css.</p>
+
+    <!-- ========== Colors ========== -->
+    <section id="colors">
+      <h2>Colors</h2>
+
+      <h3>Backgrounds</h3>
+      <div class="demo-row">
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-bg-primary);"></div>
+          <div class="color-meta"><div class="color-name">Primary BG</div><div class="color-value">#0f1117</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-bg-surface);"></div>
+          <div class="color-meta"><div class="color-name">Surface</div><div class="color-value">#1a1d27</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-bg-surface-hover);"></div>
+          <div class="color-meta"><div class="color-name">Surface Hover</div><div class="color-value">#22252f</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-sidebar-bg);"></div>
+          <div class="color-meta"><div class="color-name">Sidebar</div><div class="color-value">#111318</div></div>
+        </div>
+      </div>
+
+      <h3>Chain Colors</h3>
+      <div class="demo-row">
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-btc);"></div>
+          <div class="color-meta"><div class="color-name">BTC</div><div class="color-value">#f7931a</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-bsc);"></div>
+          <div class="color-meta"><div class="color-name">BSC</div><div class="color-value">#F0B90B</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-sol);"></div>
+          <div class="color-meta"><div class="color-name">SOL</div><div class="color-value">#9945FF</div></div>
+        </div>
+      </div>
+
+      <h3>Accent &amp; Status</h3>
+      <div class="demo-row">
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-accent);"></div>
+          <div class="color-meta"><div class="color-name">Accent</div><div class="color-value">#5e6ad2</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-success);"></div>
+          <div class="color-meta"><div class="color-name">Success</div><div class="color-value">#4ade80</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-error);"></div>
+          <div class="color-meta"><div class="color-name">Error</div><div class="color-value">#ef4444</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-circle" style="background: var(--color-warning);"></div>
+          <div class="color-meta"><div class="color-name">Warning</div><div class="color-value">#f59e0b</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Typography ========== -->
+    <section id="typography">
+      <h2>Typography</h2>
+
+      <h3>Sans-serif (Inter)</h3>
+      <div class="demo-box" style="display:flex;flex-direction:column;gap:var(--space-4);">
+        <div>
+          <div class="demo-label">4XL — 36px</div>
+          <div class="text-4xl font-semibold" style="letter-spacing:var(--tracking-tight);">$124,892.47</div>
+        </div>
+        <div>
+          <div class="demo-label">3XL — 28px</div>
+          <div class="text-3xl font-semibold" style="letter-spacing:var(--tracking-tight);">Portfolio Value</div>
+        </div>
+        <div>
+          <div class="demo-label">2XL — 22px</div>
+          <div class="text-2xl font-semibold">Dashboard</div>
+        </div>
+        <div>
+          <div class="demo-label">XL — 18px</div>
+          <div class="text-xl">Section Heading</div>
+        </div>
+        <div>
+          <div class="demo-label">LG — 16px</div>
+          <div class="text-lg">Page Title</div>
+        </div>
+        <div>
+          <div class="demo-label">Base — 14px</div>
+          <div class="text-base">Default body text and content</div>
+        </div>
+        <div>
+          <div class="demo-label">SM — 13px</div>
+          <div class="text-sm text-secondary">Secondary text and labels</div>
+        </div>
+        <div>
+          <div class="demo-label">XS — 12px (minimum)</div>
+          <div class="text-xs text-muted">Table headers, hints, metadata</div>
+        </div>
+      </div>
+
+      <h3>Monospace (JetBrains Mono)</h3>
+      <div class="demo-box" style="display:flex;flex-direction:column;gap:var(--space-3);">
+        <div class="font-mono text-lg">bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</div>
+        <div class="font-mono text-base">0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18</div>
+        <div class="font-mono text-sm">0.00234500 BTC</div>
+        <div class="font-mono text-xs text-secondary">1,250,000.00 USDT</div>
+      </div>
+    </section>
+
+    <!-- ========== Buttons ========== -->
+    <section id="buttons">
+      <h2>Buttons</h2>
+
+      <h3>Variants</h3>
+      <div class="demo-row">
+        <button class="btn btn-primary">Primary</button>
+        <button class="btn btn-secondary">Secondary</button>
+        <button class="btn btn-ghost">Ghost</button>
+        <button class="btn btn-danger">Danger</button>
+      </div>
+
+      <h3>With Icons</h3>
+      <div class="demo-row">
+        <button class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
+          Start Scan
+        </button>
+        <button class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M10 5l3 3-3 3"/></svg>
+          Send
+        </button>
+        <button class="btn btn-danger">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Stop
+        </button>
+      </div>
+
+      <h3>Sizes</h3>
+      <div class="demo-row">
+        <button class="btn btn-primary btn-sm">Small</button>
+        <button class="btn btn-primary">Default</button>
+        <button class="btn btn-primary btn-lg">Large</button>
+      </div>
+
+      <h3>States</h3>
+      <div class="demo-row">
+        <button class="btn btn-primary" disabled>Disabled</button>
+        <button class="btn btn-primary" style="opacity:1;cursor:wait;">
+          <span class="spinner" style="width:14px;height:14px;border-width:1.5px;border-top-color:white;border-color:rgba(255,255,255,0.3);"></span>
+          Loading...
+        </button>
+      </div>
+    </section>
+
+    <!-- ========== Form Inputs ========== -->
+    <section id="forms">
+      <h2>Form Elements</h2>
+
+      <div class="demo-grid">
+        <div class="form-group">
+          <label class="form-label">Text Input</label>
+          <input type="text" class="form-input" placeholder="Enter value...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monospace Input</label>
+          <input type="text" class="form-input form-input-mono" placeholder="bc1q..." value="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Number Input</label>
+          <input type="number" class="form-input" placeholder="5000" value="5000">
+          <div class="form-hint">Maximum scan ID (1 — 500,000)</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Select</label>
+          <select class="form-select">
+            <option>All Chains</option>
+            <option>BTC</option>
+            <option>BSC</option>
+            <option>SOL</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Error State</label>
+          <input type="text" class="form-input" style="border-color:var(--color-error);" value="not-a-valid-address">
+          <div class="form-error">Invalid address format</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Badges ========== -->
+    <section id="badges">
+      <h2>Badges</h2>
+
+      <h3>Chain Badges</h3>
+      <div class="demo-row">
+        <span class="badge badge-btc">BTC</span>
+        <span class="badge badge-bsc">BSC</span>
+        <span class="badge badge-sol">SOL</span>
+      </div>
+
+      <h3>Status Badges</h3>
+      <div class="demo-row">
+        <span class="badge badge-default">Default</span>
+        <span class="badge badge-accent">Active</span>
+        <span class="badge badge-success">Confirmed</span>
+        <span class="badge badge-warning">Pending</span>
+        <span class="badge badge-error">Failed</span>
+      </div>
+
+      <h3>Network Badges</h3>
+      <div class="demo-row">
+        <span class="network-badge network-mainnet">
+          <span class="chain-dot" style="background:var(--color-success);width:6px;height:6px;"></span>
+          Mainnet
+        </span>
+        <span class="network-badge network-testnet">
+          <span class="chain-dot" style="background:var(--color-warning);width:6px;height:6px;"></span>
+          Testnet
+        </span>
+      </div>
+    </section>
+
+    <!-- ========== Progress Bars ========== -->
+    <section id="progress">
+      <h2>Progress Bars</h2>
+
+      <div style="display:flex;flex-direction:column;gap:var(--space-6);max-width:500px;">
+        <div>
+          <div class="demo-label">BTC Scan — 72%</div>
+          <div class="progress"><div class="progress-bar progress-bar-btc" style="width:72%;"></div></div>
+        </div>
+        <div>
+          <div class="demo-label">BSC Scan — 45%</div>
+          <div class="progress"><div class="progress-bar progress-bar-bsc" style="width:45%;"></div></div>
+        </div>
+        <div>
+          <div class="demo-label">SOL Scan — 100%</div>
+          <div class="progress"><div class="progress-bar progress-bar-sol" style="width:100%;"></div></div>
+        </div>
+        <div>
+          <div class="demo-label">Transaction — Complete</div>
+          <div class="progress"><div class="progress-bar progress-bar-success" style="width:100%;"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Cards ========== -->
+    <section id="cards">
+      <h2>Cards</h2>
+
+      <div class="demo-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">BTC Portfolio</div>
+            <span class="badge badge-btc">BTC</span>
+          </div>
+          <div class="card-body">
+            <div class="stat">
+              <span class="stat-label">Balance</span>
+              <span class="stat-value stat-value-mono">0.04521000</span>
+            </div>
+            <div class="stat mt-3">
+              <span class="stat-label">USD Value</span>
+              <span class="stat-value">$4,521.00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Scan Status</div>
+            <span class="badge badge-accent">Running</span>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-3);">
+              <span class="text-sm text-secondary">3,500 / 5,000</span>
+              <span class="text-sm text-secondary">70%</span>
+            </div>
+            <div class="progress"><div class="progress-bar progress-bar-accent" style="width:70%;"></div></div>
+            <div class="text-xs text-muted mt-2">Found 12 funded addresses</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Tables ========== -->
+    <section id="tables">
+      <h2>Tables</h2>
+
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Chain</th>
+              <th>Address</th>
+              <th class="text-right">Balance</th>
+              <th class="text-right">USD Value</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-muted">0</td>
+              <td><span class="badge badge-btc">BTC</span></td>
+              <td class="mono">bc1qxy2k...x0wlh</td>
+              <td class="mono text-right">0.01250000</td>
+              <td class="text-right">$1,250.00</td>
+              <td><span class="badge badge-success">Funded</span></td>
+            </tr>
+            <tr>
+              <td class="text-muted">1</td>
+              <td><span class="badge badge-bsc">BSC</span></td>
+              <td class="mono">0x742d...2bD18</td>
+              <td class="mono text-right">2.45000000</td>
+              <td class="text-right">$1,470.00</td>
+              <td><span class="badge badge-success">Funded</span></td>
+            </tr>
+            <tr>
+              <td class="text-muted">2</td>
+              <td><span class="badge badge-sol">SOL</span></td>
+              <td class="mono">9WzDX...v4KtN</td>
+              <td class="mono text-right">15.50000000</td>
+              <td class="text-right">$3,100.00</td>
+              <td><span class="badge badge-success">Funded</span></td>
+            </tr>
+            <tr>
+              <td class="text-muted">3</td>
+              <td><span class="badge badge-btc">BTC</span></td>
+              <td class="mono">bc1qml...f8rtw</td>
+              <td class="mono text-right">0.00000000</td>
+              <td class="text-right">$0.00</td>
+              <td><span class="badge badge-default">Empty</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination">
+          <span class="pagination-info">Showing 1 — 4 of 5,000</span>
+          <div class="pagination-controls">
+            <button class="pagination-btn" disabled>&laquo;</button>
+            <button class="pagination-btn" disabled>&lsaquo;</button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <button class="pagination-btn">&rsaquo;</button>
+            <button class="pagination-btn">&raquo;</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Stepper ========== -->
+    <section id="stepper">
+      <h2>Stepper</h2>
+
+      <div class="demo-box">
+        <div class="stepper">
+          <div class="stepper-step completed">
+            <div class="stepper-number">&#10003;</div>
+            <div class="stepper-label">Select</div>
+          </div>
+          <div class="stepper-separator completed"></div>
+          <div class="stepper-step active">
+            <div class="stepper-number">2</div>
+            <div class="stepper-label">Preview</div>
+          </div>
+          <div class="stepper-separator"></div>
+          <div class="stepper-step">
+            <div class="stepper-number">3</div>
+            <div class="stepper-label">Gas Pre-Seed</div>
+          </div>
+          <div class="stepper-separator"></div>
+          <div class="stepper-step">
+            <div class="stepper-number">4</div>
+            <div class="stepper-label">Execute</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Alerts ========== -->
+    <section id="alerts">
+      <h2>Alerts</h2>
+
+      <div style="display:flex;flex-direction:column;gap:var(--space-4);max-width:600px;">
+        <div class="alert alert-info">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 8v4M9 6.5v0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Scan will check addresses 0 through 5,000 for balances.
+        </div>
+        <div class="alert alert-success">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          Transaction broadcast successfully. Hash: 0xa1b2...c3d4
+        </div>
+        <div class="alert alert-warning">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><path d="M9 2L1.5 16h15L9 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 7v4M9 13v0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          3 addresses need gas pre-seeding before token transfer.
+        </div>
+        <div class="alert alert-error">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l6 6M12 6l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Provider rate limit exceeded. Rotating to next provider...
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Tabs ========== -->
+    <section id="tabs">
+      <h2>Tabs</h2>
+
+      <div class="demo-box" style="padding:0;overflow:hidden;">
+        <div class="tabs" style="padding:0 var(--space-4);">
+          <div class="tab active">All Chains</div>
+          <div class="tab">
+            <span class="chain-dot chain-dot-btc" style="margin-right:var(--space-1-5);vertical-align:middle;"></span>
+            BTC
+          </div>
+          <div class="tab">
+            <span class="chain-dot chain-dot-bsc" style="margin-right:var(--space-1-5);vertical-align:middle;"></span>
+            BSC
+          </div>
+          <div class="tab">
+            <span class="chain-dot chain-dot-sol" style="margin-right:var(--space-1-5);vertical-align:middle;"></span>
+            SOL
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Filter Chips ========== -->
+    <section id="filters">
+      <h2>Filter Chips</h2>
+
+      <div class="demo-row">
+        <span class="filter-chip active">All</span>
+        <span class="filter-chip">Has Balance</span>
+        <span class="filter-chip">Native Only</span>
+        <span class="filter-chip">USDC</span>
+        <span class="filter-chip">USDT</span>
+      </div>
+    </section>
+
+    <!-- ========== Loading States ========== -->
+    <section id="loading">
+      <h2>Loading States</h2>
+
+      <h3>Spinner</h3>
+      <div class="demo-row">
+        <div class="spinner"></div>
+        <span class="spinner" style="width:28px;height:28px;border-width:3px;"></span>
+      </div>
+
+      <h3>Skeleton</h3>
+      <div class="demo-box" style="display:flex;flex-direction:column;gap:var(--space-3);">
+        <div class="skeleton" style="height:20px;width:60%;"></div>
+        <div class="skeleton" style="height:14px;width:80%;"></div>
+        <div class="skeleton" style="height:14px;width:45%;"></div>
+      </div>
+    </section>
+
+    <!-- ========== Empty State ========== -->
+    <section id="empty">
+      <h2>Empty State</h2>
+
+      <div class="demo-box">
+        <div class="empty-state" style="padding:var(--space-8);">
+          <svg class="empty-state-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="10" width="36" height="28" rx="4"/><path d="M6 18h36M16 26h16M16 32h8"/></svg>
+          <div class="empty-state-title">No transactions yet</div>
+          <div class="empty-state-text">Transactions will appear here once you scan for balances and send funds.</div>
+          <button class="btn btn-primary mt-4">Start Scanning</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Stat Cards ========== -->
+    <section id="stats">
+      <h2>Stats</h2>
+
+      <div class="demo-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Total Value</span>
+            <span class="stat-value">$124,892</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Addresses</span>
+            <span class="stat-value">1,500,000</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Funded</span>
+            <span class="stat-value text-success">47</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Last Scan</span>
+            <span class="stat-value text-sm" style="font-size:var(--font-size-lg);">2 min ago</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

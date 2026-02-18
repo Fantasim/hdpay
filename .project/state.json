@@ -1,0 +1,78 @@
+{
+  "project_name": "HDPay",
+  "description": "A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.",
+  "project_type": "webapp",
+  "created_at": "2026-02-18T06:55:00Z",
+  "current_version": 1,
+  "version_history": [],
+  "integration_mode": false,
+  "existing_project": {
+    "maturity": null,
+    "goal": null,
+    "preserve": [],
+    "known_issues": [],
+    "discovery_file": null
+  },
+  "current_phase": "building",
+  "current_build_phase": 0,
+  "phases": {
+    "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
+    "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
+    "plan": { "status": "completed", "file": "02-plan.md", "started_at": "2026-02-18T06:58:00Z", "completed_at": "2026-02-18T07:05:00Z" },
+    "mockup": { "status": "completed", "file": "03-mockups/", "started_at": "2026-02-18T07:10:00Z", "completed_at": "2026-02-18T07:35:00Z" },
+    "build_plan": { "status": "completed", "file": "04-build-plan/", "started_at": "2026-02-18T08:00:00Z", "completed_at": "2026-02-18T08:30:00Z" },
+    "setup": { "status": "skipped", "file": null, "started_at": null, "completed_at": null }
+  },
+  "build": {
+    "total_phases": 11,
+    "current_phase_index": 0,
+    "phases": [
+      { "name": "Project Foundation", "status": "pending", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": null },
+      { "name": "HD Wallet & Address Generation", "status": "pending", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": null },
+      { "name": "Address Explorer", "status": "pending", "plan_file": "04-build-plan/phases/phase-03/PLAN.md", "summary_file": null },
+      { "name": "Scanner Engine (Backend)", "status": "pending", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": null },
+      { "name": "Scan UI + SSE", "status": "pending", "plan_file": "04-build-plan/phases/phase-05/PLAN.md", "summary_file": null },
+      { "name": "Dashboard & Price Service", "status": "pending", "plan_file": "04-build-plan/phases/phase-06/PLAN.md", "summary_file": null },
+      { "name": "BTC Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": null },
+      { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "pending", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": null },
+      { "name": "SOL Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": null },
+      { "name": "Send Interface", "status": "pending", "plan_file": "04-build-plan/phases/phase-10/PLAN.md", "summary_file": null },
+      { "name": "History, Settings & Deployment", "status": "pending", "plan_file": "04-build-plan/phases/phase-11/PLAN.md", "summary_file": null }
+    ]
+  },
+  "tech_stack": {
+    "backend_language": "Go 1.22+",
+    "router": "Chi v5",
+    "database": "SQLite (modernc.org/sqlite)",
+    "logging": "slog",
+    "config": "envconfig",
+    "rate_limiting": "golang.org/x/time/rate",
+    "btc_crypto": "btcsuite/btcd, go-bip39",
+    "evm_crypto": "go-ethereum",
+    "sol_crypto": "gagliardetto/solana-go",
+    "frontend_framework": "SvelteKit (adapter-static)",
+    "frontend_language": "TypeScript (strict)",
+    "css": "Tailwind + shadcn-svelte",
+    "charts": "Apache ECharts",
+    "table_virtualization": "@tanstack/svelte-virtual",
+    "testing_backend": "Go stdlib testing",
+    "testing_frontend": "Vitest + Testing Library"
+  },
+  "decisions": {
+    "initial_constraints": "Go 1.22+ backend (Chi, SQLite/modernc, slog), SvelteKit frontend (adapter-static, TS strict, Tailwind+shadcn-svelte, ECharts, tanstack-virtual), single binary deployment, localhost-only, free-tier blockchain APIs only, no CGO, CSRF protection, no stored private keys.",
+    "feature_tiers": "13 must-have, 6 should-have, 5 nice-to-have, 10 explicitly deferred",
+    "auth": "None — localhost-only with CSRF/CORS/host validation",
+    "no_responsive": "Desktop-only localhost tool",
+    "build_phases": "11 phases: Foundation → Wallet → Explorer → Scanner → Scan UI → Dashboard → BTC TX → BSC TX → SOL TX → Send UI → History/Settings/Deploy",
+    "setup_skipped": "CLAUDE.md already fully specified in prework; no additional setup phase needed"
+  },
+  "session_count": 0,
+  "last_session": {
+    "id": 0,
+    "date": "",
+    "summary": "",
+    "phase": ""
+  },
+  "pending_questions": false,
+  "responsive": false
+}
