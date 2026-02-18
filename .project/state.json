@@ -46,7 +46,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 1,
+  "current_build_phase": 2,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "v2/00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "v2/01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -60,7 +60,7 @@
     "current_phase_index": 1,
     "phases": [
       { "name": "Foundation: Schema, Error Types & Circuit Breaker", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-01/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-01/SUMMARY.md" },
-      { "name": "Scanner Resilience", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-02/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-02/SUMMARY.md" },
+      { "name": "Scanner Resilience", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-02/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-02/SUMMARY.md" },
       { "name": "TX Safety — Core", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-03/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-03/SUMMARY.md" },
       { "name": "TX Safety — Advanced", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-04/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-04/SUMMARY.md" },
       { "name": "Provider Health & Broadcast Fallback", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-05/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-05/SUMMARY.md" },
@@ -112,11 +112,11 @@
     "v2_transient_errors": "TransientError wrapper with optional RetryAfter duration. IsTransient() for retry decisions.",
     "v2_tx_state_tracking": "tx_state table tracks individual TX lifecycle: pending→broadcasting→confirming→confirmed|failed|uncertain"
   },
-  "session_count": 13,
+  "session_count": 14,
   "last_session": {
-    "id": 13,
+    "id": 14,
     "date": "2026-02-18",
-    "summary": "V2 Build Phase 1 complete: tx_state + provider_health DB tables, TransientError type, circuit breaker, BalanceResult enhanced with Error+Source fields, sweep ID generator. 24 new tests, all passing.",
+    "summary": "V2 Build Phase 2 complete: Scanner resilience — error collection in all 6 providers, partial result validation, atomic DB writes, circuit breaker wiring, exponential backoff, decoupled native/token, token error SSE, SSE resync on reconnect. All tests passing.",
     "phase": "building"
   },
   "pending_questions": false,

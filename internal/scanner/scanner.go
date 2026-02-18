@@ -12,7 +12,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/models"
 )
 
-// tokenConfig maps chain → list of (token, contract/mint) pairs to scan.
+// tokenConfig maps chain -> list of (token, contract/mint) pairs to scan.
 var tokenConfig = map[models.Chain][]struct {
 	Token    models.Token
 	Contract string
@@ -161,6 +161,7 @@ func (s *Scanner) removeScan(chain models.Chain) {
 }
 
 // runScan performs the actual scanning work.
+// V2: atomic DB writes, decoupled native/token, exponential backoff, token error SSE.
 func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, startIndex, maxID int) {
 	defer s.removeScan(chain)
 
@@ -168,6 +169,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 	batchSize := pool.MaxBatchSize()
 	scanned := startIndex
 	found := 0
+	consecutivePoolFails := 0
 
 	slog.Info("scan goroutine started",
 		"chain", chain,
@@ -202,6 +204,28 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 		default:
 		}
 
+		// Exponential backoff on consecutive all-provider failures (B11).
+		if consecutivePoolFails > 0 {
+			backoff := pool.SuggestBackoff(consecutivePoolFails)
+			slog.Warn("backing off before retry",
+				"chain", chain,
+				"consecutiveFailures", consecutivePoolFails,
+				"backoff", backoff,
+			)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				slog.Info("scan cancelled during backoff", "chain", chain)
+				s.db.UpsertScanState(models.ScanState{
+					Chain:            chain,
+					LastScannedIndex: scanned,
+					MaxScanID:        maxID,
+					Status:           db.ScanStatusScanning,
+				})
+				return
+			}
+		}
+
 		// Calculate batch range.
 		end := i + batchSize
 		if end > maxID {
@@ -218,7 +242,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				"count", count,
 				"error", err,
 			)
-			s.finishScan(chain, maxID, scanned, db.ScanStatusFailed, startTime, err)
+			s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
 			return
 		}
 
@@ -231,11 +255,13 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 			continue
 		}
 
-		// Fetch native balances.
-		results, err := pool.FetchNativeBalances(ctx, addresses)
+		// --- Fetch native balances (B8: failure does not block tokens) ---
+		var nativeBalances []models.Balance
+		nativeFailed := false
+
+		nativeResults, err := pool.FetchNativeBalances(ctx, addresses)
 		if err != nil {
 			if ctx.Err() != nil {
-				// Context cancelled — handle gracefully.
 				slog.Info("scan cancelled during native fetch", "chain", chain)
 				s.db.UpsertScanState(models.ScanState{
 					Chain:            chain,
@@ -245,90 +271,142 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				})
 				return
 			}
-			slog.Error("native balance fetch failed",
+			slog.Error("native balance fetch failed, continuing to tokens",
 				"chain", chain,
 				"start", i,
 				"error", err,
 			)
-			s.finishScan(chain, maxID, scanned, db.ScanStatusFailed, startTime, err)
-			return
-		}
-
-		// Store native balances.
-		balances := make([]models.Balance, 0, len(results))
-		for _, r := range results {
-			balances = append(balances, models.Balance{
-				Chain:        chain,
-				AddressIndex: r.AddressIndex,
-				Token:        models.TokenNative,
-				Balance:      r.Balance,
-			})
-			if r.Balance != "0" {
-				found++
+			nativeFailed = true
+			consecutivePoolFails++
+		} else {
+			consecutivePoolFails = 0
+			nativeBalances = make([]models.Balance, 0, len(nativeResults))
+			for _, r := range nativeResults {
+				nativeBalances = append(nativeBalances, models.Balance{
+					Chain:        chain,
+					AddressIndex: r.AddressIndex,
+					Token:        models.TokenNative,
+					Balance:      r.Balance,
+				})
+				if r.Balance != "0" {
+					found++
+				}
 			}
 		}
 
-		if len(balances) > 0 {
-			if err := s.db.UpsertBalanceBatch(balances); err != nil {
-				slog.Error("failed to store native balances",
-					"chain", chain,
-					"error", err,
-				)
-				s.finishScan(chain, maxID, scanned, db.ScanStatusFailed, startTime, err)
-				return
-			}
-		}
-
-		// Fetch token balances (BSC/SOL only).
+		// --- Fetch token balances (B8: decoupled from native) ---
+		var allTokenBalances []models.Balance
 		for _, tc := range tokenConfig[chain] {
+			if tc.Contract == "" {
+				continue
+			}
 			tokenResults, err := pool.FetchTokenBalances(ctx, addresses, tc.Token, tc.Contract)
 			if err != nil {
 				if ctx.Err() != nil {
 					return
 				}
-				// Token fetch failures are non-fatal — log and continue.
+				// Token fetch failures are non-fatal — broadcast SSE event (B7).
 				slog.Warn("token balance fetch failed",
 					"chain", chain,
 					"token", tc.Token,
 					"error", err,
 				)
+				s.hub.Broadcast(Event{
+					Type: "scan_token_error",
+					Data: ScanTokenErrorData{
+						Chain:   string(chain),
+						Token:   string(tc.Token),
+						Error:   config.ErrorTokenScanFailed,
+						Message: err.Error(),
+					},
+				})
 				continue
 			}
 
-			tokenBalances := make([]models.Balance, 0, len(tokenResults))
 			for _, r := range tokenResults {
-				tokenBalances = append(tokenBalances, models.Balance{
+				allTokenBalances = append(allTokenBalances, models.Balance{
 					Chain:        chain,
 					AddressIndex: r.AddressIndex,
 					Token:        tc.Token,
 					Balance:      r.Balance,
 				})
 			}
+		}
 
-			if len(tokenBalances) > 0 {
-				if err := s.db.UpsertBalanceBatch(tokenBalances); err != nil {
-					slog.Warn("failed to store token balances",
+		// --- Atomic DB write: balances + scan state in one transaction (B4) ---
+		allBalances := append(nativeBalances, allTokenBalances...)
+		scanned = end
+
+		if len(allBalances) > 0 || !nativeFailed {
+			tx, err := s.db.BeginTx()
+			if err != nil {
+				slog.Error("failed to begin batch transaction",
+					"chain", chain,
+					"error", err,
+				)
+				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				return
+			}
+
+			if len(allBalances) > 0 {
+				if err := s.db.UpsertBalanceBatchTx(tx, allBalances); err != nil {
+					tx.Rollback()
+					slog.Error("failed to store balances in tx",
 						"chain", chain,
-						"token", tc.Token,
 						"error", err,
 					)
+					s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+					return
 				}
+			}
+
+			if err := s.db.UpsertScanStateTx(tx, models.ScanState{
+				Chain:            chain,
+				LastScannedIndex: scanned,
+				MaxScanID:        maxID,
+				Status:           db.ScanStatusScanning,
+			}); err != nil {
+				tx.Rollback()
+				slog.Error("failed to update scan state in tx",
+					"chain", chain,
+					"error", err,
+				)
+				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				return
+			}
+
+			if err := tx.Commit(); err != nil {
+				slog.Error("failed to commit batch transaction",
+					"chain", chain,
+					"error", err,
+				)
+				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				return
+			}
+		} else {
+			// Native failed and no token balances — still update scan state (non-atomic is fine).
+			if err := s.db.UpsertScanState(models.ScanState{
+				Chain:            chain,
+				LastScannedIndex: scanned,
+				MaxScanID:        maxID,
+				Status:           db.ScanStatusScanning,
+			}); err != nil {
+				slog.Warn("failed to update scan state after native failure",
+					"chain", chain,
+					"error", err,
+				)
 			}
 		}
 
-		scanned = end
-
-		// Update scan state.
-		if err := s.db.UpsertScanState(models.ScanState{
-			Chain:            chain,
-			LastScannedIndex: scanned,
-			MaxScanID:        maxID,
-			Status:           db.ScanStatusScanning,
-		}); err != nil {
-			slog.Warn("failed to update scan state",
+		// Abort after too many consecutive all-provider failures.
+		if consecutivePoolFails >= config.MaxConsecutivePoolFails {
+			slog.Error("too many consecutive provider failures, aborting scan",
 				"chain", chain,
-				"error", err,
+				"consecutiveFailures", consecutivePoolFails,
 			)
+			s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime,
+				fmt.Errorf("aborted after %d consecutive all-provider failures", consecutivePoolFails))
+			return
 		}
 
 		// Broadcast progress.
@@ -349,16 +427,17 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 			"scanned", scanned,
 			"total", maxID,
 			"found", found,
+			"nativeFailed", nativeFailed,
 			"elapsed", elapsed,
 		)
 	}
 
 	// Scan complete.
-	s.finishScan(chain, maxID, scanned, db.ScanStatusCompleted, startTime, nil)
+	s.finishScan(chain, maxID, scanned, found, db.ScanStatusCompleted, startTime, nil)
 }
 
 // finishScan updates state and broadcasts completion/error events.
-func (s *Scanner) finishScan(chain models.Chain, maxID, scanned int, status string, startTime time.Time, scanErr error) {
+func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found int, status string, startTime time.Time, scanErr error) {
 	duration := time.Since(startTime).Round(time.Second)
 
 	if err := s.db.UpsertScanState(models.ScanState{
@@ -377,6 +456,7 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned int, status stri
 		slog.Info("scan completed",
 			"chain", chain,
 			"scanned", scanned,
+			"found", found,
 			"duration", duration,
 		)
 		s.hub.Broadcast(Event{
@@ -384,7 +464,7 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned int, status stri
 			Data: ScanCompleteData{
 				Chain:    string(chain),
 				Scanned: scanned,
-				Found:   0, // TODO: count from DB
+				Found:   found,
 				Duration: duration.String(),
 			},
 		})
@@ -396,6 +476,7 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned int, status stri
 		slog.Error("scan failed",
 			"chain", chain,
 			"scanned", scanned,
+			"found", found,
 			"error", errMsg,
 			"duration", duration,
 		)

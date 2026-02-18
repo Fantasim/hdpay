@@ -235,7 +235,8 @@ func buildScanStatus(sc *scanner.Scanner, chain models.Chain) *scanStatusRespons
 }
 
 // ScanSSE handles GET /api/scan/sse — Server-Sent Events stream.
-func ScanSSE(hub *scanner.SSEHub) http.HandlerFunc {
+// Sends scan_state snapshots on connect for client resync (B10).
+func ScanSSE(hub *scanner.SSEHub, sc *scanner.Scanner, database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -268,6 +269,40 @@ func ScanSSE(hub *scanner.SSEHub) http.HandlerFunc {
 		slog.Info("SSE client connected",
 			"remoteAddr", r.RemoteAddr,
 			"totalClients", hub.ClientCount(),
+		)
+
+		// Send scan_state snapshots for all chains on connect (B10 resync).
+		for _, chain := range models.AllChains {
+			state := sc.Status(chain)
+			isRunning := sc.IsRunning(chain)
+
+			snapshot := scanner.ScanStateSnapshotData{
+				Chain:     string(chain),
+				IsRunning: isRunning,
+			}
+			if state != nil {
+				snapshot.LastScannedIndex = state.LastScannedIndex
+				snapshot.MaxScanID = state.MaxScanID
+				snapshot.Status = state.Status
+			} else {
+				snapshot.Status = "idle"
+			}
+
+			data, err := json.Marshal(snapshot)
+			if err != nil {
+				slog.Error("failed to marshal scan_state snapshot",
+					"chain", chain,
+					"error", err,
+				)
+				continue
+			}
+			fmt.Fprintf(w, "event: scan_state\ndata: %s\n\n", string(data))
+		}
+		flusher.Flush()
+
+		slog.Debug("SSE resync snapshots sent",
+			"remoteAddr", r.RemoteAddr,
+			"chains", len(models.AllChains),
 		)
 
 		keepAlive := time.NewTicker(config.SSEKeepAliveInterval)

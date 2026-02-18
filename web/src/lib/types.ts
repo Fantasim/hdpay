@@ -75,6 +75,23 @@ export interface ScanErrorEvent {
 	message: string;
 }
 
+// ScanTokenErrorEvent is the SSE payload for scan_token_error (B7).
+export interface ScanTokenErrorEvent {
+	chain: Chain;
+	token: string;
+	error: string;
+	message: string;
+}
+
+// ScanStateSnapshot is the SSE payload for scan_state (B10 resync).
+export interface ScanStateSnapshot {
+	chain: Chain;
+	lastScannedIndex: number;
+	maxScanId: number;
+	status: string;
+	isRunning: boolean;
+}
+
 // ScanStateWithRunning augments ScanState with live running flag from backend.
 export interface ScanStateWithRunning extends ScanState {
 	isRunning: boolean;

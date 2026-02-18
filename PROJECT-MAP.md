@@ -37,7 +37,7 @@ hdpay/
 |   |-- db/
 |   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
 |   |   |-- addresses_test.go        # Address DB tests (5 tests)
-|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, aggregates, GetFundedAddressesJoined
+|   |   |-- balances.go              # Balance CRUD + batch upsert + UpsertBalanceBatchTx (atomic), funded queries, aggregates
 |   |   |-- balances_test.go         # Balance DB tests (10 tests)
 |   |   |-- migrations/
 |   |   |   |-- 001_initial.sql      # Initial schema: 5 tables

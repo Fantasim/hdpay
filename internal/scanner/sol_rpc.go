@@ -140,13 +140,34 @@ func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses [
 		return nil, fmt.Errorf("%w: nil result", config.ErrProviderUnavailable)
 	}
 
-	results := make([]BalanceResult, 0, len(addresses))
-	for i, raw := range respBody.Result.Value {
-		if i >= len(addresses) {
-			break
+	// Validate result count vs requested count (B3 fix).
+	resultCount := len(respBody.Result.Value)
+	requestCount := len(addresses)
+	if resultCount < requestCount {
+		slog.Warn("solana RPC returned partial native results",
+			"provider", p.name,
+			"requested", requestCount,
+			"received", resultCount,
+		)
+	}
+
+	results := make([]BalanceResult, 0, requestCount)
+	for i := 0; i < requestCount; i++ {
+		if i >= resultCount {
+			// Missing from response — annotate with error.
+			results = append(results, BalanceResult{
+				Address:      addresses[i].Address,
+				AddressIndex: addresses[i].AddressIndex,
+				Balance:      "0",
+				Error:        "not returned by RPC",
+				Source:       p.Name(),
+			})
+			continue
 		}
 
+		raw := respBody.Result.Value[i]
 		balance := "0"
+		var resultErr string
 
 		// null means account doesn't exist (zero balance).
 		if string(raw) != "null" {
@@ -157,6 +178,7 @@ func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses [
 					"index", addresses[i].AddressIndex,
 					"error", err,
 				)
+				resultErr = fmt.Sprintf("unmarshal error: %s", err.Error())
 			} else {
 				balance = strconv.FormatUint(account.Lamports, 10)
 			}
@@ -166,6 +188,7 @@ func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses [
 			Address:      addresses[i].Address,
 			AddressIndex: addresses[i].AddressIndex,
 			Balance:      balance,
+			Error:        resultErr,
 			Source:       p.Name(),
 		})
 
@@ -256,21 +279,47 @@ func (p *SolanaRPCProvider) FetchTokenBalances(ctx context.Context, addresses []
 		return nil, fmt.Errorf("%w: nil result", config.ErrProviderUnavailable)
 	}
 
+	// Validate result count vs requested count (B3 fix).
+	resultCount := len(respBody.Result.Value)
+	ataCount := len(validATAs)
+	if resultCount < ataCount {
+		slog.Warn("solana RPC returned partial token results",
+			"provider", p.name,
+			"token", token,
+			"requested", ataCount,
+			"received", resultCount,
+		)
+	}
+
+	// Track which address indices were returned.
+	returnedIndices := make(map[int]bool, ataCount)
+
 	// Parse results and map back to original wallet addresses.
 	results := make([]BalanceResult, 0, len(addresses))
-	for i, raw := range respBody.Result.Value {
-		if i >= len(validATAs) {
-			break
-		}
-
+	for i := 0; i < ataCount; i++ {
 		ata := validATAs[i]
 		addrIdx, ok := ataToIndex[ata]
 		if !ok {
 			continue
 		}
 		addr := addresses[addrIdx]
+		returnedIndices[addrIdx] = true
 
+		if i >= resultCount {
+			// Missing from response — annotate with error.
+			results = append(results, BalanceResult{
+				Address:      addr.Address,
+				AddressIndex: addr.AddressIndex,
+				Balance:      "0",
+				Error:        "not returned by RPC",
+				Source:       p.Name(),
+			})
+			continue
+		}
+
+		raw := respBody.Result.Value[i]
 		balance := "0"
+		var resultErr string
 
 		if string(raw) != "null" {
 			var account solanaAccountParsed
@@ -280,6 +329,7 @@ func (p *SolanaRPCProvider) FetchTokenBalances(ctx context.Context, addresses []
 					"ata", ata,
 					"error", err,
 				)
+				resultErr = fmt.Sprintf("unmarshal error: %s", err.Error())
 			} else if account.Data.Parsed.Info.TokenAmount.Amount != "" {
 				balance = account.Data.Parsed.Info.TokenAmount.Amount
 			}
@@ -289,6 +339,7 @@ func (p *SolanaRPCProvider) FetchTokenBalances(ctx context.Context, addresses []
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balance,
+			Error:        resultErr,
 			Source:       p.Name(),
 		})
 
@@ -299,6 +350,19 @@ func (p *SolanaRPCProvider) FetchTokenBalances(ctx context.Context, addresses []
 			"token", token,
 			"balance", balance,
 		)
+	}
+
+	// Add error annotation for addresses whose ATA derivation failed.
+	for i, ata := range ataAddresses {
+		if ata == "" && !returnedIndices[i] {
+			results = append(results, BalanceResult{
+				Address:      addresses[i].Address,
+				AddressIndex: addresses[i].AddressIndex,
+				Balance:      "0",
+				Error:        "ATA derivation failed",
+				Source:       p.Name(),
+			})
+		}
 	}
 
 	return results, nil
@@ -324,8 +388,9 @@ func (p *SolanaRPCProvider) doRPCCall(ctx context.Context, rpcReq solanaRPCReque
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		slog.Warn("solana rpc rate limited", "provider", p.name)
-		return nil, config.ErrProviderRateLimit
+		retryAfter := parseRetryAfter(resp.Header)
+		slog.Warn("solana rpc rate limited", "provider", p.name, "retryAfter", retryAfter)
+		return nil, config.NewTransientErrorWithRetry(config.ErrProviderRateLimit, retryAfter)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -333,7 +398,7 @@ func (p *SolanaRPCProvider) doRPCCall(ctx context.Context, rpcReq solanaRPCReque
 			"provider", p.name,
 			"status", resp.StatusCode,
 		)
-		return nil, fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode)
+		return nil, config.NewTransientError(fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode))
 	}
 
 	var rpcResp solanaRPCResponse

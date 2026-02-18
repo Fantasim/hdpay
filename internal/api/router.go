@@ -43,7 +43,7 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 		r.Post("/scan/start", handlers.StartScan(sc))
 		r.Post("/scan/stop", handlers.StopScan(sc))
 		r.Get("/scan/status", handlers.GetScanStatus(sc, database))
-		r.Get("/scan/sse", handlers.ScanSSE(hub))
+		r.Get("/scan/sse", handlers.ScanSSE(hub, sc, database))
 
 		// Dashboard
 		r.Route("/dashboard", func(r chi.Router) {

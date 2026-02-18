@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -69,6 +70,39 @@ func (d *DB) UpsertBalanceBatch(balances []models.Balance) error {
 	}
 
 	slog.Debug("balance batch upserted",
+		"count", len(balances),
+		"chain", balances[0].Chain,
+	)
+
+	return nil
+}
+
+// UpsertBalanceBatchTx inserts or updates multiple balance records within an existing transaction.
+// Used for atomic scan state + balance writes.
+func (d *DB) UpsertBalanceBatchTx(tx *sql.Tx, balances []models.Balance) error {
+	if len(balances) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	stmt, err := tx.Prepare(
+		`INSERT INTO balances (chain, address_index, token, balance, last_scanned)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
+	)
+	if err != nil {
+		return fmt.Errorf("prepare balance upsert in tx: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, b := range balances {
+		if _, err := stmt.Exec(string(b.Chain), b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
+			return fmt.Errorf("exec balance upsert in tx %s/%d/%s: %w", b.Chain, b.AddressIndex, b.Token, err)
+		}
+	}
+
+	slog.Debug("balance batch upserted in tx",
 		"count", len(balances),
 		"chain", balances[0].Chain,
 	)

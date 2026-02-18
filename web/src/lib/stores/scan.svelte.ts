@@ -16,7 +16,9 @@ import type {
 	ScanCompleteEvent,
 	ScanErrorEvent,
 	ScanProgress,
-	ScanStateWithRunning
+	ScanStateSnapshot,
+	ScanStateWithRunning,
+	ScanTokenErrorEvent
 } from '$lib/types';
 
 type SSEConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -26,6 +28,7 @@ interface ScanStoreState {
 	progress: Record<string, ScanProgress | null>;
 	lastComplete: Record<string, ScanCompleteEvent | null>;
 	lastError: Record<string, ScanErrorEvent | null>;
+	lastTokenError: Record<string, ScanTokenErrorEvent | null>;
 	sseStatus: SSEConnectionStatus;
 	loading: boolean;
 	error: string | null;
@@ -37,6 +40,7 @@ function createScanStore() {
 		progress: {},
 		lastComplete: {},
 		lastError: {},
+		lastTokenError: {},
 		sseStatus: 'disconnected',
 		loading: false,
 		error: null
@@ -145,6 +149,37 @@ function createScanStore() {
 				state.progress = { ...state.progress, [data.chain]: null };
 				// Refresh status from API.
 				fetchStatus();
+			} catch {
+				// Malformed payload — ignore.
+			}
+		});
+
+		// Token-specific scan error (B7).
+		es.addEventListener('scan_token_error', (e: MessageEvent<string>) => {
+			try {
+				const data = JSON.parse(e.data) as ScanTokenErrorEvent;
+				state.lastTokenError = { ...state.lastTokenError, [data.chain]: data };
+			} catch {
+				// Malformed payload — ignore.
+			}
+		});
+
+		// Scan state snapshot on connect for resync (B10).
+		es.addEventListener('scan_state', (e: MessageEvent<string>) => {
+			try {
+				const data = JSON.parse(e.data) as ScanStateSnapshot;
+				state.statuses = {
+					...state.statuses,
+					[data.chain]: {
+						chain: data.chain,
+						lastScannedIndex: data.lastScannedIndex,
+						maxScanId: data.maxScanId,
+						status: data.status as ScanStateWithRunning['status'],
+						startedAt: null,
+						updatedAt: null,
+						isRunning: data.isRunning
+					}
+				};
 			} catch {
 				// Malformed payload — ignore.
 			}

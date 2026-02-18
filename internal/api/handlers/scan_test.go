@@ -58,7 +58,7 @@ func setupScanRouter(t *testing.T, sc *scanner.Scanner, hub *scanner.SSEHub, dat
 	r.Post("/api/scan/start", StartScan(sc))
 	r.Post("/api/scan/stop", StopScan(sc))
 	r.Get("/api/scan/status", GetScanStatus(sc, database))
-	r.Get("/api/scan/sse", ScanSSE(hub))
+	r.Get("/api/scan/sse", ScanSSE(hub, sc, database))
 	return r
 }
 

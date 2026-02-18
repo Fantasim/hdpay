@@ -69,6 +69,11 @@ func (d *DB) Conn() *sql.DB {
 	return d.conn
 }
 
+// BeginTx starts a new database transaction.
+func (d *DB) BeginTx() (*sql.Tx, error) {
+	return d.conn.Begin()
+}
+
 // RunMigrations applies all pending SQL migration files from the embedded filesystem.
 func (d *DB) RunMigrations() error {
 	// Ensure schema_migrations table exists

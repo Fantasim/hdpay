@@ -100,13 +100,14 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		slog.Warn("bscscan rate limited")
-		return nil, config.ErrProviderRateLimit
+		retryAfter := parseRetryAfter(resp.Header)
+		slog.Warn("bscscan rate limited", "retryAfter", retryAfter)
+		return nil, config.NewTransientErrorWithRetry(config.ErrProviderRateLimit, retryAfter)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		slog.Warn("bscscan non-200 response", "status", resp.StatusCode)
-		return nil, fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode)
+		return nil, config.NewTransientError(fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode))
 	}
 
 	var data bscScanMultiBalanceResponse
@@ -121,25 +122,30 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 		)
 		// BscScan returns status "0" for rate limits with specific messages.
 		if strings.Contains(data.Message, "rate limit") || strings.Contains(strings.ToLower(data.Message), "max rate") {
-			return nil, config.ErrProviderRateLimit
+			return nil, config.NewTransientError(config.ErrProviderRateLimit)
 		}
-		return nil, fmt.Errorf("%w: %s", config.ErrProviderUnavailable, data.Message)
+		return nil, config.NewTransientError(fmt.Errorf("%w: %s", config.ErrProviderUnavailable, data.Message))
 	}
 
-	// Build address→index lookup.
+	// Build address→index lookup and track which addresses were returned.
 	indexMap := make(map[string]int, len(addresses))
+	addrMap := make(map[string]models.Address, len(addresses))
 	for _, a := range addresses {
 		indexMap[strings.ToLower(a.Address)] = a.AddressIndex
+		addrMap[strings.ToLower(a.Address)] = a
 	}
 
-	results := make([]BalanceResult, 0, len(data.Result))
+	returned := make(map[string]bool, len(data.Result))
+	results := make([]BalanceResult, 0, len(addresses))
 	for _, item := range data.Result {
-		addrIndex, ok := indexMap[strings.ToLower(item.Account)]
+		lowerAddr := strings.ToLower(item.Account)
+		addrIndex, ok := indexMap[lowerAddr]
 		if !ok {
 			slog.Warn("bscscan returned unknown address", "address", item.Account)
 			continue
 		}
 
+		returned[lowerAddr] = true
 		results = append(results, BalanceResult{
 			Address:      item.Account,
 			AddressIndex: addrIndex,
@@ -154,16 +160,35 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 		)
 	}
 
+	// Detect missing addresses — those requested but not returned by BscScan.
+	for _, a := range addresses {
+		if !returned[strings.ToLower(a.Address)] {
+			slog.Warn("bscscan did not return balance for address",
+				"address", a.Address,
+				"index", a.AddressIndex,
+			)
+			results = append(results, BalanceResult{
+				Address:      a.Address,
+				AddressIndex: a.AddressIndex,
+				Balance:      "0",
+				Error:        "address not returned by provider",
+				Source:       p.Name(),
+			})
+		}
+	}
+
 	return results, nil
 }
 
 // FetchTokenBalances fetches BEP-20 token balances one address at a time via BscScan tokenbalance.
+// Continues on per-address errors instead of early-returning.
 func (p *BscScanProvider) FetchTokenBalances(ctx context.Context, addresses []models.Address, token models.Token, contractAddress string) ([]BalanceResult, error) {
 	if contractAddress == "" {
 		return nil, fmt.Errorf("contract address required for BSC token balance")
 	}
 
 	results := make([]BalanceResult, 0, len(addresses))
+	var failCount int
 
 	for _, addr := range addresses {
 		if err := p.rl.Wait(ctx); err != nil {
@@ -172,7 +197,26 @@ func (p *BscScanProvider) FetchTokenBalances(ctx context.Context, addresses []mo
 
 		balance, err := p.fetchTokenBalance(ctx, addr.Address, contractAddress)
 		if err != nil {
-			return results, fmt.Errorf("fetch %s balance for %s (index %d): %w", token, addr.Address, addr.AddressIndex, err)
+			if ctx.Err() != nil {
+				return results, fmt.Errorf("context cancelled during token fetch: %w", err)
+			}
+
+			slog.Warn("bscscan token balance fetch failed",
+				"provider", p.Name(),
+				"address", addr.Address,
+				"index", addr.AddressIndex,
+				"token", token,
+				"error", err,
+			)
+			failCount++
+			results = append(results, BalanceResult{
+				Address:      addr.Address,
+				AddressIndex: addr.AddressIndex,
+				Balance:      "0",
+				Error:        err.Error(),
+				Source:       p.Name(),
+			})
+			continue
 		}
 
 		results = append(results, BalanceResult{
@@ -188,6 +232,10 @@ func (p *BscScanProvider) FetchTokenBalances(ctx context.Context, addresses []mo
 			"token", token,
 			"balance", balance,
 		)
+	}
+
+	if failCount > 0 && failCount == len(addresses) {
+		return results, fmt.Errorf("all %d token balance fetches failed: %w", failCount, config.ErrProviderUnavailable)
 	}
 
 	return results, nil
@@ -218,12 +266,13 @@ func (p *BscScanProvider) fetchTokenBalance(ctx context.Context, address, contra
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		slog.Warn("bscscan token rate limited", "address", address)
-		return "0", config.ErrProviderRateLimit
+		retryAfter := parseRetryAfter(resp.Header)
+		slog.Warn("bscscan token rate limited", "address", address, "retryAfter", retryAfter)
+		return "0", config.NewTransientErrorWithRetry(config.ErrProviderRateLimit, retryAfter)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "0", fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode)
+		return "0", config.NewTransientError(fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode))
 	}
 
 	var data bscScanTokenBalanceResponse
@@ -233,9 +282,9 @@ func (p *BscScanProvider) fetchTokenBalance(ctx context.Context, address, contra
 
 	if data.Status != "1" {
 		if strings.Contains(data.Message, "rate limit") || strings.Contains(strings.ToLower(data.Message), "max rate") {
-			return "0", config.ErrProviderRateLimit
+			return "0", config.NewTransientError(config.ErrProviderRateLimit)
 		}
-		return "0", fmt.Errorf("%w: %s", config.ErrProviderUnavailable, data.Message)
+		return "0", config.NewTransientError(fmt.Errorf("%w: %s", config.ErrProviderUnavailable, data.Message))
 	}
 
 	return data.Result, nil

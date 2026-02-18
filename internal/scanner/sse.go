@@ -38,6 +38,25 @@ type ScanErrorData struct {
 	Message string `json:"message"`
 }
 
+// ScanTokenErrorData is the payload for scan_token_error events (B7).
+// Emitted when a token scan fails but native scan continues.
+type ScanTokenErrorData struct {
+	Chain   string `json:"chain"`
+	Token   string `json:"token"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+}
+
+// ScanStateSnapshotData is the payload for scan_state events (B10).
+// Sent to newly connected SSE clients so they can resync.
+type ScanStateSnapshotData struct {
+	Chain            string `json:"chain"`
+	LastScannedIndex int    `json:"lastScannedIndex"`
+	MaxScanID        int    `json:"maxScanId"`
+	Status           string `json:"status"`
+	IsRunning        bool   `json:"isRunning"`
+}
+
 // SSEHub manages fan-out broadcasting of events to connected SSE clients.
 type SSEHub struct {
 	clients map[chan Event]struct{}

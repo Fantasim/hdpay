@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (V2 Phase 2) — Scanner Resilience
+
+#### Added
+- Error collection pattern in all 6 providers: Blockstream, Mempool, BscScan, BSC RPC, Solana RPC — continue on per-address failure, annotate `BalanceResult.Error`
+- Retry-After header parser (`internal/scanner/retry_after.go`) — handles seconds and HTTP-date formats, 9 tests
+- Partial result validation for Solana `getMultipleAccounts` — detects and annotates missing results (B3)
+- Atomic batch DB writes: `BeginTx()`, `UpsertBalanceBatchTx()`, `UpsertScanStateTx()` — balances + scan state in single transaction (B4)
+- Per-provider circuit breakers wired into Pool: `Allow()` check, `RecordSuccess/Failure`, failover on open (B5)
+- Exponential backoff on consecutive all-provider failures: 1s→2s→4s...30s cap, abort after 5 consecutive (B11)
+- `scan_token_error` SSE event for frontend visibility of token scan failures (B7)
+- `scan_state` SSE event sent on client connect for resync (B10) — contains status + running state for all chains
+- `ScanTokenErrorData` and `ScanStateSnapshotData` structs in `sse.go`
+- `GetAllScanStates()` DB method for fetching all chain scan states
+- Frontend types: `ScanTokenErrorEvent`, `ScanStateSnapshot`
+- Frontend SSE listeners for `scan_token_error` and `scan_state` events
+- `lastTokenError` state field in scan store
+- New constants: `ExponentialBackoffBase`, `ExponentialBackoffMax`, `MaxConsecutivePoolFails`
+- New errors: `ErrPartialResults`, `ErrAllProvidersFailed`, error codes `ErrorPartialResults`, `ErrorAllProvidersFailed`, `ErrorTokenScanFailed`
+
+#### Changed
+- Scanner orchestrator (`scanner.go`) rewritten for V2: atomic DB writes, decoupled native/token, backoff loop, token error SSE
+- Native balance failure no longer aborts token scans for the same batch (B8)
+- `finishScan` now receives and broadcasts accurate `found` count (was hardcoded 0)
+- Pool uses `errors.Join()` to return all provider errors instead of just the last (B9)
+- `ScanSSE` handler now takes scanner + db args for resync support
+- All HTTP 429 responses wrapped with `NewTransientErrorWithRetry(ErrProviderRateLimit, retryAfter)`
+- All non-200 HTTP responses wrapped with `NewTransientError(...)`
+- BSC RPC `callBalanceOf` returns error on malformed response instead of silent zero
+- BscScan `FetchNativeBalances` detects and annotates addresses missing from response
+- Rewritten test suites: `btc_blockstream_test.go` (8 tests), `bsc_bscscan_test.go` (7 tests), `pool_test.go` (11 tests)
+
 ### 2026-02-18 (V2 Phase 1) — Foundation: Schema, Error Types & Circuit Breaker
 
 #### Added

@@ -46,7 +46,9 @@ var (
 	ErrCircuitOpen = errors.New("circuit breaker is open")
 
 	// Provider
-	ErrProviderTimeout = errors.New("provider request timeout")
+	ErrProviderTimeout    = errors.New("provider request timeout")
+	ErrPartialResults     = errors.New("partial results returned")
+	ErrAllProvidersFailed = errors.New("all providers failed")
 )
 
 // TransientError wraps an error that should be retried.
@@ -128,5 +130,8 @@ const (
 	ErrorCircuitOpen = "ERROR_CIRCUIT_OPEN"
 
 	// Provider
-	ErrorProviderTimeout = "ERROR_PROVIDER_TIMEOUT"
+	ErrorProviderTimeout    = "ERROR_PROVIDER_TIMEOUT"
+	ErrorPartialResults     = "ERROR_PARTIAL_RESULTS"
+	ErrorAllProvidersFailed = "ERROR_ALL_PROVIDERS_FAILED"
+	ErrorTokenScanFailed    = "ERROR_TOKEN_SCAN_FAILED"
 )

@@ -87,6 +87,74 @@ func (d *DB) UpsertScanState(state models.ScanState) error {
 	return nil
 }
 
+// UpsertScanStateTx creates or updates the scan state within an existing transaction.
+// Used for atomic scan state + balance writes.
+func (d *DB) UpsertScanStateTx(tx *sql.Tx, state models.ScanState) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := tx.Exec(
+		`INSERT INTO scan_state (chain, last_scanned_index, max_scan_id, status, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain) DO UPDATE SET
+		   last_scanned_index = excluded.last_scanned_index,
+		   max_scan_id = excluded.max_scan_id,
+		   status = excluded.status,
+		   started_at = COALESCE(NULLIF(excluded.started_at, ''), scan_state.started_at),
+		   updated_at = excluded.updated_at`,
+		string(state.Chain), state.LastScannedIndex, state.MaxScanID, state.Status,
+		state.StartedAt, now,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert scan state in tx for %s: %w", state.Chain, err)
+	}
+
+	slog.Debug("scan state upserted in tx",
+		"chain", state.Chain,
+		"lastIndex", state.LastScannedIndex,
+		"status", state.Status,
+	)
+
+	return nil
+}
+
+// GetAllScanStates returns current scan state for all chains.
+func (d *DB) GetAllScanStates() ([]models.ScanState, error) {
+	slog.Debug("fetching all scan states")
+
+	rows, err := d.conn.Query(
+		`SELECT chain, last_scanned_index, max_scan_id, status, started_at, updated_at
+		 FROM scan_state`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query all scan states: %w", err)
+	}
+	defer rows.Close()
+
+	var states []models.ScanState
+	for rows.Next() {
+		var state models.ScanState
+		var startedAt, updatedAt sql.NullString
+		if err := rows.Scan(&state.Chain, &state.LastScannedIndex, &state.MaxScanID, &state.Status, &startedAt, &updatedAt); err != nil {
+			return nil, fmt.Errorf("scan state row: %w", err)
+		}
+		if startedAt.Valid {
+			state.StartedAt = startedAt.String
+		}
+		if updatedAt.Valid {
+			state.UpdatedAt = updatedAt.String
+		}
+		states = append(states, state)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate scan state rows: %w", err)
+	}
+
+	slog.Debug("all scan states fetched", "count", len(states))
+
+	return states, nil
+}
+
 // ShouldResume checks if a scan can be resumed for the given chain.
 // Returns true if a scan exists, is recent enough (within ScanResumeThreshold),
 // and was in "scanning" or "completed" status.

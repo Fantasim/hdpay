@@ -219,6 +219,13 @@ const (
 	CircuitBreakerHalfOpenMax = 1                // max requests in half-open
 )
 
+// Scanner Resilience
+const (
+	ExponentialBackoffBase = 1 * time.Second  // base delay for backoff when all providers fail
+	ExponentialBackoffMax  = 30 * time.Second // max backoff cap
+	MaxConsecutivePoolFails = 5               // max consecutive all-provider failures before stopping scan
+)
+
 // TX State Statuses
 const (
 	TxStatePending      = "pending"

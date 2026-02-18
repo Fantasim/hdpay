@@ -47,17 +47,39 @@ func (p *MempoolProvider) Chain() models.Chain        { return models.ChainBTC }
 func (p *MempoolProvider) MaxBatchSize() int          { return 1 }
 
 // FetchNativeBalances fetches BTC balance for each address (one API call per address).
+// Continues on per-address errors instead of early-returning, annotating failed results.
 func (p *MempoolProvider) FetchNativeBalances(ctx context.Context, addresses []models.Address) ([]BalanceResult, error) {
 	results := make([]BalanceResult, 0, len(addresses))
+	var failCount int
 
 	for _, addr := range addresses {
 		if err := p.rl.Wait(ctx); err != nil {
+			// Context cancelled — stop iteration (not retriable).
 			return results, fmt.Errorf("rate limiter wait: %w", err)
 		}
 
 		balance, err := p.fetchAddressBalance(ctx, addr.Address)
 		if err != nil {
-			return results, fmt.Errorf("fetch balance for %s (index %d): %w", addr.Address, addr.AddressIndex, err)
+			// Context cancellation during fetch — stop immediately.
+			if ctx.Err() != nil {
+				return results, fmt.Errorf("context cancelled during fetch: %w", err)
+			}
+
+			slog.Warn("mempool address balance fetch failed",
+				"provider", p.Name(),
+				"address", addr.Address,
+				"index", addr.AddressIndex,
+				"error", err,
+			)
+			failCount++
+			results = append(results, BalanceResult{
+				Address:      addr.Address,
+				AddressIndex: addr.AddressIndex,
+				Balance:      "0",
+				Error:        err.Error(),
+				Source:       p.Name(),
+			})
+			continue
 		}
 
 		results = append(results, BalanceResult{
@@ -72,6 +94,11 @@ func (p *MempoolProvider) FetchNativeBalances(ctx context.Context, addresses []m
 			"index", addr.AddressIndex,
 			"balance", balance,
 		)
+	}
+
+	// If every address failed, return an error so the pool tries the next provider.
+	if failCount > 0 && failCount == len(addresses) {
+		return results, fmt.Errorf("all %d addresses failed: %w", failCount, config.ErrProviderUnavailable)
 	}
 
 	return results, nil
@@ -102,8 +129,12 @@ func (p *MempoolProvider) fetchAddressBalance(ctx context.Context, address strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		slog.Warn("mempool rate limited", "address", address)
-		return "0", config.ErrProviderRateLimit
+		retryAfter := parseRetryAfter(resp.Header)
+		slog.Warn("mempool rate limited",
+			"address", address,
+			"retryAfter", retryAfter,
+		)
+		return "0", config.NewTransientErrorWithRetry(config.ErrProviderRateLimit, retryAfter)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -111,7 +142,7 @@ func (p *MempoolProvider) fetchAddressBalance(ctx context.Context, address strin
 			"address", address,
 			"status", resp.StatusCode,
 		)
-		return "0", fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode)
+		return "0", config.NewTransientError(fmt.Errorf("%w: HTTP %d", config.ErrProviderUnavailable, resp.StatusCode))
 	}
 
 	var data mempoolResponse

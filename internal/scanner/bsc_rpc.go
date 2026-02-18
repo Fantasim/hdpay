@@ -61,8 +61,10 @@ func (p *BSCRPCProvider) Close() {
 }
 
 // FetchNativeBalances fetches BNB balance for each address using eth_getBalance.
+// Continues on per-address errors instead of early-returning.
 func (p *BSCRPCProvider) FetchNativeBalances(ctx context.Context, addresses []models.Address) ([]BalanceResult, error) {
 	results := make([]BalanceResult, 0, len(addresses))
+	var failCount int
 
 	for _, addr := range addresses {
 		if err := p.rl.Wait(ctx); err != nil {
@@ -71,12 +73,25 @@ func (p *BSCRPCProvider) FetchNativeBalances(ctx context.Context, addresses []mo
 
 		balance, err := p.client.BalanceAt(ctx, common.HexToAddress(addr.Address), nil)
 		if err != nil {
+			if ctx.Err() != nil {
+				return results, fmt.Errorf("context cancelled during balance fetch: %w", err)
+			}
+
 			slog.Warn("bsc rpc balance error",
+				"provider", p.Name(),
 				"address", addr.Address,
 				"index", addr.AddressIndex,
 				"error", err,
 			)
-			return results, fmt.Errorf("balance for %s: %w", addr.Address, err)
+			failCount++
+			results = append(results, BalanceResult{
+				Address:      addr.Address,
+				AddressIndex: addr.AddressIndex,
+				Balance:      "0",
+				Error:        err.Error(),
+				Source:       p.Name(),
+			})
+			continue
 		}
 
 		balanceStr := balance.String()
@@ -94,10 +109,15 @@ func (p *BSCRPCProvider) FetchNativeBalances(ctx context.Context, addresses []mo
 		)
 	}
 
+	if failCount > 0 && failCount == len(addresses) {
+		return results, fmt.Errorf("all %d addresses failed: %w", failCount, config.ErrProviderUnavailable)
+	}
+
 	return results, nil
 }
 
 // FetchTokenBalances fetches BEP-20 token balances using eth_call with balanceOf(address).
+// Continues on per-address errors instead of early-returning.
 func (p *BSCRPCProvider) FetchTokenBalances(ctx context.Context, addresses []models.Address, token models.Token, contractAddress string) ([]BalanceResult, error) {
 	if contractAddress == "" {
 		return nil, fmt.Errorf("contract address required for BSC token balance")
@@ -105,6 +125,7 @@ func (p *BSCRPCProvider) FetchTokenBalances(ctx context.Context, addresses []mod
 
 	contract := common.HexToAddress(contractAddress)
 	results := make([]BalanceResult, 0, len(addresses))
+	var failCount int
 
 	for _, addr := range addresses {
 		if err := p.rl.Wait(ctx); err != nil {
@@ -113,13 +134,26 @@ func (p *BSCRPCProvider) FetchTokenBalances(ctx context.Context, addresses []mod
 
 		balance, err := p.callBalanceOf(ctx, contract, common.HexToAddress(addr.Address))
 		if err != nil {
+			if ctx.Err() != nil {
+				return results, fmt.Errorf("context cancelled during token fetch: %w", err)
+			}
+
 			slog.Warn("bsc rpc token balance error",
+				"provider", p.Name(),
 				"address", addr.Address,
 				"index", addr.AddressIndex,
 				"token", token,
 				"error", err,
 			)
-			return results, fmt.Errorf("%s balance for %s: %w", token, addr.Address, err)
+			failCount++
+			results = append(results, BalanceResult{
+				Address:      addr.Address,
+				AddressIndex: addr.AddressIndex,
+				Balance:      "0",
+				Error:        err.Error(),
+				Source:       p.Name(),
+			})
+			continue
 		}
 
 		balanceStr := balance.String()
@@ -136,6 +170,10 @@ func (p *BSCRPCProvider) FetchTokenBalances(ctx context.Context, addresses []mod
 			"token", token,
 			"balance", balanceStr,
 		)
+	}
+
+	if failCount > 0 && failCount == len(addresses) {
+		return results, fmt.Errorf("all %d token balance fetches failed: %w", failCount, config.ErrProviderUnavailable)
 	}
 
 	return results, nil
@@ -159,7 +197,11 @@ func (p *BSCRPCProvider) callBalanceOf(ctx context.Context, contract, holder com
 	}
 
 	if len(output) < 32 {
-		return big.NewInt(0), nil
+		slog.Warn("bsc rpc malformed contract response",
+			"outputLen", len(output),
+			"expected", 32,
+		)
+		return nil, fmt.Errorf("malformed contract response: expected 32 bytes, got %d", len(output))
 	}
 
 	balance := new(big.Int).SetBytes(output)

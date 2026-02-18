@@ -4,9 +4,9 @@
 
 ## Current Position
 - **Version:** V2
-- **Phase:** Building (Phase 1 of 6 complete)
-- **Status:** V2 Build Phase 1 complete — foundation infrastructure laid
-- **Last session:** 2026-02-18 — Built V2 Phase 1: schema, error types, circuit breaker
+- **Phase:** Building (Phase 2 of 6 complete)
+- **Status:** V2 Build Phase 2 complete — scanner resilience hardened
+- **Last session:** 2026-02-18 — Built V2 Phase 2: Scanner Resilience
 
 ## Version History
 | Version | Completed | Summary |
@@ -17,7 +17,7 @@
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation: Schema, Error Types & Circuit Breaker | **Completed** |
-| 2 | Scanner Resilience | Pending |
+| 2 | Scanner Resilience | **Completed** |
 | 3 | TX Safety — Core | Pending |
 | 4 | TX Safety — Advanced | Pending |
 | 5 | Provider Health & Broadcast Fallback | Pending |
@@ -28,14 +28,17 @@
 - **Circuit breaker**: threshold=3, 30s cooldown, 1 half-open test request per provider
 - **TransientError**: Wrapper with optional RetryAfter for retry decisions
 - **TX state tracking**: tx_state table for full TX lifecycle (pending→broadcasting→confirming→confirmed|failed|uncertain)
+- **Native/token decoupled**: Native balance failure does not block token scans (B8)
+- **Atomic batch writes**: Balances + scan state written in single DB transaction (B4)
+- **Consecutive failure abort**: Scan aborts after 5 consecutive all-provider failures
 - All V1 decisions carry forward unchanged
 
 ## Tech Stack
 No changes from V1.
 
 ## Next Actions
-- Start V2 Build Phase 2: Scanner Resilience
-- Key files to read: `.project/v2/04-build-plan/phases/phase-02/PLAN.md`
+- Start V2 Build Phase 3: TX Safety — Core
+- Key files to read: `.project/v2/04-build-plan/phases/phase-03/PLAN.md`
 
 ## Files Reference
 | File | Purpose |
@@ -46,10 +49,12 @@ No changes from V1.
 | `.project/v2/02-plan.md` | V2 plan |
 | `.project/v2/04-build-plan/` | V2 build plan (6 phases) |
 | `.project/v2/04-build-plan/phases/phase-01/PLAN.md` | Phase 1 plan (completed) |
+| `.project/v2/04-build-plan/phases/phase-02/PLAN.md` | Phase 2 plan (completed) |
 
 ## Session History
 | # | Date | Phase | Summary |
 |---|------|-------|---------|
+| 14 | 2026-02-18 | building | V2 Build Phase 2: Scanner resilience — error collection, partial result validation, atomic DB writes, circuit breaker wiring, backoff, decoupled native/token, token error SSE, SSE resync. |
 | 13 | 2026-02-18 | building | V2 Build Phase 1: tx_state + provider_health DB, TransientError, circuit breaker, BalanceResult enhancement, sweep ID generator. 24 tests. |
 | 12 | 2026-02-18 | planning | V2 planning: robustness audit (37 issues), V2 plan + 6-phase build plan |
 | 11 | 2026-02-18 | building | Phase 11: History, Settings & Deployment — V1 COMPLETE |

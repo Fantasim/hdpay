@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Fantasim/hdpay/internal/config"
@@ -52,10 +54,19 @@ func TestBlockstreamProvider_FetchNativeBalances(t *testing.T) {
 	if results[0].AddressIndex != 0 {
 		t.Errorf("expected index 0, got %d", results[0].AddressIndex)
 	}
+
+	if results[0].Error != "" {
+		t.Errorf("expected no error, got %s", results[0].Error)
+	}
+
+	if results[0].Source != "Blockstream" {
+		t.Errorf("expected source Blockstream, got %s", results[0].Source)
+	}
 }
 
 func TestBlockstreamProvider_RateLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))
 	defer server.Close()
@@ -71,15 +82,21 @@ func TestBlockstreamProvider_RateLimit(t *testing.T) {
 		{Chain: models.ChainBTC, AddressIndex: 0, Address: "bc1qtest"},
 	}
 
-	_, err := provider.FetchNativeBalances(context.Background(), addresses)
+	// Single address rate limited → all addresses failed → returns error.
+	results, err := provider.FetchNativeBalances(context.Background(), addresses)
 	if err == nil {
-		t.Fatal("expected error for rate limit")
+		t.Fatal("expected error when all addresses fail")
 	}
-	if err.Error() != "fetch balance for bc1qtest (index 0): provider rate limit exceeded" {
-		// Just check it contains the sentinel error.
-		if !contains(err.Error(), "rate limit") {
-			t.Errorf("expected rate limit error, got: %v", err)
-		}
+
+	// Results should still contain the failed address with error annotation.
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Error == "" {
+		t.Error("expected error annotation on failed result")
+	}
+	if results[0].Balance != "0" {
+		t.Errorf("expected balance 0 for failed address, got %s", results[0].Balance)
 	}
 }
 
@@ -100,9 +117,17 @@ func TestBlockstreamProvider_ServerError(t *testing.T) {
 		{Chain: models.ChainBTC, AddressIndex: 0, Address: "bc1qtest"},
 	}
 
-	_, err := provider.FetchNativeBalances(context.Background(), addresses)
+	// Single address server error → all addresses failed → returns error.
+	results, err := provider.FetchNativeBalances(context.Background(), addresses)
 	if err == nil {
 		t.Fatal("expected error for server error")
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Error == "" {
+		t.Error("expected error annotation on failed result")
 	}
 }
 
@@ -127,15 +152,131 @@ func TestBlockstreamProvider_Metadata(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+// TestBlockstreamProvider_ErrorCollection_PartialFailure tests that partial failures
+// don't abort the remaining addresses — the key B1 fix.
+func TestBlockstreamProvider_ErrorCollection_PartialFailure(t *testing.T) {
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := callCount.Add(1)
+		if n == 2 {
+			// Second call fails.
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		resp := blockstreamResponse{}
+		resp.ChainStats.FundedTxoSum = 50000
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	rl := NewRateLimiter("test", 100)
+	provider := &BlockstreamProvider{
+		client:  server.Client(),
+		rl:      rl,
+		baseURL: server.URL,
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr0"},
+		{Chain: models.ChainBTC, AddressIndex: 1, Address: "addr1"},
+		{Chain: models.ChainBTC, AddressIndex: 2, Address: "addr2"},
+	}
+
+	results, err := provider.FetchNativeBalances(context.Background(), addresses)
+
+	// Partial failure → no error returned (only all-fail returns error).
+	if err != nil {
+		t.Fatalf("expected no error for partial failure, got %v", err)
+	}
+
+	// All 3 addresses should have results.
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// Address 0: success.
+	if results[0].Error != "" {
+		t.Errorf("addr0: expected no error, got %s", results[0].Error)
+	}
+	if results[0].Balance != "50000" {
+		t.Errorf("addr0: expected balance 50000, got %s", results[0].Balance)
+	}
+
+	// Address 1: failure — annotated.
+	if results[1].Error == "" {
+		t.Error("addr1: expected error annotation")
+	}
+	if results[1].Balance != "0" {
+		t.Errorf("addr1: expected balance 0, got %s", results[1].Balance)
+	}
+
+	// Address 2: success (continued after addr1 failure).
+	if results[2].Error != "" {
+		t.Errorf("addr2: expected no error, got %s", results[2].Error)
+	}
+	if results[2].Balance != "50000" {
+		t.Errorf("addr2: expected balance 50000, got %s", results[2].Balance)
+	}
 }
 
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+// TestBlockstreamProvider_ErrorCollection_AllFail tests that when all addresses fail,
+// an error is returned so the pool tries the next provider.
+func TestBlockstreamProvider_ErrorCollection_AllFail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	rl := NewRateLimiter("test", 100)
+	provider := &BlockstreamProvider{
+		client:  server.Client(),
+		rl:      rl,
+		baseURL: server.URL,
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr0"},
+		{Chain: models.ChainBTC, AddressIndex: 1, Address: "addr1"},
+	}
+
+	results, err := provider.FetchNativeBalances(context.Background(), addresses)
+
+	// All fail → error returned.
+	if err == nil {
+		t.Fatal("expected error when all addresses fail")
+	}
+	if !strings.Contains(err.Error(), "all 2 addresses failed") {
+		t.Errorf("expected 'all 2 addresses failed' error, got: %v", err)
+	}
+
+	// Results should still have all addresses annotated.
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	for i, r := range results {
+		if r.Error == "" {
+			t.Errorf("result %d: expected error annotation", i)
 		}
 	}
-	return false
+}
+
+// TestBlockstreamProvider_ContextCancellation tests that context cancellation stops iteration.
+func TestBlockstreamProvider_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately.
+
+	provider := &BlockstreamProvider{
+		client:  http.DefaultClient,
+		rl:      NewRateLimiter("test", 100),
+		baseURL: "http://localhost:1", // won't be called
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr0"},
+	}
+
+	_, err := provider.FetchNativeBalances(ctx, addresses)
+	if err == nil {
+		t.Fatal("expected error on context cancellation")
+	}
 }
