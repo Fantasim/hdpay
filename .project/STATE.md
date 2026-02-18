@@ -3,9 +3,9 @@
 > A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.
 
 ## Current Position
-- **Phase:** building (Phase 10 of 11)
-- **Status:** Phase 9 complete — ready to start Phase 10: Send Interface
-- **Last session:** Phase 9 completed (SOL Transaction Engine — raw binary serialization, native SOL + SPL token sweep, sequential per-address sends, confirmation polling, 29 tests)
+- **Phase:** building (Phase 11 of 11)
+- **Status:** Phase 10 complete — ready to start Phase 11: History, Settings & Deployment
+- **Last session:** Phase 10 completed (Send Interface — unified preview/execute API, gas pre-seed, TX SSE hub, wizard UI, 47 tests)
 
 ## Build Progress
 
@@ -20,8 +20,8 @@
 | 7 | BTC Transaction Engine | **DONE** |
 | 8 | BSC Transaction Engine + Gas Pre-Seed | **DONE** |
 | 9 | SOL Transaction Engine | **DONE** |
-| 10 | Send Interface | **NEXT** |
-| 11 | History, Settings & Deployment | Pending (outline) |
+| 10 | Send Interface | **DONE** |
+| 11 | History, Settings & Deployment | **NEXT** |
 
 ## Key Decisions
 - **Tech stack locked**: Go 1.22+ (Chi, SQLite/modernc, slog) + SvelteKit (adapter-static, TS strict, Tailwind v4)
@@ -43,20 +43,21 @@
 - **SOL sequential sends**: Per-address sends (not multi-signer batch) due to 1232-byte TX limit
 - **SOL zero SDK**: Raw binary serialization from scratch — only crypto/ed25519 + base58
 - **SOL legacy TX**: Non-versioned transaction format for max validator compatibility
+- **Explorer URLs**: mempool.space (BTC), bscscan.com (BSC), solscan.io (SOL)
+- **Unified send API**: Single preview/execute endpoints dispatch to chain-specific TX engines
 - **GitHub repo**: https://github.com/Fantasim/hdpay
 
 ## Next Actions
-- Run `/cf-next` to start Phase 10: Send Interface
-- Phase 10 delivers: Send page UI, preview/execute API handlers, chain-specific send panels
-- All three TX engines (BTC, BSC, SOL) are ready to be wired into the send API
-- Gas pre-seed UI needed for BSC token sends
+- Run `/cf-next` to start Phase 11: History, Settings & Deployment
+- Phase 11 delivers: Transaction history page, settings page, build script, final integration
+- This is the final phase — completing it finishes V1
 
 ## Files Reference
 | File | Purpose |
 |------|---------|
 | `.project/state.json` | Machine-readable state |
 | `.project/STATE.md` | This file — resume context |
-| `.project/04-build-plan/phases/phase-09/SUMMARY.md` | Phase 9 completion summary |
-| `.project/04-build-plan/phases/phase-10/PLAN.md` | Phase 10 build plan (outline) |
+| `.project/04-build-plan/phases/phase-10/SUMMARY.md` | Phase 10 completion summary |
+| `.project/04-build-plan/phases/phase-11/PLAN.md` | Phase 11 build plan (outline) |
 | `CLAUDE.md` | Code conventions and project guidelines |
 | `CHANGELOG.md` | Session changelog |

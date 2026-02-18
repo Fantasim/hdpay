@@ -22,7 +22,8 @@ hdpay/
 |   |   |   |-- health.go            # GET /api/health
 |   |   |   |-- scan.go              # POST start/stop, GET status, GET SSE
 |   |   |   |-- scan_test.go         # Scan handler tests (11 tests)
-|   |   |   |-- send.go              # Send endpoints (stub)
+|   |   |   |-- send.go              # POST preview/execute/gas-preseed, GET SSE
+|   |   |   |-- send_test.go         # Send handler tests (24 tests)
 |   |   |   └-- settings.go          # Settings endpoints (stub)
 |   |   |-- middleware/
 |   |   |   |-- logging.go           # Request/response logging
@@ -35,7 +36,7 @@ hdpay/
 |   |-- db/
 |   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
 |   |   |-- addresses_test.go        # Address DB tests (5 tests)
-|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, aggregates
+|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, aggregates, GetFundedAddressesJoined
 |   |   |-- balances_test.go         # Balance DB tests (10 tests)
 |   |   |-- migrations/
 |   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
@@ -49,7 +50,7 @@ hdpay/
 |   |   |-- logger.go                # slog: stdout + daily rotated files
 |   |   └-- logger_test.go           # Logger tests
 |   |-- models/
-|   |   └-- types.go                 # Domain types: Chain, Address, ScanState, Token, etc.
+|   |   └-- types.go                 # Domain types: Chain, Address, ScanState, Token, Send types
 |   |-- price/
 |   |   |-- coingecko.go             # CoinGecko price service with 5-min cache
 |   |   └-- coingecko_test.go        # Price service tests (6 tests)
@@ -70,7 +71,7 @@ hdpay/
 |   |   |-- sol_ata.go               # Manual Solana ATA derivation via PDA
 |   |   |-- sol_ata_test.go
 |   |   |-- sol_rpc.go               # Solana JSON-RPC provider (batch 100)
-|   |   |-- sse.go                   # SSE hub: subscribe/unsubscribe/broadcast
+|   |   |-- sse.go                   # SSE hub: subscribe/unsubscribe/broadcast (scan events)
 |   |   └-- sse_test.go
 |   |-- tx/
 |   |   |-- broadcaster.go           # Shared Broadcaster interface + BTC implementation
@@ -86,7 +87,12 @@ hdpay/
 |   |   |-- gas.go                   # Gas pre-seeding service (BSC BNB distribution)
 |   |   |-- gas_test.go              # Gas pre-seed tests (4 tests)
 |   |   |-- key_service.go           # On-demand BTC/BSC private key derivation from mnemonic
-|   |   └-- key_service_test.go      # Key service tests (11 tests)
+|   |   |-- key_service_test.go      # Key service tests (11 tests)
+|   |   |-- sol_serialize.go         # Raw Solana binary TX serialization
+|   |   |-- sol_serialize_test.go    # Serialization tests
+|   |   |-- sol_tx.go                # SOL native + SPL token consolidation service
+|   |   |-- sol_tx_test.go           # SOL TX tests
+|   |   └-- sse.go                   # TX SSE hub: subscribe/unsubscribe/broadcast (tx events)
 |   └-- wallet/
 |       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
 |       |-- bsc_test.go              # BSC tests with known vectors
@@ -118,22 +124,29 @@ hdpay/
 |   |   |   |   |   |-- ScanControl.svelte   # Chain selector, max ID, start/stop
 |   |   |   |   |   |-- ScanProgress.svelte  # Per-chain progress bars + stats
 |   |   |   |   |   └-- ProviderStatus.svelte # Provider health grid
-|   |   |   |   └-- ui/              # shadcn-svelte components
+|   |   |   |   └-- send/
+|   |   |   |       |-- SelectStep.svelte    # Step 1: chain/token/destination selection
+|   |   |   |       |-- PreviewStep.svelte   # Step 2: TX summary, fees, funded addresses
+|   |   |   |       |-- GasPreSeedStep.svelte # Step 3: BSC gas pre-seeding
+|   |   |   |       └-- ExecuteStep.svelte   # Step 4: sweep execution + results
 |   |   |   |-- constants.ts         # Frontend constants
 |   |   |   |-- stores/
 |   |   |   |   |-- addresses.ts     # Reactive address store (chain, pagination, filters)
-|   |   |   |   └-- scan.svelte.ts   # Scan store with SSE connection + reconnect
+|   |   |   |   |-- scan.svelte.ts   # Scan store with SSE connection + reconnect
+|   |   |   |   └-- send.svelte.ts   # Send wizard store with SSE + step management
 |   |   |   |-- types.ts             # TypeScript interfaces
 |   |   |   └-- utils/
-|   |   |       |-- api.ts           # API client with CSRF + address/scan/dashboard API functions
+|   |   |       |-- api.ts           # API client with CSRF + all API functions
 |   |   |       |-- chains.ts        # Chain color, label, explorer URL, token decimals
-|   |   |       └-- formatting.ts    # Number/address/time formatting + clipboard
+|   |   |       |-- formatting.ts    # Number/address/time formatting + clipboard
+|   |   |       |-- validation.ts    # Chain-specific address validation
+|   |   |       └-- validation.test.ts # Vitest address validation tests (23 tests)
 |   |   └-- routes/
 |   |       |-- +layout.svelte       # Root layout with Sidebar
 |   |       |-- +page.svelte         # Dashboard with portfolio overview + charts
 |   |       |-- addresses/+page.svelte  # Address explorer with tabs, filters, pagination
 |   |       |-- scan/+page.svelte    # Scan page with SSE progress visualization
-|   |       |-- send/+page.svelte
+|   |       |-- send/+page.svelte    # Send wizard: 4-step stepper with collapsed summaries
 |   |       |-- settings/+page.svelte
 |   |       └-- transactions/+page.svelte
 |   |-- svelte.config.js
@@ -145,18 +158,20 @@ hdpay/
 
 | File | Purpose |
 |------|---------|
-| `cmd/server/main.go` | Entry point: `serve`, `init`, `export` subcommands |
+| `cmd/server/main.go` | Entry point: `serve`, `init`, `export` subcommands + setupSendDeps |
 | `internal/config/constants.go` | ALL numeric/string constants (sacred — no hardcoding) |
 | `internal/config/errors.go` | ALL error codes shared with frontend |
 | `internal/config/config.go` | Config struct loaded via envconfig |
 | `internal/db/sqlite.go` | SQLite connection, WAL mode, auto-migrations |
 | `internal/db/addresses.go` | Address CRUD + filtered paginated queries with balance hydration |
-| `internal/db/balances.go` | Balance CRUD, batch upsert, funded queries, aggregates |
+| `internal/db/balances.go` | Balance CRUD, batch upsert, funded queries, aggregates, GetFundedAddressesJoined |
 | `internal/db/scans.go` | Scan state persistence with resume support |
+| `internal/db/transactions.go` | Transaction CRUD: insert, update status, get by ID/hash, paginated list |
 | `internal/price/coingecko.go` | CoinGecko price service with 5-min cache |
 | `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
 | `internal/api/handlers/scan.go` | Scan start/stop/status handlers + SSE streaming |
 | `internal/api/handlers/dashboard.go` | Prices + portfolio API handlers |
+| `internal/api/handlers/send.go` | Send preview/execute/gas-preseed handlers + SSE + chain dispatch |
 | `internal/scanner/scanner.go` | Scanner orchestrator: multi-chain, resume, token scanning |
 | `internal/scanner/pool.go` | Provider pool with round-robin rotation + failover |
 | `internal/scanner/sse.go` | SSE hub for real-time scan progress broadcasting |
@@ -172,15 +187,21 @@ hdpay/
 | `internal/tx/btc_fee.go` | Dynamic fee estimation from mempool.space with fallback |
 | `internal/tx/btc_tx.go` | Multi-input P2WPKH TX building, signing, consolidation orchestrator |
 | `internal/tx/broadcaster.go` | Shared Broadcaster interface + BTC broadcast with provider fallback |
-| `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation service |
+| `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation |
 | `internal/tx/gas.go` | Gas pre-seeding service: distribute BNB to addresses needing gas |
-| `internal/db/transactions.go` | Transaction CRUD: insert, update status, get by ID/hash, paginated list |
+| `internal/tx/sol_tx.go` | SOL native + SPL token consolidation service |
+| `internal/tx/sol_serialize.go` | Raw Solana binary TX serialization |
+| `internal/tx/sse.go` | TX SSE hub for real-time transaction status broadcasting |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
-| `web/src/lib/utils/api.ts` | API client (CSRF) + address/scan/dashboard API functions |
+| `web/src/lib/utils/api.ts` | API client (CSRF) + all backend API functions |
+| `web/src/lib/utils/validation.ts` | Chain-specific address validation (BTC, BSC, SOL) |
+| `web/src/lib/utils/chains.ts` | Chain metadata: colors, labels, explorer URLs, token decimals |
 | `web/src/lib/stores/scan.svelte.ts` | Scan store with SSE lifecycle + exponential backoff |
+| `web/src/lib/stores/send.svelte.ts` | Send wizard store with SSE + step management |
 | `web/src/routes/+page.svelte` | Dashboard with portfolio overview + ECharts |
 | `web/src/routes/scan/+page.svelte` | Scan page with real-time progress |
+| `web/src/routes/send/+page.svelte` | Send wizard with 4-step stepper |
 
 ## Module Dependencies
 
@@ -204,6 +225,7 @@ hdpay/
 | `tailwindcss` / `@tailwindcss/vite` | CSS utility framework |
 | `echarts` / `svelte-echarts` | Charts (portfolio pie chart) |
 | `@tanstack/svelte-virtual` | Table virtualization (installed, ready for use) |
+| `vitest` | Frontend unit testing |
 | `typescript` | Type safety |
 
 ## API Endpoints
@@ -219,7 +241,10 @@ hdpay/
 | GET | `/api/scan/sse` | Implemented | `handlers/scan.go` |
 | GET | `/api/dashboard/prices` | Implemented | `handlers/dashboard.go` |
 | GET | `/api/dashboard/portfolio` | Implemented | `handlers/dashboard.go` |
-| POST | `/api/send/execute` | Stub | `handlers/send.go` |
+| POST | `/api/send/preview` | Implemented | `handlers/send.go` |
+| POST | `/api/send/execute` | Implemented | `handlers/send.go` |
+| POST | `/api/send/gas-preseed` | Implemented | `handlers/send.go` |
+| GET | `/api/send/sse` | Implemented | `handlers/send.go` |
 | GET | `/api/settings` | Stub | `handlers/settings.go` |
 
 ## Database Schema

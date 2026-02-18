@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 10)
+
+#### Added
+- Unified send API: `POST /api/send/preview`, `POST /api/send/execute`, `POST /api/send/gas-preseed` dispatching to chain-specific TX engines
+- TX SSE hub for real-time transaction status streaming (`internal/tx/sse.go`)
+- Send handler with chain-specific preview/execute dispatch (`internal/api/handlers/send.go`)
+- SendDeps dependency injection struct wiring all TX services
+- `setupSendDeps` in main.go initializing all TX services from config
+- Unified send types: SendRequest, UnifiedSendPreview, UnifiedSendResult, TxResult, FundedAddressInfo
+- `GetFundedAddressesJoined` DB query — JOIN between addresses and balances tables
+- Frontend address validation: BTC bech32/legacy, BSC hex, SOL base58 (`web/src/lib/utils/validation.ts`)
+- Send wizard store with Svelte 5 runes and SSE integration (`web/src/lib/stores/send.svelte.ts`)
+- 4-step wizard UI: SelectStep, PreviewStep, GasPreSeedStep, ExecuteStep components
+- Stepper component with collapsed completed-step summaries
+- `getExplorerTxUrl` convenience function in chains.ts
+- Backend tests: 24 tests for validateDestination + isValidToken (`internal/api/handlers/send_test.go`)
+- Frontend tests: 23 vitest tests for address validation (`web/src/lib/utils/validation.test.ts`)
+- Vitest added as devDependency for frontend testing
+- `EstimateGasPrice` method on BSCConsolidationService
+- Explorer URL constants in backend config (aligned with frontend)
+- Send-related error codes and constants
+
+#### Changed
+- Explorer URLs updated: mempool.space (BTC), solscan.io (SOL), bscscan.com unchanged (BSC)
+- Router updated to accept SendDeps and wire /api/send/* routes
+- SOL explorer URL path changed from `/address/` to `/account/` for solscan.io compatibility
+
 ### 2026-02-18 (Phase 9)
 
 #### Added
