@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 7)
+
+#### Added
+- On-demand BIP-84 private key derivation service — reads mnemonic from file, derives keys per index, caller zeros after use (`internal/tx/key_service.go`)
+- UTXO fetcher — confirmed UTXOs from Blockstream/Mempool APIs with round-robin rotation and rate limiting (`internal/tx/btc_utxo.go`)
+- Dynamic fee estimator — fetches from mempool.space `/v1/fees/recommended` with fallback to config constant (`internal/tx/btc_fee.go`)
+- Multi-input P2WPKH transaction builder — vsize estimation, wire.MsgTx construction, consolidation to single output (`internal/tx/btc_tx.go`)
+- P2WPKH witness signer — `MultiPrevOutFetcher` + `NewTxSigHashes` (once) + `WitnessSignature` per input
+- BTC broadcaster — POST raw hex as `text/plain` with ordered provider fallback, no retry on 400 (`internal/tx/broadcaster.go`)
+- Transaction DB CRUD — insert, update status, get by ID/hash, paginated list with chain filter (`internal/db/transactions.go`)
+- Shared `Broadcaster` interface for future BSC/SOL reuse
+- `BTCConsolidationService` orchestrator with `Preview()` and `Execute()` methods
+- Domain types: `UTXO`, `FeeEstimate`, `SendPreview`, `SendResult` (`internal/models/types.go`)
+- BTC TX constants: dust threshold, vsize weights, fee estimation timeout, max inputs (`internal/config/constants.go`)
+- 7 new sentinel errors + 4 new error codes (`internal/config/errors.go`)
+- 38 new tests: key service (7), UTXO fetcher (7), fee estimator (4), TX builder (10), broadcaster (4), transaction DB (7)
+
 ### 2026-02-18 (Phase 6)
 
 #### Added

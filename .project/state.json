@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 6,
+  "current_build_phase": 7,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,7 +25,7 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 6,
+    "current_phase_index": 7,
     "phases": [
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
@@ -33,7 +33,7 @@
       { "name": "Scanner Engine (Backend)", "status": "completed", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": "04-build-plan/phases/phase-04/SUMMARY.md" },
       { "name": "Scan UI + SSE", "status": "completed", "plan_file": "04-build-plan/phases/phase-05/PLAN.md", "summary_file": "04-build-plan/phases/phase-05/SUMMARY.md" },
       { "name": "Dashboard & Price Service", "status": "completed", "plan_file": "04-build-plan/phases/phase-06/PLAN.md", "summary_file": "04-build-plan/phases/phase-06/SUMMARY.md" },
-      { "name": "BTC Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": null },
+      { "name": "BTC Transaction Engine", "status": "completed", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": "04-build-plan/phases/phase-07/SUMMARY.md" },
       { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "pending", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": null },
       { "name": "SOL Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": null },
       { "name": "Send Interface", "status": "pending", "plan_file": "04-build-plan/phases/phase-10/PLAN.md", "summary_file": null },
@@ -70,11 +70,11 @@
     "echarts_integration": "svelte-echarts v1.0.0 wrapper with tree-shaking, $derived() rune for reactive options",
     "coingecko_public": "CoinGecko public API (no key), 5-min server-side cache, ~5-15 req/min is safe"
   },
-  "session_count": 6,
+  "session_count": 7,
   "last_session": {
-    "id": 6,
+    "id": 7,
     "date": "2026-02-18",
-    "summary": "Phase 6 complete: Dashboard & Price Service — CoinGecko price service with 5-min cache, portfolio/prices API endpoints, dashboard page with stats grid, balance breakdown table, ECharts pie chart, 9 new tests",
+    "summary": "Phase 7 complete: BTC Transaction Engine — on-demand key derivation, UTXO fetching, dynamic fee estimation, multi-input P2WPKH TX building+signing, broadcasting, transaction DB CRUD, 38 new tests",
     "phase": "building"
   },
   "pending_questions": false,

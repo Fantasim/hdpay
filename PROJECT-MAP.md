@@ -43,7 +43,8 @@ hdpay/
 |   |   |-- scans_test.go            # Scan state DB tests (8 tests)
 |   |   |-- sqlite.go                # SQLite connection, WAL mode, migrations
 |   |   |-- sqlite_test.go           # DB tests
-|   |   └-- transactions.go          # Transaction history (stub)
+|   |   |-- transactions.go          # Transaction CRUD: insert, update status, get, list
+|   |   └-- transactions_test.go     # Transaction DB tests (7 tests)
 |   |-- logging/
 |   |   |-- logger.go                # slog: stdout + daily rotated files
 |   |   └-- logger_test.go           # Logger tests
@@ -72,7 +73,16 @@ hdpay/
 |   |   |-- sse.go                   # SSE hub: subscribe/unsubscribe/broadcast
 |   |   └-- sse_test.go
 |   |-- tx/
-|   |   └-- broadcaster.go           # Transaction broadcaster (stub)
+|   |   |-- broadcaster.go           # Shared Broadcaster interface + BTC implementation
+|   |   |-- broadcaster_test.go      # Broadcaster tests (4 tests)
+|   |   |-- btc_fee.go               # Dynamic fee estimation from mempool.space
+|   |   |-- btc_fee_test.go          # Fee estimator tests (4 tests)
+|   |   |-- btc_tx.go                # Multi-input P2WPKH TX building, signing, consolidation
+|   |   |-- btc_tx_test.go           # TX builder tests (10 tests)
+|   |   |-- btc_utxo.go              # UTXO fetching with round-robin provider rotation
+|   |   |-- btc_utxo_test.go         # UTXO fetcher tests (7 tests)
+|   |   |-- key_service.go           # On-demand BIP-84 private key derivation from mnemonic
+|   |   └-- key_service_test.go      # Key service tests (7 tests)
 |   └-- wallet/
 |       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
 |       |-- bsc_test.go              # BSC tests with known vectors
@@ -153,6 +163,12 @@ hdpay/
 | `internal/wallet/sol.go` | SOL via manual SLIP-10 ed25519: `m/44'/501'/N'/0'` |
 | `internal/wallet/generator.go` | Bulk generation with progress callbacks |
 | `internal/api/router.go` | Chi router with middleware stack |
+| `internal/tx/key_service.go` | On-demand BIP-84 private key derivation from mnemonic file |
+| `internal/tx/btc_utxo.go` | UTXO fetching with round-robin Blockstream/Mempool rotation |
+| `internal/tx/btc_fee.go` | Dynamic fee estimation from mempool.space with fallback |
+| `internal/tx/btc_tx.go` | Multi-input P2WPKH TX building, signing, consolidation orchestrator |
+| `internal/tx/broadcaster.go` | Shared Broadcaster interface + BTC broadcast with provider fallback |
+| `internal/db/transactions.go` | Transaction CRUD: insert, update status, get by ID/hash, paginated list |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
 | `web/src/lib/utils/api.ts` | API client (CSRF) + address/scan/dashboard API functions |

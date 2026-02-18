@@ -4,15 +4,22 @@ import "errors"
 
 // Sentinel errors for internal use.
 var (
-	ErrInvalidMnemonic    = errors.New("invalid mnemonic")
-	ErrProviderRateLimit  = errors.New("provider rate limit exceeded")
+	ErrInvalidMnemonic     = errors.New("invalid mnemonic")
+	ErrProviderRateLimit   = errors.New("provider rate limit exceeded")
 	ErrProviderUnavailable = errors.New("provider unavailable")
-	ErrTokensNotSupported = errors.New("tokens not supported by this provider")
-	ErrScanAlreadyRunning = errors.New("scan already running for this chain")
-	ErrScanInterrupted    = errors.New("scan interrupted")
-	ErrInsufficientGas    = errors.New("insufficient gas for transaction")
-	ErrTransactionFailed  = errors.New("transaction broadcast failed")
-	ErrPriceFetchFailed   = errors.New("price fetch failed")
+	ErrTokensNotSupported  = errors.New("tokens not supported by this provider")
+	ErrScanAlreadyRunning  = errors.New("scan already running for this chain")
+	ErrScanInterrupted     = errors.New("scan interrupted")
+	ErrInsufficientGas     = errors.New("insufficient gas for transaction")
+	ErrTransactionFailed   = errors.New("transaction broadcast failed")
+	ErrPriceFetchFailed    = errors.New("price fetch failed")
+	ErrUTXOFetchFailed     = errors.New("UTXO fetch failed")
+	ErrFeeEstimateFailed   = errors.New("fee estimation failed")
+	ErrInsufficientUTXO    = errors.New("insufficient UTXO value to cover fee")
+	ErrTxTooLarge          = errors.New("transaction exceeds maximum weight")
+	ErrDustOutput          = errors.New("output below dust threshold")
+	ErrMnemonicFileNotSet  = errors.New("mnemonic file path not configured")
+	ErrKeyDerivation       = errors.New("key derivation failed")
 )
 
 // Error codes — shared with frontend via API responses.
@@ -35,4 +42,8 @@ const (
 	ErrorExportFailed       = "ERROR_EXPORT_FAILED"
 	ErrorPriceFetchFailed   = "ERROR_PRICE_FETCH_FAILED"
 	ErrorInvalidConfig      = "ERROR_INVALID_CONFIG"
+	ErrorUTXOFetchFailed    = "ERROR_UTXO_FETCH_FAILED"
+	ErrorFeeEstimateFailed  = "ERROR_FEE_ESTIMATE_FAILED"
+	ErrorInsufficientUTXO   = "ERROR_INSUFFICIENT_UTXO"
+	ErrorTxTooLarge         = "ERROR_TX_TOO_LARGE"
 )

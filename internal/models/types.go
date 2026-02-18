@@ -120,6 +120,44 @@ type APIMeta struct {
 	ExecutionTime int64 `json:"executionTime,omitempty"`
 }
 
+// UTXO represents an unspent transaction output.
+type UTXO struct {
+	TxID         string `json:"txid"`
+	Vout         uint32 `json:"vout"`
+	Value        int64  `json:"value"` // satoshis
+	Confirmed    bool   `json:"confirmed"`
+	BlockHeight  int64  `json:"blockHeight,omitempty"`
+	Address      string `json:"address"`
+	AddressIndex int    `json:"addressIndex"`
+}
+
+// FeeEstimate contains recommended fee rates from mempool.space.
+type FeeEstimate struct {
+	FastestFee  int64 `json:"fastestFee"`  // sat/vB, next block
+	HalfHourFee int64 `json:"halfHourFee"` // sat/vB, ~3 blocks
+	HourFee     int64 `json:"hourFee"`     // sat/vB, ~6 blocks
+	EconomyFee  int64 `json:"economyFee"`  // sat/vB, several hours
+	MinimumFee  int64 `json:"minimumFee"`  // sat/vB, eventually
+}
+
+// SendPreview contains the preview of a consolidation transaction.
+type SendPreview struct {
+	Chain          Chain  `json:"chain"`
+	InputCount     int    `json:"inputCount"`
+	TotalInputSats int64  `json:"totalInputSats"`
+	OutputSats     int64  `json:"outputSats"`
+	FeeSats        int64  `json:"feeSats"`
+	FeeRate        int64  `json:"feeRate"`  // sat/vB
+	EstimatedVsize int    `json:"estimatedVsize"`
+	DestAddress    string `json:"destAddress"`
+}
+
+// SendResult contains the result of broadcasting a transaction.
+type SendResult struct {
+	TxHash string `json:"txHash"`
+	Chain  Chain  `json:"chain"`
+}
+
 // APIError is the standard error response.
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

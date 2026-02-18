@@ -30,16 +30,16 @@ const (
 	SOLUSDTMint = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
 )
 
-// Token Contract Addresses — BSC Testnet
+// Token Contract Addresses — BSC Testnet (community-deployed test tokens)
 const (
-	BSCTestnetUSDCContract = "" // Set when available
-	BSCTestnetUSDTContract = "" // Set when available
+	BSCTestnetUSDCContract = "0x64544969ed7EBf5f083679233325356EbE738930" // 6 decimals
+	BSCTestnetUSDTContract = "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd" // 18 decimals
 )
 
 // Token Contract Addresses — SOL Devnet
 const (
-	SOLDevnetUSDCMint = "" // Set when available
-	SOLDevnetUSDTMint = "" // Set when available
+	SOLDevnetUSDCMint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // Official Circle devnet USDC
+	SOLDevnetUSDTMint = ""                                                // No official devnet USDT exists
 )
 
 // Pagination
@@ -110,13 +110,35 @@ const (
 	RateLimitCoinGecko     = 10 // requests per minute
 )
 
-// Transaction
+// Transaction — General
 const (
-	BTCFeeRateSatPerVByte = 10
-	BSCGasLimitTransfer   = 21_000
-	BSCGasLimitBEP20      = 65_000
-	BSCGasPreSeedWei      = "5000000000000000" // 0.005 BNB
-	SOLMaxInstructions    = 20
+	BSCGasLimitTransfer = 21_000
+	BSCGasLimitBEP20    = 65_000
+	BSCGasPreSeedWei    = "5000000000000000" // 0.005 BNB
+	SOLMaxInstructions  = 20
+)
+
+// BTC Transaction Building
+const (
+	BTCDefaultFeeRate    = 10      // Fallback sat/vB if fee estimation fails
+	BTCMinFeeRate        = 1       // Absolute minimum sat/vB
+	BTCDustThresholdSats = 546     // Minimum P2WPKH output value
+	BTCMaxTxWeight       = 400_000 // Max standard transaction weight units
+	BTCMaxInputsPerTx    = 500     // Practical input limit before hitting size
+)
+
+// BTC Transaction vsize estimation (weight units per BIP-141)
+const (
+	BTCTxOverheadWU        = 42  // version(16) + marker(1) + flag(1) + vinCount(4) + voutCount(4) + locktime(16)
+	BTCP2WPKHInputNonWitWU = 164 // (outpoint(36) + scriptLen(1) + sequence(4)) × 4
+	BTCP2WPKHInputWitWU    = 108 // stackCount(1) + sigLen(1) + sig(72) + pkLen(1) + pk(33)
+	BTCP2WPKHOutputWU      = 124 // (value(8) + scriptLen(1) + script(22)) × 4
+)
+
+// BTC Fee Estimation
+const (
+	MempoolFeeEstimatePath = "/v1/fees/recommended"
+	FeeEstimateTimeout     = 5 * time.Second
 )
 
 // Server
