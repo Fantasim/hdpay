@@ -146,5 +146,6 @@ const (
 // Price
 const (
 	CoinGeckoBaseURL   = "https://api.coingecko.com/api/v3"
+	CoinGeckoIDs       = "bitcoin,binancecoin,solana,usd-coin,tether"
 	PriceCacheDuration = 5 * time.Minute
 )

@@ -97,29 +97,6 @@ export interface Transaction {
 	confirmedAt: string | null;
 }
 
-// PortfolioSummary represents the dashboard portfolio overview.
-export interface PortfolioSummary {
-	totalUsd: number;
-	chains: ChainSummary[];
-}
-
-// ChainSummary represents balance summary for a single chain.
-export interface ChainSummary {
-	chain: Chain;
-	nativeBalance: string;
-	nativeUsd: number;
-	tokens: TokenSummaryItem[];
-	addressCount: number;
-	fundedCount: number;
-}
-
-// TokenSummaryItem represents a token balance summary.
-export interface TokenSummaryItem {
-	symbol: TokenSymbol;
-	balance: string;
-	usd: number;
-}
-
 // HealthResponse represents the /api/health response.
 export interface HealthResponse {
 	status: string;
@@ -150,11 +127,36 @@ export interface APIErrorResponse {
 	};
 }
 
-// PriceData represents current prices.
+// PriceData represents current USD prices keyed by symbol.
 export interface PriceData {
-	btc: number;
-	bnb: number;
-	sol: number;
+	BTC: number;
+	BNB: number;
+	SOL: number;
+	USDC: number;
+	USDT: number;
+}
+
+// PortfolioResponse represents the GET /api/dashboard/portfolio response data.
+export interface PortfolioResponse {
+	totalUsd: number;
+	lastScan: string | null;
+	chains: ChainPortfolio[];
+}
+
+// ChainPortfolio represents a single chain's portfolio data.
+export interface ChainPortfolio {
+	chain: Chain;
+	addressCount: number;
+	fundedCount: number;
+	tokens: TokenPortfolioItem[];
+}
+
+// TokenPortfolioItem represents a token balance within a chain's portfolio.
+export interface TokenPortfolioItem {
+	symbol: TokenSymbol;
+	balance: string;
+	usd: number;
+	fundedCount: number;
 }
 
 // Settings represents user settings.

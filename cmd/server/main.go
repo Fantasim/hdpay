@@ -16,6 +16,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/db"
 	"github.com/Fantasim/hdpay/internal/logging"
 	"github.com/Fantasim/hdpay/internal/models"
+	"github.com/Fantasim/hdpay/internal/price"
 	"github.com/Fantasim/hdpay/internal/scanner"
 	"github.com/Fantasim/hdpay/internal/wallet"
 )
@@ -109,7 +110,10 @@ func runServe() error {
 
 	slog.Info("scanner engine initialized")
 
-	router := api.NewRouter(database, cfg, sc, hub)
+	// Setup price service.
+	ps := price.NewPriceService()
+
+	router := api.NewRouter(database, cfg, sc, hub, ps)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{

@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 6)
+
+#### Added
+- CoinGecko price service with 5-minute in-memory cache, thread-safe (`internal/price/coingecko.go`)
+- `GET /api/dashboard/prices` — returns USD prices keyed by symbol (BTC, BNB, SOL, USDC, USDT)
+- `GET /api/dashboard/portfolio` — aggregated balances with USD values, address counts, last scan time
+- Balance aggregation DB queries: `GetBalanceAggregates`, `GetLatestScanTime` (`internal/db/balances.go`)
+- Dashboard route group in Chi router with PriceService dependency injection
+- PortfolioOverview component: total value display + 4 stat cards (addresses, funded, chains, last scan)
+- BalanceBreakdown component: table with chain badges, token, balance, USD value, funded count
+- PortfolioCharts component: ECharts donut pie chart showing USD distribution by chain
+- Dashboard page with auto-refresh (1-min portfolio interval, 5-min price cache server-side)
+- ECharts + svelte-echarts v1.0.0 installed with tree-shaking (PieChart only)
+- Frontend types: `PortfolioResponse`, `ChainPortfolio`, `TokenPortfolioItem`
+- Frontend API functions: `getPrices`, `getPortfolio`
+- Frontend constants: `PRICE_REFRESH_INTERVAL_MS`, `PORTFOLIO_REFRESH_INTERVAL_MS`
+- Backend constants: `CoinGeckoIDs`, `ErrPriceFetchFailed`
+- 9 new tests: price service (6), dashboard handlers (3)
+
+#### Changed
+- Updated `PriceData` interface to use symbol keys (BTC, BNB, SOL, USDC, USDT)
+- Removed old `PortfolioSummary`/`ChainSummary`/`TokenSummaryItem` types (replaced by API-matching types)
+- `NewRouter` now accepts `*price.PriceService` parameter
+
 ### 2026-02-18 (Phase 5)
 
 #### Added

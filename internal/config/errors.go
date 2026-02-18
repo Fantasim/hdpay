@@ -12,6 +12,7 @@ var (
 	ErrScanInterrupted    = errors.New("scan interrupted")
 	ErrInsufficientGas    = errors.New("insufficient gas for transaction")
 	ErrTransactionFailed  = errors.New("transaction broadcast failed")
+	ErrPriceFetchFailed   = errors.New("price fetch failed")
 )
 
 // Error codes — shared with frontend via API responses.

@@ -22,6 +22,10 @@ export const CHAIN_TOKENS = {
 	BTC: []
 } as const;
 
+// Dashboard Refresh
+export const PRICE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+export const PORTFOLIO_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute
+
 // Chart Colors
 export const CHART_COLORS = ['#f7931a', '#F0B90B', '#9945FF', '#3b82f6', '#10b981'] as const;
 

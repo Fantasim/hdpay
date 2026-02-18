@@ -177,6 +177,70 @@ func (d *DB) GetBalanceSummary(chain models.Chain) (*BalanceSummary, error) {
 	return summary, nil
 }
 
+// BalanceAggregate holds aggregated balance totals for a chain+token pair.
+type BalanceAggregate struct {
+	Chain        models.Chain
+	Token        models.Token
+	TotalBalance string
+	FundedCount  int
+}
+
+// GetBalanceAggregates returns aggregated balance totals per chain+token.
+// Only includes non-zero balances.
+func (d *DB) GetBalanceAggregates() ([]BalanceAggregate, error) {
+	slog.Debug("fetching balance aggregates")
+
+	rows, err := d.conn.Query(
+		`SELECT chain, token, CAST(SUM(CAST(balance AS REAL)) AS TEXT), COUNT(*)
+		 FROM balances
+		 WHERE balance != '0'
+		 GROUP BY chain, token
+		 ORDER BY chain, token`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query balance aggregates: %w", err)
+	}
+	defer rows.Close()
+
+	var results []BalanceAggregate
+	for rows.Next() {
+		var agg BalanceAggregate
+		if err := rows.Scan(&agg.Chain, &agg.Token, &agg.TotalBalance, &agg.FundedCount); err != nil {
+			return nil, fmt.Errorf("scan balance aggregate row: %w", err)
+		}
+		results = append(results, agg)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate balance aggregate rows: %w", err)
+	}
+
+	slog.Debug("balance aggregates fetched", "count", len(results))
+
+	return results, nil
+}
+
+// GetLatestScanTime returns the most recent scan update time across all chains.
+// Returns empty string if no scans have been performed.
+func (d *DB) GetLatestScanTime() (string, error) {
+	slog.Debug("fetching latest scan time")
+
+	var lastScan *string
+	err := d.conn.QueryRow("SELECT MAX(updated_at) FROM scan_state").Scan(&lastScan)
+	if err != nil {
+		return "", fmt.Errorf("query latest scan time: %w", err)
+	}
+
+	if lastScan == nil {
+		slog.Debug("no scan time found")
+		return "", nil
+	}
+
+	slog.Debug("latest scan time fetched", "time", *lastScan)
+
+	return *lastScan, nil
+}
+
 // GetAddressesBatch returns addresses for a chain within an index range.
 // Used by the scanner to load batches of addresses for scanning.
 func (d *DB) GetAddressesBatch(chain models.Chain, startIndex, count int) ([]models.Address, error) {

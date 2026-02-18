@@ -17,7 +17,8 @@ hdpay/
 |   |   |-- handlers/
 |   |   |   |-- address.go           # GET /api/addresses/{chain}, GET .../export
 |   |   |   |-- address_test.go      # Address handler tests (6 tests)
-|   |   |   |-- dashboard.go         # Dashboard endpoints (stub)
+|   |   |   |-- dashboard.go         # GET /api/dashboard/prices, GET .../portfolio
+|   |   |   |-- dashboard_test.go    # Dashboard handler tests (3 tests)
 |   |   |   |-- health.go            # GET /api/health
 |   |   |   |-- scan.go              # POST start/stop, GET status, GET SSE
 |   |   |   |-- scan_test.go         # Scan handler tests (11 tests)
@@ -34,7 +35,7 @@ hdpay/
 |   |-- db/
 |   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
 |   |   |-- addresses_test.go        # Address DB tests (5 tests)
-|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, summaries
+|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, aggregates
 |   |   |-- balances_test.go         # Balance DB tests (10 tests)
 |   |   |-- migrations/
 |   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
@@ -49,7 +50,8 @@ hdpay/
 |   |-- models/
 |   |   └-- types.go                 # Domain types: Chain, Address, ScanState, Token, etc.
 |   |-- price/
-|   |   └-- coingecko.go             # CoinGecko price fetching (stub)
+|   |   |-- coingecko.go             # CoinGecko price service with 5-min cache
+|   |   └-- coingecko_test.go        # Price service tests (6 tests)
 |   |-- scanner/
 |   |   |-- btc_blockstream.go       # Blockstream Esplora provider
 |   |   |-- btc_blockstream_test.go
@@ -61,9 +63,9 @@ hdpay/
 |   |   |-- pool_test.go
 |   |   |-- provider.go              # Provider interface + BalanceResult type
 |   |   |-- ratelimiter.go           # Per-provider rate limiter (x/time/rate)
-|   |   |-- scanner.go               # Scanner orchestrator: start, stop, resume, token scan
+|   |   |-- scanner.go               # Scanner orchestrator: multi-chain, resume, token scan
 |   |   |-- scanner_test.go
-|   |   |-- setup.go                 # SetupScanner factory + test helpers
+|   |   |-- setup.go                 # Scanner factory + test helpers
 |   |   |-- sol_ata.go               # Manual Solana ATA derivation via PDA
 |   |   |-- sol_ata_test.go
 |   |   |-- sol_rpc.go               # Solana JSON-RPC provider (batch 100)
@@ -93,6 +95,10 @@ hdpay/
 |   |   |   |-- components/
 |   |   |   |   |-- address/
 |   |   |   |   |   └-- AddressTable.svelte  # Address table with badges, copy, tokens
+|   |   |   |   |-- dashboard/
+|   |   |   |   |   |-- PortfolioOverview.svelte   # Total value + 4 stat cards
+|   |   |   |   |   |-- BalanceBreakdown.svelte    # Balance table by chain+token
+|   |   |   |   |   └-- PortfolioCharts.svelte     # ECharts pie chart (chain distribution)
 |   |   |   |   |-- layout/          # Sidebar, Header
 |   |   |   |   |-- scan/
 |   |   |   |   |   |-- ScanControl.svelte   # Chain selector, max ID, start/stop
@@ -105,12 +111,12 @@ hdpay/
 |   |   |   |   └-- scan.svelte.ts   # Scan store with SSE connection + reconnect
 |   |   |   |-- types.ts             # TypeScript interfaces
 |   |   |   └-- utils/
-|   |   |       |-- api.ts           # API client with CSRF + address/scan API functions
+|   |   |       |-- api.ts           # API client with CSRF + address/scan/dashboard API functions
 |   |   |       |-- chains.ts        # Chain color, label, explorer URL, token decimals
 |   |   |       └-- formatting.ts    # Number/address/time formatting + clipboard
 |   |   └-- routes/
 |   |       |-- +layout.svelte       # Root layout with Sidebar
-|   |       |-- +page.svelte         # Dashboard (landing)
+|   |       |-- +page.svelte         # Dashboard with portfolio overview + charts
 |   |       |-- addresses/+page.svelte  # Address explorer with tabs, filters, pagination
 |   |       |-- scan/+page.svelte    # Scan page with SSE progress visualization
 |   |       |-- send/+page.svelte
@@ -131,10 +137,12 @@ hdpay/
 | `internal/config/config.go` | Config struct loaded via envconfig |
 | `internal/db/sqlite.go` | SQLite connection, WAL mode, auto-migrations |
 | `internal/db/addresses.go` | Address CRUD + filtered paginated queries with balance hydration |
-| `internal/db/balances.go` | Balance CRUD, batch upsert, funded address queries |
+| `internal/db/balances.go` | Balance CRUD, batch upsert, funded queries, aggregates |
 | `internal/db/scans.go` | Scan state persistence with resume support |
+| `internal/price/coingecko.go` | CoinGecko price service with 5-min cache |
 | `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
 | `internal/api/handlers/scan.go` | Scan start/stop/status handlers + SSE streaming |
+| `internal/api/handlers/dashboard.go` | Prices + portfolio API handlers |
 | `internal/scanner/scanner.go` | Scanner orchestrator: multi-chain, resume, token scanning |
 | `internal/scanner/pool.go` | Provider pool with round-robin rotation + failover |
 | `internal/scanner/sse.go` | SSE hub for real-time scan progress broadcasting |
@@ -147,8 +155,9 @@ hdpay/
 | `internal/api/router.go` | Chi router with middleware stack |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
-| `web/src/lib/utils/api.ts` | API client (CSRF) + address/scan API functions |
+| `web/src/lib/utils/api.ts` | API client (CSRF) + address/scan/dashboard API functions |
 | `web/src/lib/stores/scan.svelte.ts` | Scan store with SSE lifecycle + exponential backoff |
+| `web/src/routes/+page.svelte` | Dashboard with portfolio overview + ECharts |
 | `web/src/routes/scan/+page.svelte` | Scan page with real-time progress |
 
 ## Module Dependencies
@@ -171,7 +180,7 @@ hdpay/
 | `svelte` / `@sveltejs/kit` | UI framework |
 | `@sveltejs/adapter-static` | Static site generation |
 | `tailwindcss` / `@tailwindcss/vite` | CSS utility framework |
-| `echarts` | Charts (portfolio visualization) |
+| `echarts` / `svelte-echarts` | Charts (portfolio pie chart) |
 | `@tanstack/svelte-virtual` | Table virtualization (installed, ready for use) |
 | `typescript` | Type safety |
 
@@ -186,7 +195,8 @@ hdpay/
 | POST | `/api/scan/stop` | Implemented | `handlers/scan.go` |
 | GET | `/api/scan/status` | Implemented | `handlers/scan.go` |
 | GET | `/api/scan/sse` | Implemented | `handlers/scan.go` |
-| GET | `/api/dashboard/portfolio` | Stub | `handlers/dashboard.go` |
+| GET | `/api/dashboard/prices` | Implemented | `handlers/dashboard.go` |
+| GET | `/api/dashboard/portfolio` | Implemented | `handlers/dashboard.go` |
 | POST | `/api/send/execute` | Stub | `handlers/send.go` |
 | GET | `/api/settings` | Stub | `handlers/settings.go` |
 

@@ -1,5 +1,5 @@
 import { API_BASE } from '$lib/constants';
-import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain, ScanStateWithRunning } from '$lib/types';
+import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain, PortfolioResponse, PriceData, ScanStateWithRunning } from '$lib/types';
 
 let csrfToken: string | null = null;
 
@@ -148,4 +148,14 @@ export function getScanStatus(): Promise<APIResponse<Record<string, ScanStateWit
 
 export function getScanStatusForChain(chain: Chain): Promise<APIResponse<ScanStateWithRunning>> {
 	return api.get<ScanStateWithRunning>(`/scan/status?chain=${chain}`);
+}
+
+// Dashboard API
+
+export function getPrices(): Promise<APIResponse<PriceData>> {
+	return api.get<PriceData>('/dashboard/prices');
+}
+
+export function getPortfolio(): Promise<APIResponse<PortfolioResponse>> {
+	return api.get<PortfolioResponse>('/dashboard/portfolio');
 }
