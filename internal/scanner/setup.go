@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -93,6 +94,37 @@ func SetupScannerForTest(database *db.DB, hub *SSEHub, pools map[models.Chain]*P
 		scanner.RegisterPool(chain, pool)
 	}
 	return scanner
+}
+
+// NewPoolForTest creates a pool with a simple mock provider for handler-level testing.
+// The mock returns zero balances instantly, allowing scans to run and complete quickly.
+func NewPoolForTest(chain models.Chain) *Pool {
+	return NewPool(chain, &testProvider{chain: chain})
+}
+
+// testProvider is a simple exported-package-safe provider that returns zero balances.
+type testProvider struct {
+	chain models.Chain
+}
+
+func (p *testProvider) Name() string       { return "TestProvider" }
+func (p *testProvider) Chain() models.Chain { return p.chain }
+func (p *testProvider) MaxBatchSize() int   { return 10 }
+
+func (p *testProvider) FetchNativeBalances(_ context.Context, addresses []models.Address) ([]BalanceResult, error) {
+	results := make([]BalanceResult, len(addresses))
+	for i, a := range addresses {
+		results[i] = BalanceResult{
+			Address:      a.Address,
+			AddressIndex: a.AddressIndex,
+			Balance:      "0",
+		}
+	}
+	return results, nil
+}
+
+func (p *testProvider) FetchTokenBalances(_ context.Context, _ []models.Address, _ models.Token, _ string) ([]BalanceResult, error) {
+	return nil, config.ErrTokensNotSupported
 }
 
 // NewHTTPClient creates an HTTP client with the standard provider timeout.

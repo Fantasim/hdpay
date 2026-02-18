@@ -1,5 +1,5 @@
 import { API_BASE } from '$lib/constants';
-import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain } from '$lib/types';
+import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain, ScanStateWithRunning } from '$lib/types';
 
 let csrfToken: string | null = null;
 
@@ -119,4 +119,33 @@ export function getAddresses(
 export function exportAddresses(chain: Chain): void {
 	const url = `${API_BASE}/addresses/${chain}/export`;
 	window.open(url, '_blank');
+}
+
+// Scan API
+
+export interface StartScanResponse {
+	message: string;
+	chain: Chain;
+	maxId: number;
+}
+
+export interface StopScanResponse {
+	message: string;
+	chain: Chain;
+}
+
+export function startScan(chain: Chain, maxId: number): Promise<APIResponse<StartScanResponse>> {
+	return api.post<StartScanResponse>('/scan/start', { chain, maxId });
+}
+
+export function stopScan(chain: Chain): Promise<APIResponse<StopScanResponse>> {
+	return api.post<StopScanResponse>('/scan/stop', { chain });
+}
+
+export function getScanStatus(): Promise<APIResponse<Record<string, ScanStateWithRunning | null>>> {
+	return api.get<Record<string, ScanStateWithRunning | null>>('/scan/status');
+}
+
+export function getScanStatusForChain(chain: Chain): Promise<APIResponse<ScanStateWithRunning>> {
+	return api.get<ScanStateWithRunning>(`/scan/status?chain=${chain}`);
 }

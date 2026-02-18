@@ -8,7 +8,7 @@ export type TokenSymbol = 'BTC' | 'BNB' | 'SOL' | 'USDC' | 'USDT';
 export type Network = 'mainnet' | 'testnet';
 
 // ScanStatus represents the state of a scan.
-export type ScanStatus = 'idle' | 'scanning' | 'paused' | 'completed' | 'error';
+export type ScanStatus = 'idle' | 'scanning' | 'paused' | 'completed' | 'failed' | 'error';
 
 // TransactionDirection represents inbound or outbound.
 export type TransactionDirection = 'in' | 'out';
@@ -58,6 +58,26 @@ export interface ScanProgress {
 	total: number;
 	found: number;
 	elapsed: string;
+}
+
+// ScanCompleteEvent is the SSE payload for scan_complete.
+export interface ScanCompleteEvent {
+	chain: Chain;
+	scanned: number;
+	found: number;
+	duration: string;
+}
+
+// ScanErrorEvent is the SSE payload for scan_error.
+export interface ScanErrorEvent {
+	chain: Chain;
+	error: string;
+	message: string;
+}
+
+// ScanStateWithRunning augments ScanState with live running flag from backend.
+export interface ScanStateWithRunning extends ScanState {
+	isRunning: boolean;
 }
 
 // Transaction represents a recorded transaction.

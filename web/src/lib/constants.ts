@@ -1,6 +1,12 @@
 // API
 export const API_BASE = '/api';
 export const SSE_RECONNECT_DELAY_MS = 1000;
+export const SSE_MAX_RECONNECT_DELAY_MS = 30_000;
+export const SSE_BACKOFF_MULTIPLIER = 2;
+
+// Scan
+export const DEFAULT_MAX_SCAN_ID = 5000;
+export const MAX_SCAN_ID = 500_000;
 
 // Display
 export const MAX_TABLE_ROWS_DISPLAY = 1000;

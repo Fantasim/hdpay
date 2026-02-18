@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 5)
+
+#### Added
+- Scan API handlers: `POST /api/scan/start`, `POST /api/scan/stop`, `GET /api/scan/status`, `GET /api/scan/sse` (`internal/api/handlers/scan.go`)
+- SSE streaming handler with keepalive ticker and hub subscribe/unsubscribe lifecycle
+- Scanner wired into `main.go`: SSEHub creation, SetupScanner, hub.Run goroutine
+- Scan routes added to Chi router (`internal/api/router.go`)
+- Exported test helpers: `NewPoolForTest`, `testProvider` in `internal/scanner/setup.go`
+- 11 scan handler tests covering start/stop/status/SSE endpoints (`scan_test.go`)
+- Frontend scan store with SSE connection management (`web/src/lib/stores/scan.svelte.ts`)
+- EventSource with named event listeners (`scan_progress`, `scan_complete`, `scan_error`)
+- Exponential backoff reconnect (1s base, 30s cap, 2x multiplier)
+- ScanControl component: chain selector, max ID input, start/stop buttons, info alert
+- ScanProgress component: per-chain progress bars, status badges, ETA calculation
+- ProviderStatus component: static provider health grid (V1)
+- Scan page assembly with SSE lifecycle (connect on mount, disconnect on cleanup)
+- SSE connection indicator in page header (Live/Connecting/Reconnecting/Disconnected)
+- Frontend scan API functions: `startScan`, `stopScan`, `getScanStatus`, `getScanStatusForChain`
+- Frontend types: `ScanCompleteEvent`, `ScanErrorEvent`, `ScanStateWithRunning`
+- Frontend constants: `DEFAULT_MAX_SCAN_ID`, `MAX_SCAN_ID`, `SSE_MAX_RECONNECT_DELAY_MS`, `SSE_BACKOFF_MULTIPLIER`
+
 ### 2026-02-18 (Phase 4)
 
 #### Added

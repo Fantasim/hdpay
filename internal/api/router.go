@@ -7,6 +7,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/api/middleware"
 	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/db"
+	"github.com/Fantasim/hdpay/internal/scanner"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -14,7 +15,7 @@ import (
 var Version = "dev"
 
 // NewRouter creates and configures the Chi router with all middleware and routes.
-func NewRouter(database *db.DB, cfg *config.Config) chi.Router {
+func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *scanner.SSEHub) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack (order matters)
@@ -34,6 +35,12 @@ func NewRouter(database *db.DB, cfg *config.Config) chi.Router {
 		// Address management
 		r.Get("/addresses/{chain}", handlers.ListAddresses(database))
 		r.Get("/addresses/{chain}/export", handlers.ExportAddresses(database))
+
+		// Scanning
+		r.Post("/scan/start", handlers.StartScan(sc))
+		r.Post("/scan/stop", handlers.StopScan(sc))
+		r.Get("/scan/status", handlers.GetScanStatus(sc, database))
+		r.Get("/scan/sse", handlers.ScanSSE(hub))
 	})
 
 	return r

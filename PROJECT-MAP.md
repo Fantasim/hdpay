@@ -19,7 +19,8 @@ hdpay/
 |   |   |   |-- address_test.go      # Address handler tests (6 tests)
 |   |   |   |-- dashboard.go         # Dashboard endpoints (stub)
 |   |   |   |-- health.go            # GET /api/health
-|   |   |   |-- scan.go              # Scan endpoints (stub)
+|   |   |   |-- scan.go              # POST start/stop, GET status, GET SSE
+|   |   |   |-- scan_test.go         # Scan handler tests (11 tests)
 |   |   |   |-- send.go              # Send endpoints (stub)
 |   |   |   └-- settings.go          # Settings endpoints (stub)
 |   |   |-- middleware/
@@ -33,10 +34,12 @@ hdpay/
 |   |-- db/
 |   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
 |   |   |-- addresses_test.go        # Address DB tests (5 tests)
-|   |   |-- balances.go              # Balance state (stub)
+|   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, summaries
+|   |   |-- balances_test.go         # Balance DB tests (10 tests)
 |   |   |-- migrations/
 |   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
-|   |   |-- scans.go                 # Scan state (stub)
+|   |   |-- scans.go                 # Scan state: GetScanState, UpsertScanState, ShouldResume
+|   |   |-- scans_test.go            # Scan state DB tests (8 tests)
 |   |   |-- sqlite.go                # SQLite connection, WAL mode, migrations
 |   |   |-- sqlite_test.go           # DB tests
 |   |   └-- transactions.go          # Transaction history (stub)
@@ -44,11 +47,28 @@ hdpay/
 |   |   |-- logger.go                # slog: stdout + daily rotated files
 |   |   └-- logger_test.go           # Logger tests
 |   |-- models/
-|   |   └-- types.go                 # Domain types: Chain, Address, AddressWithBalance, etc.
+|   |   └-- types.go                 # Domain types: Chain, Address, ScanState, Token, etc.
 |   |-- price/
 |   |   └-- coingecko.go             # CoinGecko price fetching (stub)
 |   |-- scanner/
-|   |   └-- scanner.go               # Scanner orchestrator (stub)
+|   |   |-- btc_blockstream.go       # Blockstream Esplora provider
+|   |   |-- btc_blockstream_test.go
+|   |   |-- btc_mempool.go           # Mempool.space provider
+|   |   |-- bsc_bscscan.go           # BscScan REST API provider
+|   |   |-- bsc_bscscan_test.go
+|   |   |-- bsc_rpc.go               # BSC ethclient JSON-RPC provider
+|   |   |-- pool.go                  # Provider pool: round-robin + failover
+|   |   |-- pool_test.go
+|   |   |-- provider.go              # Provider interface + BalanceResult type
+|   |   |-- ratelimiter.go           # Per-provider rate limiter (x/time/rate)
+|   |   |-- scanner.go               # Scanner orchestrator: start, stop, resume, token scan
+|   |   |-- scanner_test.go
+|   |   |-- setup.go                 # SetupScanner factory + test helpers
+|   |   |-- sol_ata.go               # Manual Solana ATA derivation via PDA
+|   |   |-- sol_ata_test.go
+|   |   |-- sol_rpc.go               # Solana JSON-RPC provider (batch 100)
+|   |   |-- sse.go                   # SSE hub: subscribe/unsubscribe/broadcast
+|   |   └-- sse_test.go
 |   |-- tx/
 |   |   └-- broadcaster.go           # Transaction broadcaster (stub)
 |   └-- wallet/
@@ -74,20 +94,25 @@ hdpay/
 |   |   |   |   |-- address/
 |   |   |   |   |   └-- AddressTable.svelte  # Address table with badges, copy, tokens
 |   |   |   |   |-- layout/          # Sidebar, Header
+|   |   |   |   |-- scan/
+|   |   |   |   |   |-- ScanControl.svelte   # Chain selector, max ID, start/stop
+|   |   |   |   |   |-- ScanProgress.svelte  # Per-chain progress bars + stats
+|   |   |   |   |   └-- ProviderStatus.svelte # Provider health grid
 |   |   |   |   └-- ui/              # shadcn-svelte components
 |   |   |   |-- constants.ts         # Frontend constants
 |   |   |   |-- stores/
-|   |   |   |   └-- addresses.ts     # Reactive address store (chain, pagination, filters)
+|   |   |   |   |-- addresses.ts     # Reactive address store (chain, pagination, filters)
+|   |   |   |   └-- scan.svelte.ts   # Scan store with SSE connection + reconnect
 |   |   |   |-- types.ts             # TypeScript interfaces
 |   |   |   └-- utils/
-|   |   |       |-- api.ts           # API client with CSRF + address API functions
+|   |   |       |-- api.ts           # API client with CSRF + address/scan API functions
 |   |   |       |-- chains.ts        # Chain color, label, explorer URL, token decimals
 |   |   |       └-- formatting.ts    # Number/address/time formatting + clipboard
 |   |   └-- routes/
 |   |       |-- +layout.svelte       # Root layout with Sidebar
 |   |       |-- +page.svelte         # Dashboard (landing)
 |   |       |-- addresses/+page.svelte  # Address explorer with tabs, filters, pagination
-|   |       |-- scan/+page.svelte
+|   |       |-- scan/+page.svelte    # Scan page with SSE progress visualization
 |   |       |-- send/+page.svelte
 |   |       |-- settings/+page.svelte
 |   |       └-- transactions/+page.svelte
@@ -106,21 +131,25 @@ hdpay/
 | `internal/config/config.go` | Config struct loaded via envconfig |
 | `internal/db/sqlite.go` | SQLite connection, WAL mode, auto-migrations |
 | `internal/db/addresses.go` | Address CRUD + filtered paginated queries with balance hydration |
+| `internal/db/balances.go` | Balance CRUD, batch upsert, funded address queries |
+| `internal/db/scans.go` | Scan state persistence with resume support |
 | `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
+| `internal/api/handlers/scan.go` | Scan start/stop/status handlers + SSE streaming |
+| `internal/scanner/scanner.go` | Scanner orchestrator: multi-chain, resume, token scanning |
+| `internal/scanner/pool.go` | Provider pool with round-robin rotation + failover |
+| `internal/scanner/sse.go` | SSE hub for real-time scan progress broadcasting |
+| `internal/scanner/setup.go` | Scanner factory + test helpers |
 | `internal/wallet/hd.go` | BIP-39 mnemonic validation, seed derivation, master key |
 | `internal/wallet/btc.go` | BTC bech32 via BIP-84: `m/84'/0'/0'/0/N` |
 | `internal/wallet/bsc.go` | BSC EIP-55 via BIP-44: `m/44'/60'/0'/0/N` |
 | `internal/wallet/sol.go` | SOL via manual SLIP-10 ed25519: `m/44'/501'/N'/0'` |
 | `internal/wallet/generator.go` | Bulk generation with progress callbacks |
-| `internal/wallet/export.go` | Streaming JSON export (no OOM on 500K) |
 | `internal/api/router.go` | Chi router with middleware stack |
-| `internal/logging/logger.go` | slog dual output: stdout + daily file |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
-| `web/src/lib/utils/api.ts` | API client (single source of truth) + address API functions |
-| `web/src/lib/utils/chains.ts` | Chain metadata helpers |
-| `web/src/lib/stores/addresses.ts` | Reactive address store with pagination/filter state |
-| `web/src/routes/addresses/+page.svelte` | Address explorer page |
+| `web/src/lib/utils/api.ts` | API client (CSRF) + address/scan API functions |
+| `web/src/lib/stores/scan.svelte.ts` | Scan store with SSE lifecycle + exponential backoff |
+| `web/src/routes/scan/+page.svelte` | Scan page with real-time progress |
 
 ## Module Dependencies
 
@@ -132,8 +161,9 @@ hdpay/
 | `github.com/kelseyhightower/envconfig` | Config from env vars |
 | `github.com/tyler-smith/go-bip39` | BIP-39 mnemonic/seed |
 | `github.com/btcsuite/btcd` | BTC BIP-32 key derivation, bech32 |
-| `github.com/ethereum/go-ethereum` | BSC/EVM address derivation |
+| `github.com/ethereum/go-ethereum` | BSC/EVM address derivation + ethclient |
 | `github.com/mr-tron/base58` | SOL base58 encoding |
+| `golang.org/x/time` | Rate limiting (token bucket) |
 
 ### Frontend (npm)
 | Package | Purpose |
@@ -152,8 +182,10 @@ hdpay/
 | GET | `/api/health` | Implemented | `handlers/health.go` |
 | GET | `/api/addresses/{chain}` | Implemented | `handlers/address.go` |
 | GET | `/api/addresses/{chain}/export` | Implemented | `handlers/address.go` |
-| POST | `/api/scan/start` | Stub | `handlers/scan.go` |
-| GET | `/api/scan/status` | Stub | `handlers/scan.go` |
+| POST | `/api/scan/start` | Implemented | `handlers/scan.go` |
+| POST | `/api/scan/stop` | Implemented | `handlers/scan.go` |
+| GET | `/api/scan/status` | Implemented | `handlers/scan.go` |
+| GET | `/api/scan/sse` | Implemented | `handlers/scan.go` |
 | GET | `/api/dashboard/portfolio` | Stub | `handlers/dashboard.go` |
 | POST | `/api/send/execute` | Stub | `handlers/send.go` |
 | GET | `/api/settings` | Stub | `handlers/settings.go` |

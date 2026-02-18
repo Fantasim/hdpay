@@ -16,6 +16,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/db"
 	"github.com/Fantasim/hdpay/internal/logging"
 	"github.com/Fantasim/hdpay/internal/models"
+	"github.com/Fantasim/hdpay/internal/scanner"
 	"github.com/Fantasim/hdpay/internal/wallet"
 )
 
@@ -95,7 +96,20 @@ func runServe() error {
 
 	slog.Info("database migrations applied")
 
-	router := api.NewRouter(database, cfg)
+	// Setup SSE hub and scanner engine.
+	hub := scanner.NewSSEHub()
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubCtx)
+
+	sc, err := scanner.SetupScanner(database, cfg, hub)
+	if err != nil {
+		return fmt.Errorf("failed to setup scanner: %w", err)
+	}
+
+	slog.Info("scanner engine initialized")
+
+	router := api.NewRouter(database, cfg, sc, hub)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{
