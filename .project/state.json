@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 0,
+  "current_build_phase": 1,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,9 +25,9 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 0,
+    "current_phase_index": 1,
     "phases": [
-      { "name": "Project Foundation", "status": "pending", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": null },
+      { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "pending", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": null },
       { "name": "Address Explorer", "status": "pending", "plan_file": "04-build-plan/phases/phase-03/PLAN.md", "summary_file": null },
       { "name": "Scanner Engine (Backend)", "status": "pending", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": null },
@@ -66,12 +66,12 @@
     "build_phases": "11 phases: Foundation → Wallet → Explorer → Scanner → Scan UI → Dashboard → BTC TX → BSC TX → SOL TX → Send UI → History/Settings/Deploy",
     "setup_skipped": "CLAUDE.md already fully specified in prework; no additional setup phase needed"
   },
-  "session_count": 0,
+  "session_count": 1,
   "last_session": {
-    "id": 0,
-    "date": "",
-    "summary": "",
-    "phase": ""
+    "id": 1,
+    "date": "2026-02-18",
+    "summary": "Phase 1 complete: Go module, SQLite, logging, Chi router, security middleware, SvelteKit scaffold, sidebar layout, Makefile",
+    "phase": "building"
   },
   "pending_questions": false,
   "responsive": false
