@@ -196,6 +196,33 @@ const (
 	DBBusyTimeout = 5000 // milliseconds
 )
 
+// Send / Execute
+const (
+	SendExecuteTimeout = 10 * time.Minute // max time for a full sweep execution
+	TxSSEHubBuffer     = 64               // channel buffer for TX SSE events
+)
+
+// Explorer URLs
+const (
+	ExplorerBTCMainnet  = "https://mempool.space/tx/"
+	ExplorerBTCTestnet  = "https://mempool.space/testnet/tx/"
+	ExplorerBSCMainnet  = "https://bscscan.com/tx/"
+	ExplorerBSCTestnet  = "https://testnet.bscscan.com/tx/"
+	ExplorerSOLMainnet  = "https://solscan.io/tx/"
+	ExplorerSOLDevnet   = "https://solscan.io/tx/" // append ?cluster=devnet
+)
+
+// Token Decimals
+const (
+	BTCDecimals      = 8
+	BNBDecimals      = 18
+	SOLDecimals      = 9
+	BSCUSDCDecimals  = 18 // BSC USDC is 18 decimals (not 6 like Ethereum)
+	BSCUSDTDecimals  = 18
+	SOLUSDCDecimals  = 6
+	SOLUSDTDecimals  = 6
+)
+
 // Price
 const (
 	CoinGeckoBaseURL   = "https://api.coingecko.com/api/v3"

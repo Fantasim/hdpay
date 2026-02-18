@@ -17,14 +17,14 @@ const TOKEN_DECIMALS: Record<string, number> = {
 
 const EXPLORER_URLS: Record<string, Record<string, string>> = {
 	mainnet: {
-		BTC: 'https://blockstream.info',
+		BTC: 'https://mempool.space',
 		BSC: 'https://bscscan.com',
-		SOL: 'https://explorer.solana.com'
+		SOL: 'https://solscan.io'
 	},
 	testnet: {
-		BTC: 'https://blockstream.info/testnet',
+		BTC: 'https://mempool.space/testnet',
 		BSC: 'https://testnet.bscscan.com',
-		SOL: 'https://explorer.solana.com'
+		SOL: 'https://solscan.io'
 	}
 };
 
@@ -55,7 +55,12 @@ export function getExplorerUrl(
 			return `${base}/${type === 'address' ? 'address' : 'tx'}/${hash}`;
 		case 'SOL':
 			return type === 'address'
-				? `${base}/address/${hash}${network === 'testnet' ? '?cluster=devnet' : ''}`
+				? `${base}/account/${hash}${network === 'testnet' ? '?cluster=devnet' : ''}`
 				: `${base}/tx/${hash}${network === 'testnet' ? '?cluster=devnet' : ''}`;
 	}
+}
+
+// getExplorerTxUrl is a convenience wrapper for transaction URLs.
+export function getExplorerTxUrl(chain: Chain, txHash: string, network: string = 'mainnet'): string {
+	return getExplorerUrl(chain, 'tx', txHash, network);
 }

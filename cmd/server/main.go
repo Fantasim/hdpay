@@ -11,13 +11,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/Fantasim/hdpay/internal/api"
+	"github.com/Fantasim/hdpay/internal/api/handlers"
 	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/db"
 	"github.com/Fantasim/hdpay/internal/logging"
 	"github.com/Fantasim/hdpay/internal/models"
 	"github.com/Fantasim/hdpay/internal/price"
 	"github.com/Fantasim/hdpay/internal/scanner"
+	"github.com/Fantasim/hdpay/internal/tx"
 	"github.com/Fantasim/hdpay/internal/wallet"
 )
 
@@ -113,7 +117,15 @@ func runServe() error {
 	// Setup price service.
 	ps := price.NewPriceService()
 
-	router := api.NewRouter(database, cfg, sc, hub, ps)
+	// Setup TX services for send functionality.
+	sendDeps, err := setupSendDeps(database, cfg, hubCtx)
+	if err != nil {
+		return fmt.Errorf("failed to setup send dependencies: %w", err)
+	}
+
+	slog.Info("send services initialized")
+
+	router := api.NewRouter(database, cfg, sc, hub, ps, sendDeps)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{
@@ -302,6 +314,95 @@ func generateAndStore(database *db.DB, chain models.Chain, expectedCount int, ge
 	}
 
 	return nil
+}
+
+// setupSendDeps initializes all transaction services needed for the send handlers.
+func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) (*handlers.SendDeps, error) {
+	netParams := wallet.NetworkParams(cfg.Network)
+	httpClient := &http.Client{Timeout: config.APITimeout}
+
+	// Key service (derives private keys on demand from mnemonic file).
+	keyService := tx.NewKeyService(cfg.MnemonicFile, cfg.Network)
+
+	// BTC services.
+	var btcProviderURLs []string
+	var btcRateLimiters []*scanner.RateLimiter
+	if cfg.Network == string(models.NetworkTestnet) {
+		btcProviderURLs = []string{config.BlockstreamTestnetURL, config.MempoolTestnetURL}
+		btcRateLimiters = []*scanner.RateLimiter{
+			scanner.NewRateLimiter("blockstream-testnet", config.RateLimitBlockstream),
+			scanner.NewRateLimiter("mempool-testnet", config.RateLimitMempool),
+		}
+	} else {
+		btcProviderURLs = []string{config.BlockstreamMainnetURL, config.MempoolMainnetURL}
+		btcRateLimiters = []*scanner.RateLimiter{
+			scanner.NewRateLimiter("blockstream", config.RateLimitBlockstream),
+			scanner.NewRateLimiter("mempool", config.RateLimitMempool),
+		}
+	}
+
+	utxoFetcher := tx.NewBTCUTXOFetcher(httpClient, btcProviderURLs, btcRateLimiters)
+
+	var mempoolURL string
+	if cfg.Network == string(models.NetworkTestnet) {
+		mempoolURL = config.MempoolTestnetURL
+	} else {
+		mempoolURL = config.MempoolMainnetURL
+	}
+	feeEstimator := tx.NewBTCFeeEstimator(httpClient, mempoolURL)
+	broadcaster := tx.NewBTCBroadcaster(httpClient, btcProviderURLs)
+
+	btcService := tx.NewBTCConsolidationService(keyService, utxoFetcher, feeEstimator, broadcaster, database, netParams)
+
+	// BSC services.
+	var bscRPCURL string
+	if cfg.Network == string(models.NetworkTestnet) {
+		bscRPCURL = config.BscRPCTestnetURL
+	} else {
+		bscRPCURL = config.BscRPCMainnetURL
+	}
+
+	ethClient, err := ethclient.Dial(bscRPCURL)
+	if err != nil {
+		return nil, fmt.Errorf("dial BSC RPC %s: %w", bscRPCURL, err)
+	}
+
+	bscChainID := tx.BSCChainID(cfg.Network)
+	bscService := tx.NewBSCConsolidationService(keyService, ethClient, database, bscChainID)
+	gasPreSeedService := tx.NewGasPreSeedService(keyService, ethClient, database, bscChainID)
+
+	slog.Info("BSC services initialized", "rpcURL", bscRPCURL, "chainID", bscChainID)
+
+	// SOL services.
+	var solRPCURLs []string
+	if cfg.Network == string(models.NetworkTestnet) {
+		solRPCURLs = []string{config.SolanaDevnetRPCURL}
+	} else {
+		solRPCURLs = []string{config.SolanaMainnetRPCURL}
+		if cfg.HeliusAPIKey != "" {
+			solRPCURLs = append(solRPCURLs, config.HeliusMainnetRPCURL+"/?api-key="+cfg.HeliusAPIKey)
+		}
+	}
+
+	solRPCClient := tx.NewDefaultSOLRPCClient(httpClient, solRPCURLs)
+	solService := tx.NewSOLConsolidationService(keyService, solRPCClient, database, cfg.Network)
+
+	slog.Info("SOL services initialized", "rpcURLs", solRPCURLs)
+
+	// TX SSE Hub.
+	txHub := tx.NewTxSSEHub()
+	go txHub.Run(hubCtx)
+
+	return &handlers.SendDeps{
+		DB:         database,
+		Config:     cfg,
+		BTCService: btcService,
+		BSCService: bscService,
+		SOLService: solService,
+		GasPreSeed: gasPreSeedService,
+		TxHub:      txHub,
+		NetParams:  netParams,
+	}, nil
 }
 
 func runExport() error {

@@ -243,6 +243,62 @@ type SOLTxResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// SendRequest is the common request body for preview and execute.
+type SendRequest struct {
+	Chain       Chain  `json:"chain"`
+	Token       Token  `json:"token"`
+	Destination string `json:"destination"`
+}
+
+// GasPreSeedRequest is the request body for gas pre-seeding.
+type GasPreSeedRequest struct {
+	SourceIndex     int      `json:"sourceIndex"`
+	TargetAddresses []string `json:"targetAddresses"`
+}
+
+// FundedAddressInfo is a row in the preview's funded address table.
+type FundedAddressInfo struct {
+	AddressIndex int    `json:"addressIndex"`
+	Address      string `json:"address"`
+	Balance      string `json:"balance"`
+	HasGas       bool   `json:"hasGas"`
+}
+
+// UnifiedSendPreview is the unified preview response for all chains.
+type UnifiedSendPreview struct {
+	Chain           Chain               `json:"chain"`
+	Token           Token               `json:"token"`
+	Destination     string              `json:"destination"`
+	FundedCount     int                 `json:"fundedCount"`
+	TotalAmount     string              `json:"totalAmount"`
+	FeeEstimate     string              `json:"feeEstimate"`
+	NetAmount       string              `json:"netAmount"`
+	TxCount         int                 `json:"txCount"`
+	NeedsGasPreSeed bool                `json:"needsGasPreSeed"`
+	GasPreSeedCount int                 `json:"gasPreSeedCount"`
+	FundedAddresses []FundedAddressInfo  `json:"fundedAddresses"`
+}
+
+// UnifiedSendResult is the unified execute response for all chains.
+type UnifiedSendResult struct {
+	Chain        Chain      `json:"chain"`
+	Token        Token      `json:"token"`
+	TxResults    []TxResult `json:"txResults"`
+	SuccessCount int        `json:"successCount"`
+	FailCount    int        `json:"failCount"`
+	TotalSwept   string     `json:"totalSwept"`
+}
+
+// TxResult is a single transaction result in a unified sweep.
+type TxResult struct {
+	AddressIndex int    `json:"addressIndex"`
+	FromAddress  string `json:"fromAddress"`
+	TxHash       string `json:"txHash"`
+	Amount       string `json:"amount"`
+	Status       string `json:"status"`
+	Error        string `json:"error,omitempty"`
+}
+
 // APIError is the standard error response.
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

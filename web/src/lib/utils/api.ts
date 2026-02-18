@@ -1,5 +1,10 @@
 import { API_BASE } from '$lib/constants';
-import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain, PortfolioResponse, PriceData, ScanStateWithRunning } from '$lib/types';
+import type {
+	AddressWithBalance, APIErrorResponse, APIResponse, Chain,
+	GasPreSeedRequest, GasPreSeedResult,
+	PortfolioResponse, PriceData, ScanStateWithRunning,
+	SendRequest, UnifiedSendPreview, UnifiedSendResult
+} from '$lib/types';
 
 let csrfToken: string | null = null;
 
@@ -158,4 +163,18 @@ export function getPrices(): Promise<APIResponse<PriceData>> {
 
 export function getPortfolio(): Promise<APIResponse<PortfolioResponse>> {
 	return api.get<PortfolioResponse>('/dashboard/portfolio');
+}
+
+// Send API
+
+export function previewSend(req: SendRequest): Promise<APIResponse<UnifiedSendPreview>> {
+	return api.post<UnifiedSendPreview>('/send/preview', req);
+}
+
+export function executeSend(req: SendRequest): Promise<APIResponse<UnifiedSendResult>> {
+	return api.post<UnifiedSendResult>('/send/execute', req);
+}
+
+export function gasPreSeed(req: GasPreSeedRequest): Promise<APIResponse<GasPreSeedResult>> {
+	return api.post<GasPreSeedResult>('/send/gas-preseed', req);
 }

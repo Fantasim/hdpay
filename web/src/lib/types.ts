@@ -164,3 +164,86 @@ export interface Settings {
 	maxScanId: number;
 	network: Network;
 }
+
+// --- Send Types ---
+
+// SendToken represents valid token values for the send API.
+export type SendToken = 'NATIVE' | 'USDC' | 'USDT';
+
+// SendRequest is the request body for preview and execute.
+export interface SendRequest {
+	chain: Chain;
+	token: SendToken;
+	destination: string;
+}
+
+// FundedAddressInfo is a row in the preview's funded address table.
+export interface FundedAddressInfo {
+	addressIndex: number;
+	address: string;
+	balance: string;
+	hasGas: boolean;
+}
+
+// UnifiedSendPreview is the unified preview response for all chains.
+export interface UnifiedSendPreview {
+	chain: Chain;
+	token: SendToken;
+	destination: string;
+	fundedCount: number;
+	totalAmount: string;
+	feeEstimate: string;
+	netAmount: string;
+	txCount: number;
+	needsGasPreSeed: boolean;
+	gasPreSeedCount: number;
+	fundedAddresses: FundedAddressInfo[];
+}
+
+// TxResult is a single transaction result in a unified sweep.
+export interface TxResult {
+	addressIndex: number;
+	fromAddress: string;
+	txHash: string;
+	amount: string;
+	status: string;
+	error?: string;
+}
+
+// UnifiedSendResult is the unified execute response for all chains.
+export interface UnifiedSendResult {
+	chain: Chain;
+	token: SendToken;
+	txResults: TxResult[];
+	successCount: number;
+	failCount: number;
+	totalSwept: string;
+}
+
+// GasPreSeedRequest is the request body for gas pre-seeding.
+export interface GasPreSeedRequest {
+	sourceIndex: number;
+	targetAddresses: string[];
+}
+
+// GasPreSeedPreview contains the preview of a gas pre-seeding operation.
+export interface GasPreSeedPreview {
+	sourceIndex: number;
+	sourceAddress: string;
+	sourceBalance: string;
+	targetCount: number;
+	amountPerTarget: string;
+	totalNeeded: string;
+	sufficient: boolean;
+}
+
+// GasPreSeedResult contains the result of a gas pre-seeding operation.
+export interface GasPreSeedResult {
+	txResults: TxResult[];
+	successCount: number;
+	failCount: number;
+	totalSent: string;
+}
+
+// SendStep represents the current step in the send wizard.
+export type SendStep = 'select' | 'preview' | 'gas-preseed' | 'execute' | 'complete';

@@ -120,6 +120,111 @@ func (d *DB) GetFundedAddresses(chain models.Chain, token models.Token) ([]model
 	return results, nil
 }
 
+// GetFundedAddressesJoined returns addresses with non-zero balance for a chain and token,
+// joined with the addresses table to include the actual address string and all token balances.
+func (d *DB) GetFundedAddressesJoined(chain models.Chain, token models.Token) ([]models.AddressWithBalance, error) {
+	slog.Debug("fetching funded addresses with address data",
+		"chain", chain,
+		"token", token,
+	)
+
+	// Step 1: Get address indices with non-zero balance for the target token.
+	rows, err := d.conn.Query(
+		`SELECT b.address_index, a.address, b.balance
+		 FROM balances b
+		 JOIN addresses a ON a.chain = b.chain AND a.address_index = b.address_index
+		 WHERE b.chain = ? AND b.token = ? AND b.balance != '0'
+		 ORDER BY b.address_index`,
+		string(chain), string(token),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query funded addresses joined %s/%s: %w", chain, token, err)
+	}
+	defer rows.Close()
+
+	type fundedEntry struct {
+		index   int
+		address string
+		balance string
+	}
+
+	var funded []fundedEntry
+	for rows.Next() {
+		var e fundedEntry
+		if err := rows.Scan(&e.index, &e.address, &e.balance); err != nil {
+			return nil, fmt.Errorf("scan funded address row: %w", err)
+		}
+		funded = append(funded, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate funded address rows: %w", err)
+	}
+
+	if len(funded) == 0 {
+		slog.Debug("no funded addresses found", "chain", chain, "token", token)
+		return nil, nil
+	}
+
+	// Step 2: For each funded address, fetch all balances to populate tokenBalances and nativeBalance.
+	results := make([]models.AddressWithBalance, 0, len(funded))
+
+	for _, f := range funded {
+		balRows, err := d.conn.Query(
+			`SELECT token, balance, last_scanned FROM balances WHERE chain = ? AND address_index = ?`,
+			string(chain), f.index,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("query all balances for %s/%d: %w", chain, f.index, err)
+		}
+
+		awb := models.AddressWithBalance{
+			Chain:        chain,
+			AddressIndex: f.index,
+			Address:      f.address,
+		}
+
+		for balRows.Next() {
+			var tok string
+			var bal string
+			var lastScanned *string
+			if err := balRows.Scan(&tok, &bal, &lastScanned); err != nil {
+				balRows.Close()
+				return nil, fmt.Errorf("scan balance detail row: %w", err)
+			}
+			if lastScanned != nil {
+				awb.LastScanned = lastScanned
+			}
+			if models.Token(tok) == models.TokenNative {
+				awb.NativeBalance = bal
+			} else {
+				awb.TokenBalances = append(awb.TokenBalances, models.TokenBalanceItem{
+					Symbol:  models.Token(tok),
+					Balance: bal,
+				})
+			}
+		}
+		balRows.Close()
+		if err := balRows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate balance detail rows: %w", err)
+		}
+
+		// Ensure nativeBalance is not empty.
+		if awb.NativeBalance == "" {
+			awb.NativeBalance = "0"
+		}
+
+		results = append(results, awb)
+	}
+
+	slog.Debug("funded addresses joined fetched",
+		"chain", chain,
+		"token", token,
+		"count", len(results),
+	)
+
+	return results, nil
+}
+
 // BalanceSummary holds aggregated balance info for a chain.
 type BalanceSummary struct {
 	Chain       models.Chain

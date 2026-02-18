@@ -22,7 +22,8 @@
 		"svelte-echarts": "^1.0.0",
 		"tailwindcss": "^4.0.0",
 		"typescript": "^5.9.3",
-		"vite": "^7.3.1"
+		"vite": "^7.3.1",
+		"vitest": "^4.0.18"
 	},
 	"dependencies": {
 		"@tanstack/svelte-virtual": "^3.13.0"

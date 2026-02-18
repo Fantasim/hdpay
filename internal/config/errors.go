@@ -33,6 +33,11 @@ var (
 	ErrSOLInsufficientLamports = errors.New("insufficient lamports to cover transaction fee")
 	ErrSOLATACreationFailed    = errors.New("failed to create associated token account")
 	ErrSOLBlockhashExpired     = errors.New("recent blockhash expired")
+
+	// Send
+	ErrNoFundedAddresses = errors.New("no funded addresses found")
+	ErrInvalidDestination = errors.New("invalid destination address")
+	ErrSendInProgress    = errors.New("send operation already in progress")
 )
 
 // Error codes — shared with frontend via API responses.
@@ -70,4 +75,9 @@ const (
 	ErrorSOLTxFailed            = "ERROR_SOL_TX_FAILED"
 	ErrorSOLInsufficientLamports = "ERROR_SOL_INSUFFICIENT_LAMPORTS"
 	ErrorSOLATACreationFailed   = "ERROR_SOL_ATA_CREATION_FAILED"
+
+	// Send
+	ErrorNoFundedAddresses = "ERROR_NO_FUNDED_ADDRESSES"
+	ErrorInvalidDestination = "ERROR_INVALID_DESTINATION"
+	ErrorSendInProgress    = "ERROR_SEND_IN_PROGRESS"
 )

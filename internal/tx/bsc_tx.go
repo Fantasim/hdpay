@@ -162,6 +162,20 @@ func NewBSCConsolidationService(
 	}
 }
 
+// EstimateGasPrice returns the buffered gas price for BSC transactions.
+func (s *BSCConsolidationService) EstimateGasPrice(ctx context.Context) (*big.Int, error) {
+	suggested, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("suggest gas price: %w", err)
+	}
+	buffered := BufferedGasPrice(suggested)
+	slog.Debug("BSC gas price estimated",
+		"suggested", suggested.String(),
+		"buffered", buffered.String(),
+	)
+	return buffered, nil
+}
+
 // PreviewNativeSweep calculates the expected result of a native BNB consolidation.
 func (s *BSCConsolidationService) PreviewNativeSweep(ctx context.Context, addresses []models.AddressWithBalance, destAddr string) (*models.BSCSendPreview, error) {
 	slog.Info("BSC native sweep preview",

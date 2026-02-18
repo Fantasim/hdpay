@@ -16,7 +16,7 @@ import (
 var Version = "dev"
 
 // NewRouter creates and configures the Chi router with all middleware and routes.
-func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *scanner.SSEHub, ps *price.PriceService) chi.Router {
+func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *scanner.SSEHub, ps *price.PriceService, sendDeps *handlers.SendDeps) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack (order matters)
@@ -47,6 +47,14 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 		r.Route("/dashboard", func(r chi.Router) {
 			r.Get("/prices", handlers.GetPrices(ps))
 			r.Get("/portfolio", handlers.GetPortfolio(database, ps))
+		})
+
+		// Send / Transaction
+		r.Route("/send", func(r chi.Router) {
+			r.Post("/preview", handlers.PreviewSend(sendDeps))
+			r.Post("/execute", handlers.ExecuteSend(sendDeps))
+			r.Post("/gas-preseed", handlers.GasPreSeedHandler(sendDeps))
+			r.Get("/sse", handlers.SendSSE(sendDeps.TxHub))
 		})
 	})
 
