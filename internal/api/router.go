@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io/fs"
 	"log/slog"
 
 	"github.com/Fantasim/hdpay/internal/api/handlers"
@@ -16,7 +17,8 @@ import (
 var Version = "dev"
 
 // NewRouter creates and configures the Chi router with all middleware and routes.
-func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *scanner.SSEHub, ps *price.PriceService, sendDeps *handlers.SendDeps) chi.Router {
+// If staticFS is non-nil, a catch-all SPA handler is registered to serve the embedded frontend.
+func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *scanner.SSEHub, ps *price.PriceService, sendDeps *handlers.SendDeps, staticFS fs.FS) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack (order matters)
@@ -49,6 +51,16 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 			r.Get("/portfolio", handlers.GetPortfolio(database, ps))
 		})
 
+		// Transaction History
+		r.Get("/transactions", handlers.ListTransactions(database))
+		r.Get("/transactions/{chain}", handlers.ListTransactions(database))
+
+		// Settings
+		r.Get("/settings", handlers.GetSettings(database))
+		r.Put("/settings", handlers.UpdateSettings(database))
+		r.Post("/settings/reset-balances", handlers.ResetBalancesHandler(database))
+		r.Post("/settings/reset-all", handlers.ResetAllHandler(database))
+
 		// Send / Transaction
 		r.Route("/send", func(r chi.Router) {
 			r.Post("/preview", handlers.PreviewSend(sendDeps))
@@ -57,6 +69,12 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 			r.Get("/sse", handlers.SendSSE(sendDeps.TxHub))
 		})
 	})
+
+	// Embedded SPA: serve static files with client-side routing fallback.
+	if staticFS != nil {
+		slog.Info("embedded SPA enabled, serving static files with fallback")
+		r.NotFound(handlers.SPAHandler(staticFS))
+	}
 
 	return r
 }

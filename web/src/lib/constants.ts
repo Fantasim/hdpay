@@ -36,6 +36,15 @@ export const CHAIN_COLORS = {
 	SOL: '#9945FF'
 } as const;
 
+// Transactions
+export const DEFAULT_TX_PAGE_SIZE = 20;
+export const TX_DIRECTIONS = ['in', 'out'] as const;
+export const TX_STATUSES = ['pending', 'confirmed', 'failed'] as const;
+
+// Settings
+export const RESUME_THRESHOLD_OPTIONS = [1, 6, 12, 24, 48] as const;
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+
 // Error Codes (mirror backend)
 export const ERROR_INVALID_MNEMONIC = 'ERROR_INVALID_MNEMONIC';
 export const ERROR_ADDRESS_GENERATION = 'ERROR_ADDRESS_GENERATION';

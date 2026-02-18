@@ -3,9 +3,9 @@
 > A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.
 
 ## Current Position
-- **Phase:** building (Phase 11 of 11)
-- **Status:** Phase 10 complete — ready to start Phase 11: History, Settings & Deployment
-- **Last session:** Phase 10 completed (Send Interface — unified preview/execute API, gas pre-seed, TX SSE hub, wizard UI, 47 tests)
+- **Phase:** building — ALL 11 PHASES COMPLETE
+- **Status:** V1 fully built. All build phases done.
+- **Last session:** Phase 11 completed (History, Settings & Deployment — transaction history, settings, embedded SPA, 22MB binary)
 
 ## Build Progress
 
@@ -21,7 +21,7 @@
 | 8 | BSC Transaction Engine + Gas Pre-Seed | **DONE** |
 | 9 | SOL Transaction Engine | **DONE** |
 | 10 | Send Interface | **DONE** |
-| 11 | History, Settings & Deployment | **NEXT** |
+| 11 | History, Settings & Deployment | **DONE** |
 
 ## Key Decisions
 - **Tech stack locked**: Go 1.22+ (Chi, SQLite/modernc, slog) + SvelteKit (adapter-static, TS strict, Tailwind v4)
@@ -35,29 +35,20 @@
 - **SSE store pattern**: `.svelte.ts` with runes, named event listeners, exponential backoff reconnect
 - **ECharts**: svelte-echarts v1.0.0 with tree-shaking, $derived() rune for reactive options
 - **CoinGecko**: Public API (no key), 5-min server-side cache
-- **BTC MultiPrevOutFetcher**: Critical for multi-input signing
-- **BSC EIP-155**: Chain ID 56 (mainnet) / 97 (testnet), LegacyTx via go-ethereum v1.17.0
-- **BSC manual ABI**: BEP-20 transfer uses 0xa9059cbb + LeftPadBytes (simpler than abi.Pack)
-- **BSC 20% gas buffer**: SuggestGasPrice * 12/10 to prevent stuck TXs
-- **BSC sequential nonce**: PendingNonceAt once + local increment for batch sends
-- **SOL sequential sends**: Per-address sends (not multi-signer batch) due to 1232-byte TX limit
-- **SOL zero SDK**: Raw binary serialization from scratch — only crypto/ed25519 + base58
-- **SOL legacy TX**: Non-versioned transaction format for max validator compatibility
-- **Explorer URLs**: mempool.space (BTC), bscscan.com (BSC), solscan.io (SOL)
-- **Unified send API**: Single preview/execute endpoints dispatch to chain-specific TX engines
+- **Single binary**: 22MB Go binary with embedded SvelteKit SPA via `go:embed`
+- **SPA fallback**: Chi `NotFound` handler serves index.html for client-side routing
 - **GitHub repo**: https://github.com/Fantasim/hdpay
 
-## Next Actions
-- Run `/cf-next` to start Phase 11: History, Settings & Deployment
-- Phase 11 delivers: Transaction history page, settings page, build script, final integration
-- This is the final phase — completing it finishes V1
+## V1 Complete
+All 11 build phases are done. Options:
+- Run `/cf-save` to save final session state
+- Run `/cf-new-version` to start planning V2
 
 ## Files Reference
 | File | Purpose |
 |------|---------|
 | `.project/state.json` | Machine-readable state |
 | `.project/STATE.md` | This file — resume context |
-| `.project/04-build-plan/phases/phase-10/SUMMARY.md` | Phase 10 completion summary |
-| `.project/04-build-plan/phases/phase-11/PLAN.md` | Phase 11 build plan (outline) |
+| `.project/04-build-plan/phases/phase-11/SUMMARY.md` | Phase 11 completion summary |
 | `CLAUDE.md` | Code conventions and project guidelines |
 | `CHANGELOG.md` | Session changelog |

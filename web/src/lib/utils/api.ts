@@ -3,7 +3,8 @@ import type {
 	AddressWithBalance, APIErrorResponse, APIResponse, Chain,
 	GasPreSeedRequest, GasPreSeedResult,
 	PortfolioResponse, PriceData, ScanStateWithRunning,
-	SendRequest, UnifiedSendPreview, UnifiedSendResult
+	SendRequest, Settings, Transaction, TransactionListParams,
+	UnifiedSendPreview, UnifiedSendResult
 } from '$lib/types';
 
 let csrfToken: string | null = null;
@@ -177,4 +178,39 @@ export function executeSend(req: SendRequest): Promise<APIResponse<UnifiedSendRe
 
 export function gasPreSeed(req: GasPreSeedRequest): Promise<APIResponse<GasPreSeedResult>> {
 	return api.post<GasPreSeedResult>('/send/gas-preseed', req);
+}
+
+// Transaction History API
+
+export function getTransactions(
+	params: TransactionListParams = {}
+): Promise<APIResponse<Transaction[]>> {
+	const searchParams = new URLSearchParams();
+	if (params.chain) searchParams.set('chain', params.chain);
+	if (params.direction) searchParams.set('direction', params.direction);
+	if (params.token) searchParams.set('token', params.token);
+	if (params.status) searchParams.set('status', params.status);
+	if (params.page !== undefined) searchParams.set('page', String(params.page));
+	if (params.pageSize !== undefined) searchParams.set('pageSize', String(params.pageSize));
+
+	const qs = searchParams.toString();
+	return api.get<Transaction[]>(`/transactions${qs ? '?' + qs : ''}`);
+}
+
+// Settings API
+
+export function getSettings(): Promise<APIResponse<Settings>> {
+	return api.get<Settings>('/settings');
+}
+
+export function updateSettings(settings: Partial<Settings>): Promise<APIResponse<Settings>> {
+	return api.put<Settings>('/settings', settings);
+}
+
+export function resetBalances(): Promise<APIResponse<{ message: string }>> {
+	return api.post<{ message: string }>('/settings/reset-balances', { confirm: true });
+}
+
+export function resetAll(): Promise<APIResponse<{ message: string }>> {
+	return api.post<{ message: string }>('/settings/reset-all', { confirm: true });
 }

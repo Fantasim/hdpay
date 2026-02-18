@@ -159,10 +159,24 @@ export interface TokenPortfolioItem {
 	fundedCount: number;
 }
 
-// Settings represents user settings.
+// Settings represents all user settings from the key-value store.
 export interface Settings {
-	maxScanId: number;
-	network: Network;
+	max_scan_id: string;
+	auto_resume_scans: string;
+	resume_threshold_hours: string;
+	btc_fee_rate: string;
+	bsc_gas_preseed_bnb: string;
+	log_level: string;
+}
+
+// TransactionListParams for the transactions API.
+export interface TransactionListParams {
+	chain?: Chain;
+	direction?: TransactionDirection;
+	token?: string;
+	status?: TransactionStatus;
+	page?: number;
+	pageSize?: number;
 }
 
 // --- Send Types ---

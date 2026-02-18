@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 10,
+  "current_build_phase": null,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,7 +25,7 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 10,
+    "current_phase_index": null,
     "phases": [
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
@@ -37,7 +37,7 @@
       { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "completed", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": "04-build-plan/phases/phase-08/SUMMARY.md" },
       { "name": "SOL Transaction Engine", "status": "completed", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": "04-build-plan/phases/phase-09/SUMMARY.md" },
       { "name": "Send Interface", "status": "completed", "plan_file": "04-build-plan/phases/phase-10/PLAN.md", "summary_file": "04-build-plan/phases/phase-10/SUMMARY.md" },
-      { "name": "History, Settings & Deployment", "status": "pending", "plan_file": "04-build-plan/phases/phase-11/PLAN.md", "summary_file": null }
+      { "name": "History, Settings & Deployment", "status": "completed", "plan_file": "04-build-plan/phases/phase-11/PLAN.md", "summary_file": "04-build-plan/phases/phase-11/SUMMARY.md" }
     ]
   },
   "tech_stack": {
@@ -56,7 +56,8 @@
     "charts": "Apache ECharts + svelte-echarts",
     "table_virtualization": "@tanstack/svelte-virtual",
     "testing_backend": "Go stdlib testing",
-    "testing_frontend": "Vitest + Testing Library"
+    "testing_frontend": "Vitest + Testing Library",
+    "deployment": "Single Go binary with embedded SPA (go:embed)"
   },
   "decisions": {
     "initial_constraints": "Go 1.22+ backend (Chi, SQLite/modernc, slog), SvelteKit frontend (adapter-static, TS strict, Tailwind+shadcn-svelte, ECharts, tanstack-virtual), single binary deployment, localhost-only, free-tier blockchain APIs only, no CGO, CSRF protection, no stored private keys.",
@@ -75,13 +76,14 @@
     "bsc_sequential_nonce": "Gas pre-seed uses PendingNonceAt once + local increment per TX",
     "sol_sequential_sends": "SOL uses sequential per-address sends (not multi-signer batch) due to 1232-byte TX limit",
     "sol_zero_sdk": "SOL TX serialization built from scratch — no external Solana SDK, only crypto/ed25519 + base58",
-    "sol_legacy_tx": "SOL uses legacy (non-versioned) transaction format for max validator compatibility"
+    "sol_legacy_tx": "SOL uses legacy (non-versioned) transaction format for max validator compatibility",
+    "spa_embed": "SPA served via go:embed all:build with SPA fallback in NotFound handler, immutable cache for _app/"
   },
-  "session_count": 10,
+  "session_count": 11,
   "last_session": {
-    "id": 10,
+    "id": 11,
     "date": "2026-02-18",
-    "summary": "Phase 10 complete: Send Interface — unified preview/execute API, gas pre-seed, TX SSE hub, wizard-style 4-step frontend, address validation, explorer URLs updated to mempool.space/solscan.io, 47 tests",
+    "summary": "Phase 11 complete: History, Settings & Deployment — transaction history page with filters, settings page with reset operations, embedded SPA serving via go:embed, 22MB single binary, 40 new tests. ALL V1 BUILD PHASES COMPLETE.",
     "phase": "building"
   },
   "pending_questions": false,

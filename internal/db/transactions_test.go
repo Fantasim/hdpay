@@ -310,3 +310,169 @@ func TestListTransactions_Pagination(t *testing.T) {
 		t.Errorf("page 4 returned = %d, want 1", len(txs2))
 	}
 }
+
+func TestListTransactionsFiltered_ByDirection(t *testing.T) {
+	d := setupTestDB(t)
+
+	// Insert "send" and "receive" transactions.
+	for i := 0; i < 4; i++ {
+		d.InsertTransaction(models.Transaction{
+			Chain:        models.ChainBTC,
+			AddressIndex: i,
+			TxHash:       "send" + itoa(i) + "0000000000000000000000000000000000000000000000000000000000",
+			Direction:    "out",
+			Token:        models.TokenNative,
+			Amount:       "10000",
+			FromAddress:  "bc1qfrom",
+			ToAddress:    "bc1qdest",
+			Status:       "confirmed",
+		})
+	}
+	for i := 0; i < 2; i++ {
+		d.InsertTransaction(models.Transaction{
+			Chain:        models.ChainBTC,
+			AddressIndex: i,
+			TxHash:       "recv" + itoa(i) + "0000000000000000000000000000000000000000000000000000000000",
+			Direction:    "in",
+			Token:        models.TokenNative,
+			Amount:       "5000",
+			FromAddress:  "bc1qext",
+			ToAddress:    "bc1qlocal",
+			Status:       "confirmed",
+		})
+	}
+
+	dir := "out"
+	txs, total, err := d.ListTransactionsFiltered(TransactionFilter{
+		Direction: &dir,
+		Page:      1,
+		PageSize:  100,
+	})
+	if err != nil {
+		t.Fatalf("ListTransactionsFiltered(out) error = %v", err)
+	}
+	if total != 4 {
+		t.Errorf("total = %d, want 4", total)
+	}
+	if len(txs) != 4 {
+		t.Errorf("returned = %d, want 4", len(txs))
+	}
+}
+
+func TestListTransactionsFiltered_ByToken(t *testing.T) {
+	d := setupTestDB(t)
+
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBSC, AddressIndex: 0,
+		TxHash: "nat10000000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "100",
+		FromAddress: "0xfrom", ToAddress: "0xto", Status: "confirmed",
+	})
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBSC, AddressIndex: 1,
+		TxHash: "usdc0000000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenUSDC, Amount: "200",
+		FromAddress: "0xfrom2", ToAddress: "0xto2", Status: "confirmed",
+	})
+
+	token := models.TokenUSDC
+	txs, total, err := d.ListTransactionsFiltered(TransactionFilter{
+		Token:    &token,
+		Page:     1,
+		PageSize: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(txs) != 1 {
+		t.Errorf("returned = %d, want 1", len(txs))
+	}
+	if txs[0].Token != models.TokenUSDC {
+		t.Errorf("token = %s, want USDC", txs[0].Token)
+	}
+}
+
+func TestListTransactionsFiltered_ByStatus(t *testing.T) {
+	d := setupTestDB(t)
+
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, AddressIndex: 0,
+		TxHash: "pend0000000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "100",
+		FromAddress: "bc1qa", ToAddress: "bc1qb", Status: "pending",
+	})
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, AddressIndex: 1,
+		TxHash: "conf0000000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "200",
+		FromAddress: "bc1qc", ToAddress: "bc1qd", Status: "confirmed",
+	})
+
+	status := "pending"
+	txs, total, err := d.ListTransactionsFiltered(TransactionFilter{
+		Status:   &status,
+		Page:     1,
+		PageSize: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(txs) != 1 {
+		t.Errorf("returned = %d, want 1", len(txs))
+	}
+	if txs[0].Status != "pending" {
+		t.Errorf("status = %s, want pending", txs[0].Status)
+	}
+}
+
+func TestListTransactionsFiltered_MultipleFilters(t *testing.T) {
+	d := setupTestDB(t)
+
+	// BTC send pending
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, AddressIndex: 0,
+		TxHash: "btcsendp000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "100",
+		FromAddress: "bc1qa", ToAddress: "bc1qb", Status: "pending",
+	})
+	// BTC send confirmed
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, AddressIndex: 1,
+		TxHash: "btcsendc000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "200",
+		FromAddress: "bc1qc", ToAddress: "bc1qd", Status: "confirmed",
+	})
+	// BSC send pending
+	d.InsertTransaction(models.Transaction{
+		Chain: models.ChainBSC, AddressIndex: 0,
+		TxHash: "bscsendp000000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "300",
+		FromAddress: "0xa", ToAddress: "0xb", Status: "pending",
+	})
+
+	chain := models.ChainBTC
+	dir := "out"
+	status := "confirmed"
+	txs, total, err := d.ListTransactionsFiltered(TransactionFilter{
+		Chain:     &chain,
+		Direction: &dir,
+		Status:    &status,
+		Page:      1,
+		PageSize:  100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(txs) != 1 {
+		t.Errorf("returned = %d, want 1", len(txs))
+	}
+}

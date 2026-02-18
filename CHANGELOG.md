@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 11) — V1 COMPLETE
+
+#### Added
+- Transaction history API: `ListTransactionsFiltered` DB method with dynamic WHERE clause supporting chain, direction, token, status filters
+- `GET /api/transactions` and `GET /api/transactions/{chain}` handlers with query param validation
+- Transaction history frontend: filter toolbar (chain/direction/token chip groups), table with chain badges, direction icons, explorer links, copy-to-clipboard, status badges, pagination
+- Settings API: `GetSetting`, `SetSetting` (upsert), `GetAllSettings` (fills defaults), `ResetBalances`, `ResetAll` DB methods
+- `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/reset-balances`, `POST /api/settings/reset-all` handlers
+- Settings frontend: Network mode radio cards, Scanning config, Transaction config, Display config, Danger zone with two-step confirmation
+- Embedded SPA serving via `go:embed all:build` in `web/embed.go`
+- `SPAHandler` with immutable cache headers for `_app/` assets and SPA fallback to index.html
+- 40 new tests: DB settings (8), DB transaction filters (5), handler settings (9), handler transactions (13), SPA handler (5)
+
+#### Changed
+- `NewRouter` now accepts optional `fs.FS` for embedded SPA serving
+- `cmd/server/main.go` imports `web` package and passes embedded FS to router
+- Router uses `r.NotFound(SPAHandler)` catch-all for client-side routing after `/api` routes
+- `make build` produces 22MB single binary with embedded SPA
+
 ### 2026-02-18 (Phase 10)
 
 #### Added

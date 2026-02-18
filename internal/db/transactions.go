@@ -154,26 +154,66 @@ func (d *DB) GetTransactionByHash(chain models.Chain, txHash string) (*models.Tr
 	return &tx, nil
 }
 
+// TransactionFilter holds optional filters for listing transactions.
+type TransactionFilter struct {
+	Chain     *models.Chain
+	Direction *string // "in" or "out"
+	Token     *models.Token
+	Status    *string // "pending", "confirmed", "failed"
+	Page      int
+	PageSize  int
+}
+
 // ListTransactions returns paginated transactions, optionally filtered by chain.
 func (d *DB) ListTransactions(chain *models.Chain, page, pageSize int) ([]models.Transaction, int64, error) {
-	offset := (page - 1) * pageSize
+	return d.ListTransactionsFiltered(TransactionFilter{
+		Chain:    chain,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
 
-	slog.Debug("listing transactions",
-		"chain", chain,
-		"page", page,
-		"pageSize", pageSize,
+// ListTransactionsFiltered returns paginated transactions with multiple optional filters.
+func (d *DB) ListTransactionsFiltered(filter TransactionFilter) ([]models.Transaction, int64, error) {
+	offset := (filter.Page - 1) * filter.PageSize
+
+	slog.Debug("listing transactions filtered",
+		"chain", filter.Chain,
+		"direction", filter.Direction,
+		"token", filter.Token,
+		"status", filter.Status,
+		"page", filter.Page,
+		"pageSize", filter.PageSize,
 		"offset", offset,
 	)
 
-	// Build WHERE clause.
-	where := "1=1"
+	// Build WHERE clause dynamically.
+	var conditions []string
 	var args []interface{}
-	if chain != nil {
-		where = "chain = ?"
-		args = append(args, string(*chain))
+
+	if filter.Chain != nil {
+		conditions = append(conditions, "chain = ?")
+		args = append(args, string(*filter.Chain))
+	}
+	if filter.Direction != nil {
+		conditions = append(conditions, "direction = ?")
+		args = append(args, *filter.Direction)
+	}
+	if filter.Token != nil {
+		conditions = append(conditions, "token = ?")
+		args = append(args, string(*filter.Token))
+	}
+	if filter.Status != nil {
+		conditions = append(conditions, "status = ?")
+		args = append(args, *filter.Status)
 	}
 
-	// Count total.
+	where := "1=1"
+	if len(conditions) > 0 {
+		where = fmt.Sprintf("%s", joinConditions(conditions))
+	}
+
+	// Count total matching rows.
 	var total int64
 	countArgs := make([]interface{}, len(args))
 	copy(countArgs, args)
@@ -182,7 +222,7 @@ func (d *DB) ListTransactions(chain *models.Chain, page, pageSize int) ([]models
 	}
 
 	// Fetch page.
-	queryArgs := append(args, pageSize, offset)
+	queryArgs := append(args, filter.PageSize, offset)
 	rows, err := d.conn.Query(
 		`SELECT id, chain, address_index, tx_hash, direction, token, amount,
 		        from_address, to_address, block_number, status, created_at, confirmed_at
@@ -228,4 +268,13 @@ func (d *DB) ListTransactions(chain *models.Chain, page, pageSize int) ([]models
 	)
 
 	return txs, total, nil
+}
+
+// joinConditions joins SQL conditions with AND.
+func joinConditions(conditions []string) string {
+	result := conditions[0]
+	for i := 1; i < len(conditions); i++ {
+		result += " AND " + conditions[i]
+	}
+	return result
 }

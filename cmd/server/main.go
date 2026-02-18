@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/scanner"
 	"github.com/Fantasim/hdpay/internal/tx"
 	"github.com/Fantasim/hdpay/internal/wallet"
+	"github.com/Fantasim/hdpay/web"
 )
 
 var version = "dev"
@@ -125,7 +127,15 @@ func runServe() error {
 
 	slog.Info("send services initialized")
 
-	router := api.NewRouter(database, cfg, sc, hub, ps, sendDeps)
+	// Extract the embedded SPA build directory (strip the "build/" prefix from the embed FS).
+	staticFS, err := fs.Sub(web.StaticFiles, "build")
+	if err != nil {
+		return fmt.Errorf("failed to access embedded static files: %w", err)
+	}
+
+	slog.Info("embedded SPA loaded")
+
+	router := api.NewRouter(database, cfg, sc, hub, ps, sendDeps, staticFS)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{
