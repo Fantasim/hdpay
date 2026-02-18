@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 1,
+  "current_build_phase": 2,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,10 +25,10 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 1,
+    "current_phase_index": 2,
     "phases": [
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
-      { "name": "HD Wallet & Address Generation", "status": "pending", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": null },
+      { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
       { "name": "Address Explorer", "status": "pending", "plan_file": "04-build-plan/phases/phase-03/PLAN.md", "summary_file": null },
       { "name": "Scanner Engine (Backend)", "status": "pending", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": null },
       { "name": "Scan UI + SSE", "status": "pending", "plan_file": "04-build-plan/phases/phase-05/PLAN.md", "summary_file": null },
@@ -49,7 +49,7 @@
     "rate_limiting": "golang.org/x/time/rate",
     "btc_crypto": "btcsuite/btcd, go-bip39",
     "evm_crypto": "go-ethereum",
-    "sol_crypto": "gagliardetto/solana-go",
+    "sol_crypto": "SLIP-10 manual (crypto/ed25519, mr-tron/base58)",
     "frontend_framework": "SvelteKit (adapter-static)",
     "frontend_language": "TypeScript (strict)",
     "css": "Tailwind + shadcn-svelte",
@@ -64,13 +64,15 @@
     "auth": "None — localhost-only with CSRF/CORS/host validation",
     "no_responsive": "Desktop-only localhost tool",
     "build_phases": "11 phases: Foundation → Wallet → Explorer → Scanner → Scan UI → Dashboard → BTC TX → BSC TX → SOL TX → Send UI → History/Settings/Deploy",
-    "setup_skipped": "CLAUDE.md already fully specified in prework; no additional setup phase needed"
+    "setup_skipped": "CLAUDE.md already fully specified in prework; no additional setup phase needed",
+    "btc_bip84": "BTC uses BIP-84 (purpose=84) for Native SegWit bech32, not BIP-44",
+    "sol_manual_slip10": "SOL uses manual SLIP-10 ed25519 implementation (~120 lines) instead of external library"
   },
-  "session_count": 1,
+  "session_count": 2,
   "last_session": {
-    "id": 1,
+    "id": 2,
     "date": "2026-02-18",
-    "summary": "Phase 1 complete: Go module, SQLite, logging, Chi router, security middleware, SvelteKit scaffold, sidebar layout, Makefile",
+    "summary": "Phase 2 complete: BIP-39 mnemonic, BTC/BSC/SOL address derivation, init CLI, JSON export, 37 tests at 83.3% coverage",
     "phase": "building"
   },
   "pending_questions": false,

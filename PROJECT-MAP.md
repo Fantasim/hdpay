@@ -1,0 +1,160 @@
+# HDPay — Project Map
+
+## Directory Tree
+
+```
+hdpay/
+|-- CHANGELOG.md
+|-- CLAUDE.md
+|-- Makefile
+|-- cmd/
+|   └-- server/
+|       └-- main.go                  # Entry point: server, init, export commands
+|-- go.mod
+|-- go.sum
+|-- internal/
+|   |-- api/
+|   |   |-- handlers/
+|   |   |   |-- address.go           # Address endpoints (stub)
+|   |   |   |-- dashboard.go         # Dashboard endpoints (stub)
+|   |   |   |-- health.go            # GET /api/health
+|   |   |   |-- scan.go              # Scan endpoints (stub)
+|   |   |   |-- send.go              # Send endpoints (stub)
+|   |   |   └-- settings.go          # Settings endpoints (stub)
+|   |   |-- middleware/
+|   |   |   |-- logging.go           # Request/response logging
+|   |   |   └-- security.go          # CORS, CSRF, localhost-only
+|   |   └-- router.go                # Chi router setup
+|   |-- config/
+|   |   |-- config.go                # Config struct (envconfig)
+|   |   |-- constants.go             # ALL numeric/string constants
+|   |   └-- errors.go                # ALL error codes
+|   |-- db/
+|   |   |-- addresses.go             # Address CRUD: batch insert, count, paginate, stream
+|   |   |-- balances.go              # Balance state (stub)
+|   |   |-- migrations/
+|   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
+|   |   |-- scans.go                 # Scan state (stub)
+|   |   |-- sqlite.go                # SQLite connection, WAL mode, migrations
+|   |   |-- sqlite_test.go           # DB tests
+|   |   └-- transactions.go          # Transaction history (stub)
+|   |-- logging/
+|   |   |-- logger.go                # slog: stdout + daily rotated files
+|   |   └-- logger_test.go           # Logger tests
+|   |-- models/
+|   |   └-- types.go                 # Domain types: Chain, Address, Balance, etc.
+|   |-- price/
+|   |   └-- coingecko.go             # CoinGecko price fetching (stub)
+|   |-- scanner/
+|   |   └-- scanner.go               # Scanner orchestrator (stub)
+|   |-- tx/
+|   |   └-- broadcaster.go           # Transaction broadcaster (stub)
+|   └-- wallet/
+|       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
+|       |-- bsc_test.go              # BSC tests with known vectors
+|       |-- btc.go                   # BTC BIP-84 Native SegWit bech32 derivation
+|       |-- btc_test.go              # BTC tests with known vectors
+|       |-- errors.go                # Wallet-specific errors
+|       |-- export.go                # Streaming JSON export
+|       |-- export_test.go           # Export tests
+|       |-- generator.go             # Bulk address generation with progress callbacks
+|       |-- generator_test.go        # Generator tests
+|       |-- hd.go                    # BIP-39 mnemonic, seed, master key
+|       |-- hd_test.go               # Mnemonic & master key tests
+|       |-- sol.go                   # SOL SLIP-10 ed25519 derivation (manual)
+|       └-- sol_test.go              # SOL tests + SLIP-10 spec vectors
+|-- web/
+|   |-- src/
+|   |   |-- app.css                  # Tailwind v4 + design tokens
+|   |   |-- app.html                 # HTML template
+|   |   |-- lib/
+|   |   |   |-- components/
+|   |   |   |   |-- layout/          # Sidebar, Header
+|   |   |   |   └-- ui/              # shadcn-svelte components
+|   |   |   |-- constants.ts         # Frontend constants
+|   |   |   |-- types.ts             # TypeScript interfaces
+|   |   |   └-- utils/
+|   |   |       |-- api.ts           # API client with CSRF
+|   |   |       └-- formatting.ts    # Number/address formatting
+|   |   └-- routes/
+|   |       |-- +layout.svelte       # Root layout with Sidebar
+|   |       |-- +page.svelte         # Dashboard (landing)
+|   |       |-- addresses/+page.svelte
+|   |       |-- scan/+page.svelte
+|   |       |-- send/+page.svelte
+|   |       |-- settings/+page.svelte
+|   |       └-- transactions/+page.svelte
+|   |-- svelte.config.js
+|   |-- tsconfig.json
+|   └-- vite.config.ts
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `cmd/server/main.go` | Entry point: `serve`, `init`, `export` subcommands |
+| `internal/config/constants.go` | ALL numeric/string constants (sacred — no hardcoding) |
+| `internal/config/errors.go` | ALL error codes shared with frontend |
+| `internal/config/config.go` | Config struct loaded via envconfig |
+| `internal/db/sqlite.go` | SQLite connection, WAL mode, auto-migrations |
+| `internal/db/addresses.go` | Address CRUD: InsertAddressBatch, CountAddresses, GetAddresses, StreamAddresses |
+| `internal/wallet/hd.go` | BIP-39 mnemonic validation, seed derivation, master key |
+| `internal/wallet/btc.go` | BTC bech32 via BIP-84: `m/84'/0'/0'/0/N` |
+| `internal/wallet/bsc.go` | BSC EIP-55 via BIP-44: `m/44'/60'/0'/0/N` |
+| `internal/wallet/sol.go` | SOL via manual SLIP-10 ed25519: `m/44'/501'/N'/0'` |
+| `internal/wallet/generator.go` | Bulk generation with progress callbacks |
+| `internal/wallet/export.go` | Streaming JSON export (no OOM on 500K) |
+| `internal/api/router.go` | Chi router with middleware stack |
+| `internal/logging/logger.go` | slog dual output: stdout + daily file |
+| `web/src/lib/types.ts` | ALL TypeScript interfaces |
+| `web/src/lib/constants.ts` | ALL frontend constants |
+| `web/src/lib/utils/api.ts` | API client (single source of truth) |
+
+## Module Dependencies
+
+### Go
+| Module | Purpose |
+|--------|---------|
+| `github.com/go-chi/chi/v5` | HTTP router |
+| `modernc.org/sqlite` | Pure-Go SQLite driver |
+| `github.com/kelseyhightower/envconfig` | Config from env vars |
+| `github.com/tyler-smith/go-bip39` | BIP-39 mnemonic/seed |
+| `github.com/btcsuite/btcd` | BTC BIP-32 key derivation, bech32 |
+| `github.com/ethereum/go-ethereum` | BSC/EVM address derivation |
+| `github.com/mr-tron/base58` | SOL base58 encoding |
+
+### Frontend (npm)
+| Package | Purpose |
+|---------|---------|
+| `svelte` / `@sveltejs/kit` | UI framework |
+| `@sveltejs/adapter-static` | Static site generation |
+| `tailwindcss` / `@tailwindcss/vite` | CSS utility framework |
+| `echarts` | Charts (portfolio visualization) |
+| `@tanstack/svelte-virtual` | Table virtualization (500K rows) |
+| `typescript` | Type safety |
+
+## API Endpoints
+
+| Method | Path | Status | Handler |
+|--------|------|--------|---------|
+| GET | `/api/health` | Implemented | `handlers/health.go` |
+| POST | `/api/addresses/generate` | Stub | `handlers/address.go` |
+| GET | `/api/addresses/:chain` | Stub | `handlers/address.go` |
+| POST | `/api/scan/start` | Stub | `handlers/scan.go` |
+| GET | `/api/scan/status` | Stub | `handlers/scan.go` |
+| GET | `/api/dashboard/portfolio` | Stub | `handlers/dashboard.go` |
+| POST | `/api/send/execute` | Stub | `handlers/send.go` |
+| GET | `/api/settings` | Stub | `handlers/settings.go` |
+
+## Database Schema
+
+**File**: `internal/db/migrations/001_initial.sql`
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `addresses` | HD wallet addresses | chain, address_index (PK), address |
+| `balances` | Latest scanned balances | chain, address_index, token, balance |
+| `transactions` | Transaction history | chain, tx_hash, status |
+| `scans` | Scan state for resume | chain, last_scanned_index, updated_at |
+| `settings` | User settings | key, value |

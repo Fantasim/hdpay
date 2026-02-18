@@ -8,10 +8,11 @@ const (
 	DefaultMaxScanID     = 5_000
 )
 
-// BIP-44 Derivation Paths
+// BIP-44 / BIP-84 Derivation Paths
 const (
-	BIP44Purpose    = 44
-	BTCCoinType     = 0   // m/44'/0'/0'/0/N
+	BIP44Purpose    = 44  // Standard BIP-44 purpose
+	BIP84Purpose    = 84  // BIP-84 purpose for Native SegWit (bech32)
+	BTCCoinType     = 0   // m/84'/0'/0'/0/N (Native SegWit bech32)
 	BSCCoinType     = 60  // m/44'/60'/0'/0/N (same as ETH)
 	SOLCoinType     = 501 // m/44'/501'/N'/0'
 	BTCTestCoinType = 1   // Testnet

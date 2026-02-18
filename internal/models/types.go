@@ -9,6 +9,17 @@ const (
 	ChainSOL Chain = "SOL"
 )
 
+// AllChains is the ordered list of supported chains.
+var AllChains = []Chain{ChainBTC, ChainBSC, ChainSOL}
+
+// NetworkMode represents mainnet or testnet operation.
+type NetworkMode string
+
+const (
+	NetworkMainnet NetworkMode = "mainnet"
+	NetworkTestnet NetworkMode = "testnet"
+)
+
 // Token represents a supported token symbol.
 type Token string
 
@@ -60,6 +71,22 @@ type Transaction struct {
 	Status       string `json:"status"`
 	CreatedAt    string `json:"createdAt"`
 	ConfirmedAt  string `json:"confirmedAt,omitempty"`
+}
+
+// AddressExport represents the JSON export format for a chain's addresses.
+type AddressExport struct {
+	Chain                  Chain               `json:"chain"`
+	Network                string              `json:"network"`
+	DerivationPathTemplate string              `json:"derivation_path_template"`
+	GeneratedAt            string              `json:"generated_at"`
+	Count                  int                 `json:"count"`
+	Addresses              []AddressExportItem `json:"addresses"`
+}
+
+// AddressExportItem is a single address entry in the export file.
+type AddressExportItem struct {
+	Index   int    `json:"index"`
+	Address string `json:"address"`
 }
 
 // APIResponse is the standard API response wrapper.
