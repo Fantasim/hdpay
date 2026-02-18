@@ -118,6 +118,25 @@ const (
 	SOLMaxInstructions  = 20
 )
 
+// BSC Chain IDs
+const (
+	BSCMainnetChainID = 56
+	BSCTestnetChainID = 97
+)
+
+// BSC Transaction
+const (
+	BSCGasPriceBufferNumerator   = 12 // Multiply gas price by 12/10 = 20% buffer
+	BSCGasPriceBufferDenominator = 10
+	BSCReceiptPollInterval       = 3 * time.Second
+	BSCReceiptPollTimeout        = 120 * time.Second
+)
+
+// BEP-20 Transfer
+const (
+	BEP20TransferMethodID = "a9059cbb" // keccak256("transfer(address,uint256)")[:4]
+)
+
 // BTC Transaction Building
 const (
 	BTCDefaultFeeRate    = 10      // Fallback sat/vB if fee estimation fails

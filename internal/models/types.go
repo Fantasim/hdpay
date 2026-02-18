@@ -158,6 +158,57 @@ type SendResult struct {
 	Chain  Chain  `json:"chain"`
 }
 
+// BSCSendPreview contains the preview of a BSC consolidation transaction.
+type BSCSendPreview struct {
+	Chain       Chain  `json:"chain"`
+	Token       Token  `json:"token"`
+	InputCount  int    `json:"inputCount"`
+	TotalAmount string `json:"totalAmount"` // wei or token smallest unit
+	GasCostWei  string `json:"gasCostWei"`
+	NetAmount   string `json:"netAmount"`  // totalAmount - gasCost (native only)
+	DestAddress string `json:"destAddress"`
+	GasPrice    string `json:"gasPrice"` // wei, for transparency
+}
+
+// BSCSendResult contains the result of a BSC consolidation sweep.
+type BSCSendResult struct {
+	Chain        Chain         `json:"chain"`
+	Token        Token         `json:"token"`
+	TxResults    []BSCTxResult `json:"txResults"`
+	SuccessCount int           `json:"successCount"`
+	FailCount    int           `json:"failCount"`
+	TotalSwept   string        `json:"totalSwept"`
+}
+
+// BSCTxResult contains the result of a single BSC transaction within a sweep.
+type BSCTxResult struct {
+	AddressIndex int    `json:"addressIndex"`
+	FromAddress  string `json:"fromAddress"`
+	TxHash       string `json:"txHash"`
+	Amount       string `json:"amount"`
+	Status       string `json:"status"` // "confirmed", "reverted", "failed"
+	Error        string `json:"error,omitempty"`
+}
+
+// GasPreSeedPreview contains the preview of a gas pre-seeding operation.
+type GasPreSeedPreview struct {
+	SourceIndex     int    `json:"sourceIndex"`
+	SourceAddress   string `json:"sourceAddress"`
+	SourceBalance   string `json:"sourceBalance"`   // wei
+	TargetCount     int    `json:"targetCount"`
+	AmountPerTarget string `json:"amountPerTarget"` // wei
+	TotalNeeded     string `json:"totalNeeded"`     // wei (amount + gas)
+	Sufficient      bool   `json:"sufficient"`
+}
+
+// GasPreSeedResult contains the result of a gas pre-seeding operation.
+type GasPreSeedResult struct {
+	TxResults    []BSCTxResult `json:"txResults"`
+	SuccessCount int           `json:"successCount"`
+	FailCount    int           `json:"failCount"`
+	TotalSent    string        `json:"totalSent"` // wei
+}
+
 // APIError is the standard error response.
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

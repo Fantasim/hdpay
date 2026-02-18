@@ -3,9 +3,9 @@
 > A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.
 
 ## Current Position
-- **Phase:** building (Phase 8 of 11)
-- **Status:** Phase 7 complete — ready to start Phase 8: BSC Transaction Engine + Gas Pre-Seed
-- **Last session:** Phase 7 completed (BTC Transaction Engine — key derivation, UTXO fetching, fee estimation, multi-input P2WPKH TX building+signing, broadcasting, transaction DB CRUD, 38 tests)
+- **Phase:** building (Phase 9 of 11)
+- **Status:** Phase 8 complete — ready to start Phase 9: SOL Transaction Engine
+- **Last session:** Phase 8 completed (BSC Transaction Engine + Gas Pre-Seed — BSC key derivation, native BNB + BEP-20 transfers, EIP-155 signing, receipt polling, consolidation service, gas pre-seeding, 22 tests)
 
 ## Build Progress
 
@@ -18,8 +18,8 @@
 | 5 | Scan UI + SSE | **DONE** |
 | 6 | Dashboard & Price Service | **DONE** |
 | 7 | BTC Transaction Engine | **DONE** |
-| 8 | BSC Transaction Engine + Gas Pre-Seed | **NEXT** |
-| 9 | SOL Transaction Engine | Pending (outline) |
+| 8 | BSC Transaction Engine + Gas Pre-Seed | **DONE** |
+| 9 | SOL Transaction Engine | **NEXT** |
 | 10 | Send Interface | Pending (outline) |
 | 11 | History, Settings & Deployment | Pending (outline) |
 
@@ -35,24 +35,25 @@
 - **SSE store pattern**: `.svelte.ts` with runes, named event listeners, exponential backoff reconnect
 - **ECharts**: svelte-echarts v1.0.0 with tree-shaking, $derived() rune for reactive options
 - **CoinGecko**: Public API (no key), 5-min server-side cache
-- **MultiPrevOutFetcher**: Critical for multi-input BTC signing (CannedPrevOutputFetcher would produce wrong sigs)
-- **Confirmed UTXOs only**: Unconfirmed UTXOs filtered out to avoid spending unconfirmed outputs
-- **No mnemonic caching**: Mnemonic read from file each derivation call for security
-- **text/plain broadcast**: Blockstream/Mempool expect raw hex as text/plain, not JSON
-- **No retry on 400**: Bad TX (400) means TX itself is invalid, don't retry on other providers
+- **BTC MultiPrevOutFetcher**: Critical for multi-input signing
+- **BSC EIP-155**: Chain ID 56 (mainnet) / 97 (testnet), LegacyTx via go-ethereum v1.17.0
+- **BSC manual ABI**: BEP-20 transfer uses 0xa9059cbb + LeftPadBytes (simpler than abi.Pack)
+- **BSC 20% gas buffer**: SuggestGasPrice * 12/10 to prevent stuck TXs
+- **BSC sequential nonce**: PendingNonceAt once + local increment for batch sends
 - **GitHub repo**: https://github.com/Fantasim/hdpay
 
 ## Next Actions
-- Run `/cf-next` to start Phase 8: BSC Transaction Engine + Gas Pre-Seed
-- Phase 8 delivers: BSC native+BEP-20 transfers, gas pre-seeding, sequential automated consolidation
-- `Broadcaster` interface and `KeyService` are ready for BSC extension
+- Run `/cf-next` to start Phase 9: SOL Transaction Engine
+- Phase 9 delivers: SOL native + SPL token transfers, multi-instruction consolidation TXs
+- `KeyService` needs `DeriveSOLPrivateKey` (SLIP-10 ed25519 path m/44'/501'/N'/0')
+- SOL uses different confirmation model (not receipt polling — uses commitment levels)
 
 ## Files Reference
 | File | Purpose |
 |------|---------|
 | `.project/state.json` | Machine-readable state |
 | `.project/STATE.md` | This file — resume context |
-| `.project/04-build-plan/phases/phase-07/SUMMARY.md` | Phase 7 completion summary |
-| `.project/04-build-plan/phases/phase-08/PLAN.md` | Phase 8 build plan (outline) |
+| `.project/04-build-plan/phases/phase-08/SUMMARY.md` | Phase 8 completion summary |
+| `.project/04-build-plan/phases/phase-09/PLAN.md` | Phase 9 build plan (outline) |
 | `CLAUDE.md` | Code conventions and project guidelines |
 | `CHANGELOG.md` | Session changelog |

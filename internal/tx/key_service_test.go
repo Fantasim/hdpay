@@ -157,6 +157,77 @@ func TestKeyService_ContextCancellation(t *testing.T) {
 	}
 }
 
+func TestKeyService_DeriveBSCPrivateKey_KnownVector(t *testing.T) {
+	// Using the 24-word "abandon...art" mnemonic, index 0 should produce
+	// the known BSC address: 0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "mainnet")
+
+	privKey, addr, err := ks.DeriveBSCPrivateKey(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("DeriveBSCPrivateKey(0) error = %v", err)
+	}
+	_ = privKey // We don't need to do anything with the key, just verify the address.
+
+	expectedAddr := "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb"
+	if addr.Hex() != expectedAddr {
+		t.Errorf("BSC address index 0: got %s, want %s", addr.Hex(), expectedAddr)
+	}
+}
+
+func TestKeyService_DeriveBSCPrivateKey_MultipleIndices(t *testing.T) {
+	// Derive keys at indices 0, 1, 2 and verify they produce distinct addresses
+	// matching the known test vectors from MEMORY.md.
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "mainnet")
+
+	expectedAddrs := []string{
+		"0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb",
+		"0xf785bD075874b8423D3583728a981399f31e95aA",
+		"0x60Af1c6A5D03F9f1B1b74931499bC99E72fF8DA9",
+	}
+
+	seen := make(map[string]bool)
+	for i, expected := range expectedAddrs {
+		privKey, addr, err := ks.DeriveBSCPrivateKey(context.Background(), uint32(i))
+		if err != nil {
+			t.Fatalf("DeriveBSCPrivateKey(%d) error = %v", i, err)
+		}
+		_ = privKey
+
+		if addr.Hex() != expected {
+			t.Errorf("BSC address index %d: got %s, want %s", i, addr.Hex(), expected)
+		}
+
+		if seen[addr.Hex()] {
+			t.Errorf("duplicate address at index %d: %s", i, addr.Hex())
+		}
+		seen[addr.Hex()] = true
+	}
+}
+
+func TestKeyService_DeriveBSCPrivateKey_MnemonicFileNotSet(t *testing.T) {
+	ks := NewKeyService("", "mainnet")
+
+	_, _, err := ks.DeriveBSCPrivateKey(context.Background(), 0)
+	if err == nil {
+		t.Fatal("expected error when mnemonic file not set")
+	}
+}
+
+func TestKeyService_DeriveBSCPrivateKey_ContextCancelled(t *testing.T) {
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "mainnet")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := ks.DeriveBSCPrivateKey(ctx, 0)
+	if err == nil {
+		t.Fatal("expected error when context is cancelled")
+	}
+}
+
 // itoa is a simple int to string converter for test names.
 func itoa(n int) string {
 	if n == 0 {

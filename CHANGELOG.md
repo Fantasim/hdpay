@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 8)
+
+#### Added
+- BSC private key derivation: BIP-44 m/44'/60'/0'/0/N → ECDSA key + EIP-55 address (`internal/tx/key_service.go`)
+- Native BNB transfer engine: LegacyTx building, EIP-155 signing (chain ID 56/97), 20% gas price buffer (`internal/tx/bsc_tx.go`)
+- BEP-20 token transfer: Manual ABI encoding of `transfer(address,uint256)` with selector `0xa9059cbb`
+- Receipt polling: `WaitForReceipt` with `ethereum.NotFound` detection, revert handling, configurable timeout
+- BSC Consolidation Service: Sequential per-address sweep for native BNB + BEP-20 tokens with real-time balance checks
+- Gas pre-seeding service: Distributes 0.005 BNB to targets needing gas, sequential nonce management (`internal/tx/gas.go`)
+- EthClientWrapper interface for testability (PendingNonceAt, SuggestGasPrice, SendTransaction, TransactionReceipt, BalanceAt)
+- BSC model types: `BSCSendPreview`, `BSCSendResult`, `BSCTxResult`, `GasPreSeedPreview`, `GasPreSeedResult`
+- BSC constants: chain IDs, gas price buffer, receipt polling interval/timeout, BEP-20 selector
+- 5 new sentinel errors + 4 new error codes for BSC-specific failures
+- 22 new tests: BSC TX engine (18), gas pre-seed (4), BSC key derivation (4)
+
 ### 2026-02-18 (Phase 7)
 
 #### Added

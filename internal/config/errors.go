@@ -18,8 +18,13 @@ var (
 	ErrInsufficientUTXO    = errors.New("insufficient UTXO value to cover fee")
 	ErrTxTooLarge          = errors.New("transaction exceeds maximum weight")
 	ErrDustOutput          = errors.New("output below dust threshold")
-	ErrMnemonicFileNotSet  = errors.New("mnemonic file path not configured")
-	ErrKeyDerivation       = errors.New("key derivation failed")
+	ErrMnemonicFileNotSet   = errors.New("mnemonic file path not configured")
+	ErrKeyDerivation        = errors.New("key derivation failed")
+	ErrNonceTooLow          = errors.New("nonce too low")
+	ErrTxReverted           = errors.New("transaction reverted")
+	ErrInsufficientBNBForGas = errors.New("insufficient BNB for gas")
+	ErrGasPreSeedFailed     = errors.New("gas pre-seed failed")
+	ErrReceiptTimeout       = errors.New("receipt polling timeout")
 )
 
 // Error codes — shared with frontend via API responses.
@@ -46,4 +51,8 @@ const (
 	ErrorFeeEstimateFailed  = "ERROR_FEE_ESTIMATE_FAILED"
 	ErrorInsufficientUTXO   = "ERROR_INSUFFICIENT_UTXO"
 	ErrorTxTooLarge         = "ERROR_TX_TOO_LARGE"
+	ErrorNonceTooLow        = "ERROR_NONCE_TOO_LOW"
+	ErrorTxReverted         = "ERROR_TX_REVERTED"
+	ErrorReceiptTimeout     = "ERROR_RECEIPT_TIMEOUT"
+	ErrorGasPreSeedFailed   = "ERROR_GAS_PRESEED_FAILED"
 )

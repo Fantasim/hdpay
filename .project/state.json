@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 7,
+  "current_build_phase": 8,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,7 +25,7 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 7,
+    "current_phase_index": 8,
     "phases": [
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
@@ -34,7 +34,7 @@
       { "name": "Scan UI + SSE", "status": "completed", "plan_file": "04-build-plan/phases/phase-05/PLAN.md", "summary_file": "04-build-plan/phases/phase-05/SUMMARY.md" },
       { "name": "Dashboard & Price Service", "status": "completed", "plan_file": "04-build-plan/phases/phase-06/PLAN.md", "summary_file": "04-build-plan/phases/phase-06/SUMMARY.md" },
       { "name": "BTC Transaction Engine", "status": "completed", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": "04-build-plan/phases/phase-07/SUMMARY.md" },
-      { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "pending", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": null },
+      { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "completed", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": "04-build-plan/phases/phase-08/SUMMARY.md" },
       { "name": "SOL Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": null },
       { "name": "Send Interface", "status": "pending", "plan_file": "04-build-plan/phases/phase-10/PLAN.md", "summary_file": null },
       { "name": "History, Settings & Deployment", "status": "pending", "plan_file": "04-build-plan/phases/phase-11/PLAN.md", "summary_file": null }
@@ -48,7 +48,7 @@
     "config": "envconfig",
     "rate_limiting": "golang.org/x/time/rate",
     "btc_crypto": "btcsuite/btcd, go-bip39",
-    "evm_crypto": "go-ethereum",
+    "evm_crypto": "go-ethereum v1.17.0",
     "sol_crypto": "SLIP-10 manual (crypto/ed25519, mr-tron/base58)",
     "frontend_framework": "SvelteKit (adapter-static)",
     "frontend_language": "TypeScript (strict)",
@@ -68,13 +68,17 @@
     "btc_bip84": "BTC uses BIP-84 (purpose=84) for Native SegWit bech32, not BIP-44",
     "sol_manual_slip10": "SOL uses manual SLIP-10 ed25519 implementation (~120 lines) instead of external library",
     "echarts_integration": "svelte-echarts v1.0.0 wrapper with tree-shaking, $derived() rune for reactive options",
-    "coingecko_public": "CoinGecko public API (no key), 5-min server-side cache, ~5-15 req/min is safe"
+    "coingecko_public": "CoinGecko public API (no key), 5-min server-side cache, ~5-15 req/min is safe",
+    "bsc_eip155": "BSC uses EIP-155 signing with chain ID 56 (mainnet) / 97 (testnet), LegacyTx via go-ethereum",
+    "bsc_manual_abi": "BEP-20 transfer uses manual ABI encoding (0xa9059cbb + LeftPadBytes) — simpler than abi.Pack",
+    "bsc_gas_buffer": "20% gas price buffer on SuggestGasPrice for BSC reliability",
+    "bsc_sequential_nonce": "Gas pre-seed uses PendingNonceAt once + local increment per TX"
   },
-  "session_count": 7,
+  "session_count": 8,
   "last_session": {
-    "id": 7,
+    "id": 8,
     "date": "2026-02-18",
-    "summary": "Phase 7 complete: BTC Transaction Engine — on-demand key derivation, UTXO fetching, dynamic fee estimation, multi-input P2WPKH TX building+signing, broadcasting, transaction DB CRUD, 38 new tests",
+    "summary": "Phase 8 complete: BSC Transaction Engine + Gas Pre-Seed — BSC key derivation, native BNB + BEP-20 transfers, EIP-155 signing, receipt polling, BSC consolidation service, gas pre-seeding, 22 new tests",
     "phase": "building"
   },
   "pending_questions": false,
