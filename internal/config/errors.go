@@ -4,11 +4,14 @@ import "errors"
 
 // Sentinel errors for internal use.
 var (
-	ErrInvalidMnemonic   = errors.New("invalid mnemonic")
-	ErrProviderRateLimit = errors.New("provider rate limit exceeded")
-	ErrScanInterrupted   = errors.New("scan interrupted")
-	ErrInsufficientGas   = errors.New("insufficient gas for transaction")
-	ErrTransactionFailed = errors.New("transaction broadcast failed")
+	ErrInvalidMnemonic    = errors.New("invalid mnemonic")
+	ErrProviderRateLimit  = errors.New("provider rate limit exceeded")
+	ErrProviderUnavailable = errors.New("provider unavailable")
+	ErrTokensNotSupported = errors.New("tokens not supported by this provider")
+	ErrScanAlreadyRunning = errors.New("scan already running for this chain")
+	ErrScanInterrupted    = errors.New("scan interrupted")
+	ErrInsufficientGas    = errors.New("insufficient gas for transaction")
+	ErrTransactionFailed  = errors.New("transaction broadcast failed")
 )
 
 // Error codes — shared with frontend via API responses.

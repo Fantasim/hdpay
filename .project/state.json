@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 3,
+  "current_build_phase": 4,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -30,7 +30,7 @@
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
       { "name": "Address Explorer", "status": "completed", "plan_file": "04-build-plan/phases/phase-03/PLAN.md", "summary_file": "04-build-plan/phases/phase-03/SUMMARY.md" },
-      { "name": "Scanner Engine (Backend)", "status": "pending", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": null },
+      { "name": "Scanner Engine (Backend)", "status": "completed", "plan_file": "04-build-plan/phases/phase-04/PLAN.md", "summary_file": "04-build-plan/phases/phase-04/SUMMARY.md" },
       { "name": "Scan UI + SSE", "status": "pending", "plan_file": "04-build-plan/phases/phase-05/PLAN.md", "summary_file": null },
       { "name": "Dashboard & Price Service", "status": "pending", "plan_file": "04-build-plan/phases/phase-06/PLAN.md", "summary_file": null },
       { "name": "BTC Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": null },
@@ -68,11 +68,11 @@
     "btc_bip84": "BTC uses BIP-84 (purpose=84) for Native SegWit bech32, not BIP-44",
     "sol_manual_slip10": "SOL uses manual SLIP-10 ed25519 implementation (~120 lines) instead of external library"
   },
-  "session_count": 3,
+  "session_count": 4,
   "last_session": {
-    "id": 3,
+    "id": 4,
     "date": "2026-02-18",
-    "summary": "Phase 3 complete: Address Explorer — REST API (list + export), paginated/filtered address table UI, chain tabs, filter chips, copy-to-clipboard, 11 new tests",
+    "summary": "Phase 4 complete: Scanner Engine — multi-provider scanner (BTC/BSC/SOL), round-robin + failover, rate limiting, SSE hub, scan orchestrator with resume, ATA derivation, 56 new tests",
     "phase": "building"
   },
   "pending_questions": false,

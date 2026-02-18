@@ -51,10 +51,52 @@ const (
 
 // Scanning
 const (
-	ScanBatchSizeBscScan    = 20  // BscScan multi-address balance
-	ScanBatchSizeSolanaRPC  = 100 // getMultipleAccounts limit
-	ScanBatchSizeBlockchain = 50  // Blockchain.info multiaddr
-	ScanResumeThreshold     = 24 * time.Hour
+	ScanBatchSizeBscScan   = 20  // BscScan balancemulti (native only)
+	ScanBatchSizeSolanaRPC = 100 // getMultipleAccounts limit
+	ScanResumeThreshold    = 24 * time.Hour
+)
+
+// Scanner Orchestrator
+const (
+	ScanProgressBroadcastInterval = 500 * time.Millisecond
+	ProviderRequestTimeout        = 15 * time.Second
+	ProviderMaxRetries            = 3
+	ProviderRetryBaseDelay        = 1 * time.Second
+	SSEHubChannelBuffer           = 64
+)
+
+// Provider URLs — BTC Mainnet
+const (
+	BlockstreamMainnetURL = "https://blockstream.info/api"
+	MempoolMainnetURL     = "https://mempool.space/api"
+)
+
+// Provider URLs — BTC Testnet
+const (
+	BlockstreamTestnetURL = "https://blockstream.info/testnet/api"
+	MempoolTestnetURL     = "https://mempool.space/testnet/api"
+)
+
+// Provider URLs — BSC
+const (
+	BscScanAPIURL     = "https://api.bscscan.com/api"
+	BscRPCMainnetURL  = "https://bsc-dataseed.binance.org"
+	BscRPCMainnetURL2 = "https://rpc.ankr.com/bsc"
+	BscRPCTestnetURL  = "https://data-seed-prebsc-1-s1.binance.org:8545"
+	BscScanTestnetURL = "https://api-testnet.bscscan.com/api"
+)
+
+// Provider URLs — Solana
+const (
+	SolanaMainnetRPCURL = "https://api.mainnet-beta.solana.com"
+	HeliusMainnetRPCURL = "https://mainnet.helius-rpc.com"
+	SolanaDevnetRPCURL  = "https://api.devnet.solana.com"
+)
+
+// Solana Program IDs
+const (
+	SOLTokenProgramID           = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+	SOLAssociatedTokenProgramID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 )
 
 // Rate Limiting (requests per second unless noted)

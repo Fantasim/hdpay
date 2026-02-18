@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 4)
+
+#### Added
+- Multi-provider scanner engine with round-robin rotation and automatic failover
+- BTC providers: Blockstream Esplora, Mempool.space (`internal/scanner/btc_blockstream.go`, `btc_mempool.go`)
+- BSC providers: BscScan REST API (batch 20 native, single token), ethclient JSON-RPC (`bsc_bscscan.go`, `bsc_rpc.go`)
+- SOL provider: Solana JSON-RPC with `getMultipleAccounts` batch 100 (`sol_rpc.go`)
+- Manual Solana ATA derivation via PDA + Edwards25519 on-curve check (`sol_ata.go`)
+- Provider interface + BalanceResult type (`internal/scanner/provider.go`)
+- Per-provider rate limiter using `golang.org/x/time/rate` (`ratelimiter.go`)
+- Provider pool with round-robin + failover on rate limit/unavailable errors (`pool.go`)
+- SSE event hub with subscribe/unsubscribe/broadcast, non-blocking slow client handling (`sse.go`)
+- Scanner orchestrator: StartScan, StopScan, resume logic, token scanning, context cancellation (`scanner.go`)
+- SetupScanner factory function wiring all providers and pools (`setup.go`)
+- Balance DB operations: UpsertBalance, UpsertBalanceBatch, GetFundedAddresses, GetBalanceSummary, GetAddressesBatch
+- Scan state DB operations: GetScanState, UpsertScanState, ShouldResume (24h resume threshold)
+- Provider URL constants for all chains (mainnet + testnet)
+- Solana program ID constants (TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
+- Scanner orchestrator constants (broadcast interval, request timeout, retry settings)
+- Sentinel errors: ErrProviderUnavailable, ErrTokensNotSupported, ErrScanAlreadyRunning
+- 56 new tests: scanner orchestrator (6), SSE hub (6), pool (4), BTC provider (5), BSC provider (4), ATA (5), balances DB (10), scans DB (8), and more
+
+#### Fixed
+- Scan state `started_at` preservation: `COALESCE(NULLIF(..., ''), ...)` to treat empty string as NULL
+
 ### 2026-02-18 (Phase 3)
 
 #### Added
