@@ -42,6 +42,13 @@ const (
 	SOLDevnetUSDTMint = "" // Set when available
 )
 
+// Pagination
+const (
+	DefaultPage     = 1
+	DefaultPageSize = 100
+	MaxPageSize     = 1000
+)
+
 // Scanning
 const (
 	ScanBatchSizeBscScan    = 20  // BscScan multi-address balance

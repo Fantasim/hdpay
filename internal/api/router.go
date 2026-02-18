@@ -30,6 +30,10 @@ func NewRouter(database *db.DB, cfg *config.Config) chi.Router {
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", handlers.HealthHandler(cfg, Version))
+
+		// Address management
+		r.Get("/addresses/{chain}", handlers.ListAddresses(database))
+		r.Get("/addresses/{chain}/export", handlers.ExportAddresses(database))
 	})
 
 	return r

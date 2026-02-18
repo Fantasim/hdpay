@@ -1,0 +1,61 @@
+import { CHAIN_COLORS } from '$lib/constants';
+import type { Chain } from '$lib/types';
+
+const CHAIN_LABELS: Record<Chain, string> = {
+	BTC: 'Bitcoin',
+	BSC: 'BNB Chain',
+	SOL: 'Solana'
+};
+
+const TOKEN_DECIMALS: Record<string, number> = {
+	BTC: 8,
+	BNB: 18,
+	SOL: 9,
+	USDC: 6,
+	USDT: 6
+};
+
+const EXPLORER_URLS: Record<string, Record<string, string>> = {
+	mainnet: {
+		BTC: 'https://blockstream.info',
+		BSC: 'https://bscscan.com',
+		SOL: 'https://explorer.solana.com'
+	},
+	testnet: {
+		BTC: 'https://blockstream.info/testnet',
+		BSC: 'https://testnet.bscscan.com',
+		SOL: 'https://explorer.solana.com'
+	}
+};
+
+export function getChainColor(chain: Chain): string {
+	return CHAIN_COLORS[chain];
+}
+
+export function getChainLabel(chain: Chain): string {
+	return CHAIN_LABELS[chain];
+}
+
+export function getTokenDecimals(token: string): number {
+	return TOKEN_DECIMALS[token] ?? 18;
+}
+
+export function getExplorerUrl(
+	chain: Chain,
+	type: 'address' | 'tx',
+	hash: string,
+	network: string = 'mainnet'
+): string {
+	const base = EXPLORER_URLS[network]?.[chain] ?? EXPLORER_URLS['mainnet'][chain];
+
+	switch (chain) {
+		case 'BTC':
+			return `${base}/${type === 'address' ? 'address' : 'tx'}/${hash}`;
+		case 'BSC':
+			return `${base}/${type === 'address' ? 'address' : 'tx'}/${hash}`;
+		case 'SOL':
+			return type === 'address'
+				? `${base}/address/${hash}${network === 'testnet' ? '?cluster=devnet' : ''}`
+				: `${base}/tx/${hash}${network === 'testnet' ? '?cluster=devnet' : ''}`;
+	}
+}

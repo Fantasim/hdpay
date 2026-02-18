@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 3)
+
+#### Added
+- Address listing API: `GET /api/addresses/{chain}` with pagination, hasBalance/token filters
+- Address export API: `GET /api/addresses/{chain}/export` with streaming JSON download
+- DB method `GetAddressesWithBalances` — paginated address+balance query with filter support
+- DB method `hydrateBalances` — batch loads balance data for a page of addresses
+- `AddressWithBalance` and `TokenBalanceItem` Go response types (`internal/models/types.go`)
+- Pagination constants: DefaultPage, DefaultPageSize, MaxPageSize (`internal/config/constants.go`)
+- Handler tests: 6 tests covering pagination, invalid chain, export, case insensitivity
+- DB tests: 5 tests covering pagination, hasBalance filter, token filter, balance hydration, empty chain
+- Frontend address explorer page with chain tabs, filter chips, paginated table
+- AddressTable component: chain badges, truncated addresses, copy-to-clipboard, token balance rows
+- Address store with reactive state: chain/page/filter switching triggers API refetch
+- `getAddresses` and `exportAddresses` API client functions (`lib/utils/api.ts`)
+- `formatRelativeTime` and `copyToClipboard` utilities (`lib/utils/formatting.ts`)
+- Chain utilities: `getChainColor`, `getChainLabel`, `getTokenDecimals`, `getExplorerUrl` (`lib/utils/chains.ts`)
+
+#### Changed
+- Renamed `AddressBalance` to `AddressWithBalance` in frontend types (field `index` → `addressIndex` to match backend)
+
 ### 2026-02-18 (Phase 2)
 
 #### Added

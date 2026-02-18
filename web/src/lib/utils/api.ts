@@ -1,5 +1,5 @@
 import { API_BASE } from '$lib/constants';
-import type { APIErrorResponse, APIResponse } from '$lib/types';
+import type { AddressWithBalance, APIErrorResponse, APIResponse, Chain } from '$lib/types';
 
 let csrfToken: string | null = null;
 
@@ -91,3 +91,32 @@ export const api = {
 		return request<T>('DELETE', path);
 	}
 };
+
+// Address API
+
+export interface AddressListParams {
+	page?: number;
+	pageSize?: number;
+	hasBalance?: boolean;
+	token?: string;
+}
+
+export function getAddresses(
+	chain: Chain,
+	params: AddressListParams = {}
+): Promise<APIResponse<AddressWithBalance[]>> {
+	const searchParams = new URLSearchParams();
+	if (params.page !== undefined) searchParams.set('page', String(params.page));
+	if (params.pageSize !== undefined) searchParams.set('pageSize', String(params.pageSize));
+	if (params.hasBalance) searchParams.set('hasBalance', 'true');
+	if (params.token) searchParams.set('token', params.token);
+
+	const qs = searchParams.toString();
+	const path = `/addresses/${chain}${qs ? '?' + qs : ''}`;
+	return api.get<AddressWithBalance[]>(path);
+}
+
+export function exportAddresses(chain: Chain): void {
+	const url = `${API_BASE}/addresses/${chain}/export`;
+	window.open(url, '_blank');
+}

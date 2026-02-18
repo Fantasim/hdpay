@@ -15,7 +15,8 @@ hdpay/
 |-- internal/
 |   |-- api/
 |   |   |-- handlers/
-|   |   |   |-- address.go           # Address endpoints (stub)
+|   |   |   |-- address.go           # GET /api/addresses/{chain}, GET .../export
+|   |   |   |-- address_test.go      # Address handler tests (6 tests)
 |   |   |   |-- dashboard.go         # Dashboard endpoints (stub)
 |   |   |   |-- health.go            # GET /api/health
 |   |   |   |-- scan.go              # Scan endpoints (stub)
@@ -30,7 +31,8 @@ hdpay/
 |   |   |-- constants.go             # ALL numeric/string constants
 |   |   └-- errors.go                # ALL error codes
 |   |-- db/
-|   |   |-- addresses.go             # Address CRUD: batch insert, count, paginate, stream
+|   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
+|   |   |-- addresses_test.go        # Address DB tests (5 tests)
 |   |   |-- balances.go              # Balance state (stub)
 |   |   |-- migrations/
 |   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
@@ -42,7 +44,7 @@ hdpay/
 |   |   |-- logger.go                # slog: stdout + daily rotated files
 |   |   └-- logger_test.go           # Logger tests
 |   |-- models/
-|   |   └-- types.go                 # Domain types: Chain, Address, Balance, etc.
+|   |   └-- types.go                 # Domain types: Chain, Address, AddressWithBalance, etc.
 |   |-- price/
 |   |   └-- coingecko.go             # CoinGecko price fetching (stub)
 |   |-- scanner/
@@ -69,17 +71,22 @@ hdpay/
 |   |   |-- app.html                 # HTML template
 |   |   |-- lib/
 |   |   |   |-- components/
+|   |   |   |   |-- address/
+|   |   |   |   |   └-- AddressTable.svelte  # Address table with badges, copy, tokens
 |   |   |   |   |-- layout/          # Sidebar, Header
 |   |   |   |   └-- ui/              # shadcn-svelte components
 |   |   |   |-- constants.ts         # Frontend constants
+|   |   |   |-- stores/
+|   |   |   |   └-- addresses.ts     # Reactive address store (chain, pagination, filters)
 |   |   |   |-- types.ts             # TypeScript interfaces
 |   |   |   └-- utils/
-|   |   |       |-- api.ts           # API client with CSRF
-|   |   |       └-- formatting.ts    # Number/address formatting
+|   |   |       |-- api.ts           # API client with CSRF + address API functions
+|   |   |       |-- chains.ts        # Chain color, label, explorer URL, token decimals
+|   |   |       └-- formatting.ts    # Number/address/time formatting + clipboard
 |   |   └-- routes/
 |   |       |-- +layout.svelte       # Root layout with Sidebar
 |   |       |-- +page.svelte         # Dashboard (landing)
-|   |       |-- addresses/+page.svelte
+|   |       |-- addresses/+page.svelte  # Address explorer with tabs, filters, pagination
 |   |       |-- scan/+page.svelte
 |   |       |-- send/+page.svelte
 |   |       |-- settings/+page.svelte
@@ -98,7 +105,8 @@ hdpay/
 | `internal/config/errors.go` | ALL error codes shared with frontend |
 | `internal/config/config.go` | Config struct loaded via envconfig |
 | `internal/db/sqlite.go` | SQLite connection, WAL mode, auto-migrations |
-| `internal/db/addresses.go` | Address CRUD: InsertAddressBatch, CountAddresses, GetAddresses, StreamAddresses |
+| `internal/db/addresses.go` | Address CRUD + filtered paginated queries with balance hydration |
+| `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
 | `internal/wallet/hd.go` | BIP-39 mnemonic validation, seed derivation, master key |
 | `internal/wallet/btc.go` | BTC bech32 via BIP-84: `m/84'/0'/0'/0/N` |
 | `internal/wallet/bsc.go` | BSC EIP-55 via BIP-44: `m/44'/60'/0'/0/N` |
@@ -109,7 +117,10 @@ hdpay/
 | `internal/logging/logger.go` | slog dual output: stdout + daily file |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
-| `web/src/lib/utils/api.ts` | API client (single source of truth) |
+| `web/src/lib/utils/api.ts` | API client (single source of truth) + address API functions |
+| `web/src/lib/utils/chains.ts` | Chain metadata helpers |
+| `web/src/lib/stores/addresses.ts` | Reactive address store with pagination/filter state |
+| `web/src/routes/addresses/+page.svelte` | Address explorer page |
 
 ## Module Dependencies
 
@@ -131,7 +142,7 @@ hdpay/
 | `@sveltejs/adapter-static` | Static site generation |
 | `tailwindcss` / `@tailwindcss/vite` | CSS utility framework |
 | `echarts` | Charts (portfolio visualization) |
-| `@tanstack/svelte-virtual` | Table virtualization (500K rows) |
+| `@tanstack/svelte-virtual` | Table virtualization (installed, ready for use) |
 | `typescript` | Type safety |
 
 ## API Endpoints
@@ -139,8 +150,8 @@ hdpay/
 | Method | Path | Status | Handler |
 |--------|------|--------|---------|
 | GET | `/api/health` | Implemented | `handlers/health.go` |
-| POST | `/api/addresses/generate` | Stub | `handlers/address.go` |
-| GET | `/api/addresses/:chain` | Stub | `handlers/address.go` |
+| GET | `/api/addresses/{chain}` | Implemented | `handlers/address.go` |
+| GET | `/api/addresses/{chain}/export` | Implemented | `handlers/address.go` |
 | POST | `/api/scan/start` | Stub | `handlers/scan.go` |
 | GET | `/api/scan/status` | Stub | `handlers/scan.go` |
 | GET | `/api/dashboard/portfolio` | Stub | `handlers/dashboard.go` |
@@ -154,7 +165,7 @@ hdpay/
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `addresses` | HD wallet addresses | chain, address_index (PK), address |
-| `balances` | Latest scanned balances | chain, address_index, token, balance |
+| `balances` | Latest scanned balances | chain, address_index, token, balance, last_scanned |
 | `transactions` | Transaction history | chain, tx_hash, status |
-| `scans` | Scan state for resume | chain, last_scanned_index, updated_at |
+| `scan_state` | Scan state for resume | chain, last_scanned_index, updated_at |
 | `settings` | User settings | key, value |

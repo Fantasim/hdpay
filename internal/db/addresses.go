@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -113,6 +114,158 @@ func (d *DB) GetAddresses(chain models.Chain, offset, limit int) ([]models.Addre
 	}
 
 	return addresses, nil
+}
+
+// AddressFilter holds filter parameters for paginated address queries.
+type AddressFilter struct {
+	Chain      models.Chain
+	Page       int
+	PageSize   int
+	HasBalance bool
+	Token      string // "", "NATIVE", "USDC", "USDT"
+}
+
+// GetAddressesWithBalances returns paginated addresses with their balance data.
+func (d *DB) GetAddressesWithBalances(f AddressFilter) ([]models.AddressWithBalance, int64, error) {
+	offset := (f.Page - 1) * f.PageSize
+
+	slog.Debug("fetching addresses with balances",
+		"chain", f.Chain,
+		"page", f.Page,
+		"pageSize", f.PageSize,
+		"hasBalance", f.HasBalance,
+		"token", f.Token,
+		"offset", offset,
+	)
+
+	// Build WHERE clause
+	where := "a.chain = ?"
+	args := []interface{}{string(f.Chain)}
+
+	if f.HasBalance {
+		where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.balance != '0')"
+	}
+
+	if f.Token != "" {
+		if f.Token == "NATIVE" {
+			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.token = 'NATIVE' AND b.balance != '0')"
+		} else {
+			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.token = ? AND b.balance != '0')"
+			args = append(args, f.Token)
+		}
+	}
+
+	// Count total
+	var total int64
+	countQuery := "SELECT COUNT(*) FROM addresses a WHERE " + where
+	if err := d.conn.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count filtered addresses for %s: %w", f.Chain, err)
+	}
+
+	slog.Debug("filtered address count", "chain", f.Chain, "total", total)
+
+	// Fetch page
+	query := "SELECT a.chain, a.address_index, a.address FROM addresses a WHERE " + where + " ORDER BY a.address_index LIMIT ? OFFSET ?"
+	queryArgs := append(args, f.PageSize, offset)
+
+	rows, err := d.conn.Query(query, queryArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query filtered addresses for %s: %w", f.Chain, err)
+	}
+	defer rows.Close()
+
+	var results []models.AddressWithBalance
+	for rows.Next() {
+		var item models.AddressWithBalance
+		if err := rows.Scan(&item.Chain, &item.AddressIndex, &item.Address); err != nil {
+			return nil, 0, fmt.Errorf("scan filtered address row: %w", err)
+		}
+		results = append(results, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate filtered address rows: %w", err)
+	}
+
+	// Hydrate balances for the page
+	if err := d.hydrateBalances(results); err != nil {
+		return nil, 0, fmt.Errorf("hydrate balances: %w", err)
+	}
+
+	return results, total, nil
+}
+
+// hydrateBalances loads balance data for a slice of addresses.
+func (d *DB) hydrateBalances(addresses []models.AddressWithBalance) error {
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	// Build (chain, address_index) IN clause
+	placeholders := make([]string, len(addresses))
+	args := make([]interface{}, 0, len(addresses)*2)
+	for i, addr := range addresses {
+		placeholders[i] = "(?, ?)"
+		args = append(args, string(addr.Chain), addr.AddressIndex)
+	}
+
+	query := "SELECT chain, address_index, token, balance, last_scanned FROM balances WHERE (chain, address_index) IN (" + strings.Join(placeholders, ", ") + ")"
+
+	rows, err := d.conn.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("query balances for hydration: %w", err)
+	}
+	defer rows.Close()
+
+	// Map balances by (chain, index)
+	type addrKey struct {
+		chain string
+		index int
+	}
+	balanceMap := make(map[addrKey][]models.Balance)
+
+	for rows.Next() {
+		var b models.Balance
+		var lastScanned sql.NullString
+		if err := rows.Scan(&b.Chain, &b.AddressIndex, &b.Token, &b.Balance, &lastScanned); err != nil {
+			return fmt.Errorf("scan balance row: %w", err)
+		}
+		if lastScanned.Valid {
+			b.LastScanned = lastScanned.String
+		}
+		key := addrKey{string(b.Chain), b.AddressIndex}
+		balanceMap[key] = append(balanceMap[key], b)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate balance rows: %w", err)
+	}
+
+	// Apply balances to addresses
+	for i := range addresses {
+		key := addrKey{string(addresses[i].Chain), addresses[i].AddressIndex}
+		balances := balanceMap[key]
+
+		addresses[i].NativeBalance = "0"
+		addresses[i].TokenBalances = []models.TokenBalanceItem{}
+
+		var lastScanned *string
+		for _, b := range balances {
+			if b.Token == models.TokenNative {
+				addresses[i].NativeBalance = b.Balance
+			} else {
+				addresses[i].TokenBalances = append(addresses[i].TokenBalances, models.TokenBalanceItem{
+					Symbol:  b.Token,
+					Balance: b.Balance,
+				})
+			}
+			if b.LastScanned != "" {
+				ls := b.LastScanned
+				lastScanned = &ls
+			}
+		}
+		addresses[i].LastScanned = lastScanned
+	}
+
+	return nil
 }
 
 // GetAddressByIndex returns a single address by chain and index.

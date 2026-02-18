@@ -24,10 +24,10 @@ export interface Address {
 	createdAt: string;
 }
 
-// AddressBalance represents an address with its balances.
-export interface AddressBalance {
+// AddressWithBalance represents an address with its balances (matches backend API).
+export interface AddressWithBalance {
 	chain: Chain;
-	index: number;
+	addressIndex: number;
 	address: string;
 	nativeBalance: string;
 	tokenBalances: TokenBalance[];

@@ -52,3 +52,40 @@ export function formatDate(dateStr: string): string {
 export function formatElapsed(elapsed: string): string {
 	return elapsed;
 }
+
+/**
+ * Format a date string as relative time ("2 min ago", "1 hour ago", "Never").
+ */
+export function formatRelativeTime(dateStr: string | null): string {
+	if (!dateStr) return 'Never';
+
+	const date = new Date(dateStr);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffSec = Math.floor(diffMs / 1000);
+
+	if (diffSec < 60) return 'just now';
+
+	const diffMin = Math.floor(diffSec / 60);
+	if (diffMin < 60) return `${diffMin} min ago`;
+
+	const diffHours = Math.floor(diffMin / 60);
+	if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+
+	const diffDays = Math.floor(diffHours / 24);
+	if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+	return formatDate(dateStr);
+}
+
+/**
+ * Copy text to the clipboard. Returns true on success.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+	try {
+		await navigator.clipboard.writeText(text);
+		return true;
+	} catch {
+		return false;
+	}
+}

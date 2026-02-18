@@ -73,6 +73,23 @@ type Transaction struct {
 	ConfirmedAt  string `json:"confirmedAt,omitempty"`
 }
 
+// AddressWithBalance represents an address with its balance data for API responses.
+type AddressWithBalance struct {
+	Chain         Chain              `json:"chain"`
+	AddressIndex  int                `json:"addressIndex"`
+	Address       string             `json:"address"`
+	NativeBalance string             `json:"nativeBalance"`
+	TokenBalances []TokenBalanceItem `json:"tokenBalances"`
+	LastScanned   *string            `json:"lastScanned"`
+}
+
+// TokenBalanceItem represents a single token balance in an API response.
+type TokenBalanceItem struct {
+	Symbol          Token  `json:"symbol"`
+	Balance         string `json:"balance"`
+	ContractAddress string `json:"contractAddress"`
+}
+
 // AddressExport represents the JSON export format for a chain's addresses.
 type AddressExport struct {
 	Chain                  Chain               `json:"chain"`
