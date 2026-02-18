@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (V2 Phase 3) — TX Safety — Core
+
+#### Added
+- Per-chain concurrent send mutex with `TryLock()` — returns HTTP 409 Conflict if a sweep is already in progress (A1)
+- BTC confirmation polling via Esplora `/tx/{txid}/status` — polls every 15s for up to 10 min, round-robin across providers (A2)
+- SOL confirmation uncertainty tracking — 3 consecutive RPC errors → `uncertain` status instead of infinite retry (A3)
+- In-flight TX persistence via `tx_state` table for all 3 chains: BTC (single consolidated TX), BSC (per-address), SOL (per-address) (A4)
+- SOL blockhash cache with 20s TTL — reduces redundant RPC calls during multi-address sweeps (A5)
+- `GET /api/send/pending` endpoint to list in-flight/uncertain transactions
+- `POST /api/send/dismiss/{id}` endpoint to dismiss uncertain/failed transactions
+- `GetAllPendingTxStates()` DB method
+- `GenerateTxStateID()` for unique per-TX identifiers
+- `WaitForBTCConfirmation()` with `btcTxStatus` struct
+- Constants: `BTCConfirmationTimeout`, `BTCConfirmationPollInterval`, `BTCTxStatusPath`, `SOLBlockhashCacheTTL`, `SOLMaxConfirmationRPCErrors`, `TxStateDismissed`
+- Sentinel errors: `ErrBTCConfirmationTimeout`, `ErrSOLConfirmationUncertain`
+- Error codes: `ErrorBTCConfirmationTimeout`, `ErrorSOLConfirmationUncertain`, `ErrorSendBusy`
+
+#### Changed
+- `BTCConsolidationService.Execute()` now accepts `sweepID`, tracks full tx_state lifecycle, includes confirmation polling
+- `BSCConsolidationService.ExecuteNativeSweep/ExecuteTokenSweep` now accept `sweepID`, track per-address tx_state
+- `SOLConsolidationService.ExecuteNativeSweep/ExecuteTokenSweep` now accept `sweepID`, track per-address tx_state, use blockhash cache
+- `WaitForSOLConfirmation` tracks consecutive RPC errors, returns `ErrSOLConfirmationUncertain` after 3 failures
+- SOL sweep methods distinguish `uncertain` from `failed` via `errors.Is(err, config.ErrSOLConfirmationUncertain)`
+- All tx_state writes are non-blocking with nil-safe helpers (`createTxState()`, `updateTxState()`)
+- `ExecuteSend` handler generates `sweepID` before dispatching and acquires per-chain mutex
+
 ### 2026-02-18 (V2 Phase 2) — Scanner Resilience
 
 #### Added

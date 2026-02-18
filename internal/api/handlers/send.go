@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/db"
@@ -31,6 +33,7 @@ type SendDeps struct {
 	GasPreSeed *tx.GasPreSeedService
 	TxHub      *tx.TxSSEHub
 	NetParams  *chaincfg.Params
+	ChainLocks map[models.Chain]*sync.Mutex // per-chain mutex to prevent concurrent sweeps
 }
 
 // solBase58Regex matches valid Solana base58 addresses (32-44 chars, no 0OIl).
@@ -497,15 +500,34 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 			return
 		}
 
+		// Acquire per-chain mutex to prevent concurrent sweeps.
+		mu := deps.ChainLocks[req.Chain]
+		if mu == nil {
+			slog.Error("no chain lock configured", "chain", req.Chain)
+			writeError(w, http.StatusInternalServerError, config.ErrorTxBroadcastFailed, "internal configuration error")
+			return
+		}
+		if !mu.TryLock() {
+			slog.Warn("send already in progress for chain", "chain", req.Chain)
+			writeError(w, http.StatusConflict, config.ErrorSendBusy,
+				fmt.Sprintf("send operation already in progress for %s", req.Chain))
+			return
+		}
+		defer mu.Unlock()
+
+		// Generate sweep ID for grouping all TX states in this sweep.
+		sweepID := tx.GenerateSweepID()
+
 		slog.Info("executing send sweep",
 			"chain", req.Chain,
 			"token", req.Token,
 			"fundedCount", len(funded),
 			"destination", req.Destination,
+			"sweepID", sweepID,
 		)
 
 		// Dispatch to chain-specific execute.
-		result, err := executeSweep(r, deps, req, funded)
+		result, err := executeSweep(r, deps, req, funded, sweepID)
 		if err != nil {
 			slog.Error("send execute failed",
 				"chain", req.Chain,
@@ -548,24 +570,24 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 }
 
 // executeSweep dispatches to chain-specific execute logic and returns a unified result.
-func executeSweep(r *http.Request, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
+func executeSweep(r *http.Request, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	ctx := r.Context()
 
 	switch req.Chain {
 	case models.ChainBTC:
-		return executeBTCSweep(ctx, deps, req, funded)
+		return executeBTCSweep(ctx, deps, req, funded, sweepID)
 
 	case models.ChainBSC:
 		if req.Token == models.TokenNative {
-			return executeBSCNativeSweep(ctx, deps, req, funded)
+			return executeBSCNativeSweep(ctx, deps, req, funded, sweepID)
 		}
-		return executeBSCTokenSweep(ctx, deps, req, funded)
+		return executeBSCTokenSweep(ctx, deps, req, funded, sweepID)
 
 	case models.ChainSOL:
 		if req.Token == models.TokenNative {
-			return executeSOLNativeSweep(ctx, deps, req, funded)
+			return executeSOLNativeSweep(ctx, deps, req, funded, sweepID)
 		}
-		return executeSOLTokenSweep(ctx, deps, req, funded)
+		return executeSOLTokenSweep(ctx, deps, req, funded, sweepID)
 
 	default:
 		return nil, fmt.Errorf("unsupported chain: %s", req.Chain)
@@ -573,7 +595,7 @@ func executeSweep(r *http.Request, deps *SendDeps, req models.SendRequest, funde
 }
 
 // executeBTCSweep executes a BTC consolidation sweep.
-func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
+func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	addresses := make([]models.Address, len(funded))
 	for i, f := range funded {
 		addresses[i] = models.Address{
@@ -583,7 +605,7 @@ func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest
 		}
 	}
 
-	btcResult, err := deps.BTCService.Execute(ctx, addresses, req.Destination, 0)
+	btcResult, err := deps.BTCService.Execute(ctx, addresses, req.Destination, 0, sweepID)
 	if err != nil {
 		return nil, fmt.Errorf("BTC execute failed: %w", err)
 	}
@@ -604,8 +626,8 @@ func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest
 }
 
 // executeBSCNativeSweep executes a BSC native BNB sweep.
-func executeBSCNativeSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
-	bscResult, err := deps.BSCService.ExecuteNativeSweep(ctx, funded, req.Destination)
+func executeBSCNativeSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
+	bscResult, err := deps.BSCService.ExecuteNativeSweep(ctx, funded, req.Destination, sweepID)
 	if err != nil {
 		return nil, fmt.Errorf("BSC native sweep failed: %w", err)
 	}
@@ -633,10 +655,10 @@ func executeBSCNativeSweep(ctx context.Context, deps *SendDeps, req models.SendR
 }
 
 // executeBSCTokenSweep executes a BSC token (USDC/USDT) sweep.
-func executeBSCTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
+func executeBSCTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	contractAddr := getTokenContractAddress(req.Chain, req.Token, deps.Config.Network)
 
-	bscResult, err := deps.BSCService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, contractAddr)
+	bscResult, err := deps.BSCService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, contractAddr, sweepID)
 	if err != nil {
 		return nil, fmt.Errorf("BSC token sweep failed: %w", err)
 	}
@@ -664,8 +686,8 @@ func executeBSCTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRe
 }
 
 // executeSOLNativeSweep executes a SOL native sweep.
-func executeSOLNativeSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
-	solResult, err := deps.SOLService.ExecuteNativeSweep(ctx, funded, req.Destination)
+func executeSOLNativeSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
+	solResult, err := deps.SOLService.ExecuteNativeSweep(ctx, funded, req.Destination, sweepID)
 	if err != nil {
 		return nil, fmt.Errorf("SOL native sweep failed: %w", err)
 	}
@@ -693,10 +715,10 @@ func executeSOLNativeSweep(ctx context.Context, deps *SendDeps, req models.SendR
 }
 
 // executeSOLTokenSweep executes a SOL token (USDC/USDT) sweep.
-func executeSOLTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendResult, error) {
+func executeSOLTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	mint := getTokenContractAddress(req.Chain, req.Token, deps.Config.Network)
 
-	solResult, err := deps.SOLService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, mint)
+	solResult, err := deps.SOLService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, mint, sweepID)
 	if err != nil {
 		return nil, fmt.Errorf("SOL token sweep failed: %w", err)
 	}
@@ -855,5 +877,71 @@ func SendSSE(hub *tx.TxSSEHub) http.HandlerFunc {
 				return
 			}
 		}
+	}
+}
+
+// GetPendingTxStates handles GET /api/send/pending.
+// Returns all non-terminal transaction states (pending, broadcasting, confirming, uncertain).
+// Optional query param: ?chain=BTC to filter by chain.
+func GetPendingTxStates(deps *SendDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		chain := r.URL.Query().Get("chain")
+
+		slog.Info("fetching pending tx states", "chainFilter", chain)
+
+		var allStates []db.TxStateRow
+		var err error
+
+		if chain != "" {
+			chain = strings.ToUpper(chain)
+			allStates, err = deps.DB.GetPendingTxStates(chain)
+		} else {
+			allStates, err = deps.DB.GetAllPendingTxStates()
+		}
+
+		if err != nil {
+			slog.Error("failed to fetch pending tx states", "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch pending transactions")
+			return
+		}
+
+		slog.Info("pending tx states fetched",
+			"count", len(allStates),
+			"chainFilter", chain,
+			"duration", time.Since(start).Round(time.Millisecond),
+		)
+
+		writeJSON(w, http.StatusOK, models.APIResponse{
+			Data: allStates,
+			Meta: &models.APIMeta{ExecutionTime: time.Since(start).Milliseconds()},
+		})
+	}
+}
+
+// DismissTxState handles POST /api/send/dismiss/{id}.
+// Marks an uncertain TX as dismissed (user verified in explorer).
+func DismissTxState(deps *SendDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			writeError(w, http.StatusBadRequest, config.ErrorInvalidAddress, "transaction state ID is required")
+			return
+		}
+
+		slog.Info("dismissing tx state", "id", id)
+
+		if err := deps.DB.UpdateTxStatus(id, config.TxStateDismissed, "", ""); err != nil {
+			slog.Error("failed to dismiss tx state", "id", id, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to dismiss transaction")
+			return
+		}
+
+		slog.Info("tx state dismissed", "id", id)
+
+		writeJSON(w, http.StatusOK, models.APIResponse{
+			Data: map[string]string{"id": id, "status": config.TxStateDismissed},
+		})
 	}
 }

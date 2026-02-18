@@ -232,8 +232,32 @@ func (s *BSCConsolidationService) PreviewNativeSweep(ctx context.Context, addres
 	return preview, nil
 }
 
+// updateTxState is a non-blocking helper that logs errors but doesn't propagate them.
+func (s *BSCConsolidationService) updateTxState(id, status, txHash, txError string) {
+	if s.database == nil {
+		return
+	}
+	if err := s.database.UpdateTxStatus(id, status, txHash, txError); err != nil {
+		slog.Error("failed to update BSC tx_state",
+			"id", id,
+			"status", status,
+			"error", err,
+		)
+	}
+}
+
+// createTxState is a non-blocking helper that creates a tx_state row if database is available.
+func (s *BSCConsolidationService) createTxState(txState db.TxStateRow) {
+	if s.database == nil {
+		return
+	}
+	if err := s.database.CreateTxState(txState); err != nil {
+		slog.Error("failed to create BSC tx_state", "id", txState.ID, "error", err)
+	}
+}
+
 // ExecuteNativeSweep performs sequential BNB transfers from funded addresses to a destination.
-func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addresses []models.AddressWithBalance, destAddr string) (*models.BSCSendResult, error) {
+func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addresses []models.AddressWithBalance, destAddr string, sweepID string) (*models.BSCSendResult, error) {
 	slog.Info("BSC native sweep execute",
 		"addressCount", len(addresses),
 		"destAddress", destAddr,
@@ -267,7 +291,7 @@ func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addres
 			break
 		}
 
-		txResult := s.sweepNativeAddress(ctx, addr, dest, gasPrice, gasCostPerTx)
+		txResult := s.sweepNativeAddress(ctx, addr, dest, gasPrice, gasCostPerTx, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
 		if txResult.Status == "confirmed" {
@@ -300,11 +324,27 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 	dest common.Address,
 	gasPrice *big.Int,
 	gasCostPerTx *big.Int,
+	sweepID string,
 ) models.BSCTxResult {
 	txResult := models.BSCTxResult{
 		AddressIndex: addr.AddressIndex,
 		FromAddress:  addr.Address,
 	}
+
+	// Create tx_state for this individual address TX.
+	txStateID := GenerateTxStateID()
+	txState := db.TxStateRow{
+		ID:           txStateID,
+		SweepID:      sweepID,
+		Chain:        string(models.ChainBSC),
+		Token:        string(models.TokenNative),
+		AddressIndex: addr.AddressIndex,
+		FromAddress:  addr.Address,
+		ToAddress:    dest.Hex(),
+		Amount:       "0",
+		Status:       config.TxStatePending,
+	}
+	s.createTxState(txState)
 
 	fromAddr := common.HexToAddress(addr.Address)
 
@@ -314,6 +354,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get balance: %s", err)
 		slog.Error("BSC sweep: failed to get balance", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -326,6 +367,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 			"balance", balance,
 			"gasCost", gasCostPerTx,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -335,6 +377,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("derive key: %s", err)
 		slog.Error("BSC sweep: key derivation failed", "index", addr.AddressIndex, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -347,6 +390,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 			"derived", derivedAddr.Hex(),
 			"index", addr.AddressIndex,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -356,6 +400,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get nonce: %s", err)
 		slog.Error("BSC sweep: failed to get nonce", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -366,6 +411,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("sign tx: %s", err)
 		slog.Error("BSC sweep: sign failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -374,19 +420,27 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		"to", dest.Hex(),
 		"amount", sendAmount,
 		"nonce", nonce,
+		"txStateID", txStateID,
 	)
+
+	// Update to broadcasting.
+	s.updateTxState(txStateID, config.TxStateBroadcasting, "", "")
 
 	// Broadcast.
 	if err := s.ethClient.SendTransaction(ctx, signedTx); err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("broadcast: %s", err)
 		slog.Error("BSC sweep: broadcast failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
 	txHash := signedTx.Hash()
 	txResult.TxHash = txHash.Hex()
 	txResult.Amount = sendAmount.String()
+
+	// Update to confirming with txHash.
+	s.updateTxState(txStateID, config.TxStateConfirming, txHash.Hex(), "")
 
 	slog.Info("BSC sweep: TX broadcast, waiting for receipt",
 		"txHash", txHash.Hex(),
@@ -399,12 +453,14 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("receipt: %s", err)
 		slog.Error("BSC sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), txResult.Error)
 		// TX was broadcast — record it even if receipt polling fails.
 		s.recordBSCTransaction(addr, txHash.Hex(), sendAmount.String(), dest.Hex(), models.TokenNative, "pending")
 		return txResult
 	}
 
 	txResult.Status = "confirmed"
+	s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
 
 	// Record in DB.
 	s.recordBSCTransaction(addr, txHash.Hex(), sendAmount.String(), dest.Hex(), models.TokenNative, "confirmed")
@@ -426,6 +482,7 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 	destAddr string,
 	token models.Token,
 	contractAddr string,
+	sweepID string,
 ) (*models.BSCSendResult, error) {
 	slog.Info("BSC token sweep execute",
 		"addressCount", len(addresses),
@@ -476,7 +533,7 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 			break
 		}
 
-		txResult := s.sweepTokenAddress(ctx, addr, dest, contract, token, gasPrice)
+		txResult := s.sweepTokenAddress(ctx, addr, dest, contract, token, gasPrice, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
 		if txResult.Status == "confirmed" {
@@ -541,6 +598,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 	contract common.Address,
 	token models.Token,
 	gasPrice *big.Int,
+	sweepID string,
 ) models.BSCTxResult {
 	txResult := models.BSCTxResult{
 		AddressIndex: addr.AddressIndex,
@@ -565,6 +623,21 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		return txResult
 	}
 
+	// Create tx_state for this individual address TX.
+	txStateID := GenerateTxStateID()
+	txState := db.TxStateRow{
+		ID:           txStateID,
+		SweepID:      sweepID,
+		Chain:        string(models.ChainBSC),
+		Token:        string(token),
+		AddressIndex: addr.AddressIndex,
+		FromAddress:  addr.Address,
+		ToAddress:    dest.Hex(),
+		Amount:       tokenBalance.String(),
+		Status:       config.TxStatePending,
+	}
+	s.createTxState(txState)
+
 	fromAddr := common.HexToAddress(addr.Address)
 
 	// Derive private key.
@@ -573,6 +646,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("derive key: %s", err)
 		slog.Error("BSC token sweep: key derivation failed", "index", addr.AddressIndex, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -583,6 +657,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 			"expected", addr.Address,
 			"derived", derivedAddr.Hex(),
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -592,6 +667,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get nonce: %s", err)
 		slog.Error("BSC token sweep: nonce failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -602,6 +678,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("sign tx: %s", err)
 		slog.Error("BSC token sweep: sign failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -612,19 +689,27 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		"token", token,
 		"amount", tokenBalance,
 		"nonce", nonce,
+		"txStateID", txStateID,
 	)
+
+	// Update to broadcasting.
+	s.updateTxState(txStateID, config.TxStateBroadcasting, "", "")
 
 	// Broadcast.
 	if err := s.ethClient.SendTransaction(ctx, signedTx); err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("broadcast: %s", err)
 		slog.Error("BSC token sweep: broadcast failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
 	txHash := signedTx.Hash()
 	txResult.TxHash = txHash.Hex()
 	txResult.Amount = tokenBalance.String()
+
+	// Update to confirming with txHash.
+	s.updateTxState(txStateID, config.TxStateConfirming, txHash.Hex(), "")
 
 	slog.Info("BSC token sweep: TX broadcast, waiting for receipt",
 		"txHash", txHash.Hex(),
@@ -637,11 +722,13 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("receipt: %s", err)
 		slog.Error("BSC token sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), txResult.Error)
 		s.recordBSCTransaction(addr, txHash.Hex(), tokenBalance.String(), dest.Hex(), token, "pending")
 		return txResult
 	}
 
 	txResult.Status = "confirmed"
+	s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
 
 	s.recordBSCTransaction(addr, txHash.Hex(), tokenBalance.String(), dest.Hex(), token, "confirmed")
 

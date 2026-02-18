@@ -29,13 +29,17 @@ var (
 	ErrGasPreSeedFailed     = errors.New("gas pre-seed failed")
 	ErrReceiptTimeout       = errors.New("receipt polling timeout")
 
+	// BTC Confirmation
+	ErrBTCConfirmationTimeout = errors.New("BTC transaction confirmation timeout")
+
 	// SOL
-	ErrSOLTxTooLarge           = errors.New("SOL transaction exceeds 1232 byte limit")
-	ErrSOLConfirmationTimeout  = errors.New("SOL transaction confirmation timeout")
-	ErrSOLTxFailed             = errors.New("SOL transaction failed on-chain")
-	ErrSOLInsufficientLamports = errors.New("insufficient lamports to cover transaction fee")
-	ErrSOLATACreationFailed    = errors.New("failed to create associated token account")
-	ErrSOLBlockhashExpired     = errors.New("recent blockhash expired")
+	ErrSOLTxTooLarge            = errors.New("SOL transaction exceeds 1232 byte limit")
+	ErrSOLConfirmationTimeout   = errors.New("SOL transaction confirmation timeout")
+	ErrSOLConfirmationUncertain = errors.New("SOL confirmation uncertain due to RPC errors")
+	ErrSOLTxFailed              = errors.New("SOL transaction failed on-chain")
+	ErrSOLInsufficientLamports  = errors.New("insufficient lamports to cover transaction fee")
+	ErrSOLATACreationFailed     = errors.New("failed to create associated token account")
+	ErrSOLBlockhashExpired      = errors.New("recent blockhash expired")
 
 	// Send
 	ErrNoFundedAddresses = errors.New("no funded addresses found")
@@ -114,17 +118,22 @@ const (
 	ErrorReceiptTimeout     = "ERROR_RECEIPT_TIMEOUT"
 	ErrorGasPreSeedFailed   = "ERROR_GAS_PRESEED_FAILED"
 
+	// BTC
+	ErrorBTCConfirmationTimeout = "ERROR_BTC_CONFIRMATION_TIMEOUT"
+
 	// SOL
-	ErrorSOLTxTooLarge          = "ERROR_SOL_TX_TOO_LARGE"
-	ErrorSOLConfirmationTimeout = "ERROR_SOL_CONFIRMATION_TIMEOUT"
-	ErrorSOLTxFailed            = "ERROR_SOL_TX_FAILED"
-	ErrorSOLInsufficientLamports = "ERROR_SOL_INSUFFICIENT_LAMPORTS"
-	ErrorSOLATACreationFailed   = "ERROR_SOL_ATA_CREATION_FAILED"
+	ErrorSOLTxTooLarge            = "ERROR_SOL_TX_TOO_LARGE"
+	ErrorSOLConfirmationTimeout   = "ERROR_SOL_CONFIRMATION_TIMEOUT"
+	ErrorSOLConfirmationUncertain = "ERROR_SOL_CONFIRMATION_UNCERTAIN"
+	ErrorSOLTxFailed              = "ERROR_SOL_TX_FAILED"
+	ErrorSOLInsufficientLamports  = "ERROR_SOL_INSUFFICIENT_LAMPORTS"
+	ErrorSOLATACreationFailed     = "ERROR_SOL_ATA_CREATION_FAILED"
 
 	// Send
 	ErrorNoFundedAddresses  = "ERROR_NO_FUNDED_ADDRESSES"
 	ErrorInvalidDestination = "ERROR_INVALID_DESTINATION"
 	ErrorSendInProgress     = "ERROR_SEND_IN_PROGRESS"
+	ErrorSendBusy           = "ERROR_SEND_BUSY"
 
 	// Circuit Breaker
 	ErrorCircuitOpen = "ERROR_CIRCUIT_OPEN"

@@ -211,6 +211,26 @@ func (d *DB) CountTxStatesByStatus(sweepID string) (map[string]int, error) {
 	return counts, nil
 }
 
+// GetAllPendingTxStates returns all non-terminal transaction states across all chains.
+// Includes: pending, broadcasting, confirming, uncertain.
+func (d *DB) GetAllPendingTxStates() ([]TxStateRow, error) {
+	slog.Debug("fetching all pending tx states")
+
+	rows, err := d.conn.Query(
+		`SELECT id, sweep_id, chain, token, address_index, from_address, to_address, amount,
+		        COALESCE(tx_hash, '') as tx_hash, COALESCE(nonce, 0) as nonce, status, created_at, updated_at, COALESCE(error, '') as error
+		 FROM tx_state
+		 WHERE status IN ('pending', 'broadcasting', 'confirming', 'uncertain')
+		 ORDER BY created_at ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query all pending tx states: %w", err)
+	}
+	defer rows.Close()
+
+	return scanTxStateRows(rows)
+}
+
 // scanTxStateRows scans multiple tx_state rows from a query result.
 func scanTxStateRows(rows *sql.Rows) ([]TxStateRow, error) {
 	var results []TxStateRow

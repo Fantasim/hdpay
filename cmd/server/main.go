@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -362,7 +363,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	feeEstimator := tx.NewBTCFeeEstimator(httpClient, mempoolURL)
 	broadcaster := tx.NewBTCBroadcaster(httpClient, btcProviderURLs)
 
-	btcService := tx.NewBTCConsolidationService(keyService, utxoFetcher, feeEstimator, broadcaster, database, netParams)
+	btcService := tx.NewBTCConsolidationService(keyService, utxoFetcher, feeEstimator, broadcaster, database, netParams, httpClient, btcProviderURLs)
 
 	// BSC services.
 	var bscRPCURL string
@@ -412,6 +413,11 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 		GasPreSeed: gasPreSeedService,
 		TxHub:      txHub,
 		NetParams:  netParams,
+		ChainLocks: map[models.Chain]*sync.Mutex{
+			models.ChainBTC: {},
+			models.ChainBSC: {},
+			models.ChainSOL: {},
+		},
 	}, nil
 }
 

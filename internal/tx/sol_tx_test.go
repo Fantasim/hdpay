@@ -91,7 +91,7 @@ func TestSOLNativeSweep_SingleAddress(t *testing.T) {
 		NativeBalance: "1000000000",
 	}}
 
-	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA")
+	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA", "test-sweep")
 	if err != nil {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
@@ -138,7 +138,7 @@ func TestSOLNativeSweep_MultipleAddresses(t *testing.T) {
 		{AddressIndex: 2, Address: "3SuKj3MZU9dMZ9oR1R7afttihZFkWpfUmduuv9rmfMa1", NativeBalance: "500000000"},
 	}
 
-	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111")
+	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111", "test-sweep")
 	if err != nil {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
@@ -170,7 +170,7 @@ func TestSOLNativeSweep_InsufficientBalance(t *testing.T) {
 		NativeBalance: "3000",
 	}}
 
-	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111")
+	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111", "test-sweep")
 	if err != nil {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
@@ -212,7 +212,7 @@ func TestSOLNativeSweep_ConfirmationTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	result, err := svc.ExecuteNativeSweep(ctx, addresses, "11111111111111111111111111111111")
+	result, err := svc.ExecuteNativeSweep(ctx, addresses, "11111111111111111111111111111111", "test-sweep")
 	if err != nil {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
@@ -247,7 +247,7 @@ func TestSOLNativeSweep_ConfirmationFailed(t *testing.T) {
 		NativeBalance: "1000000000",
 	}}
 
-	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111")
+	result, err := svc.ExecuteNativeSweep(context.Background(), addresses, "11111111111111111111111111111111", "test-sweep")
 	if err != nil {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
@@ -295,6 +295,7 @@ func TestSOLTokenSweep_WithExistingATA(t *testing.T) {
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
+		"test-sweep",
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)
@@ -344,6 +345,7 @@ func TestSOLTokenSweep_WithATACreation(t *testing.T) {
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
+		"test-sweep",
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)
@@ -385,6 +387,7 @@ func TestSOLTokenSweep_InsufficientSOLForFee(t *testing.T) {
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
+		"test-sweep",
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)

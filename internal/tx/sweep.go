@@ -21,3 +21,17 @@ func GenerateSweepID() string {
 
 	return id
 }
+
+// GenerateTxStateID generates a unique ID for an individual transaction state row.
+func GenerateTxStateID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		slog.Warn("crypto/rand failed for tx state ID, falling back to timestamp", "error", err)
+		return fmt.Sprintf("tx-%d", time.Now().UnixNano())
+	}
+
+	id := hex.EncodeToString(b)
+	slog.Debug("generated tx state ID", "txStateID", id)
+
+	return id
+}

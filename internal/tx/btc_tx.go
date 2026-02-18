@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -241,14 +243,16 @@ func PKScriptFromAddress(address string, netParams *chaincfg.Params) ([]byte, er
 }
 
 // BTCConsolidationService orchestrates the full BTC consolidation flow:
-// fetch UTXOs → estimate fee → build tx → derive keys → sign → broadcast → record.
+// fetch UTXOs → estimate fee → build tx → derive keys → sign → broadcast → confirm → record.
 type BTCConsolidationService struct {
-	keyService   *KeyService
-	utxoFetcher  *BTCUTXOFetcher
-	feeEstimator *BTCFeeEstimator
-	broadcaster  Broadcaster
-	database     *db.DB
-	netParams    *chaincfg.Params
+	keyService       *KeyService
+	utxoFetcher      *BTCUTXOFetcher
+	feeEstimator     *BTCFeeEstimator
+	broadcaster      Broadcaster
+	database         *db.DB
+	netParams        *chaincfg.Params
+	httpClient       *http.Client
+	confirmationURLs []string // Esplora-compatible base URLs for TX status polling
 }
 
 // NewBTCConsolidationService creates the consolidation orchestrator.
@@ -259,15 +263,22 @@ func NewBTCConsolidationService(
 	broadcaster Broadcaster,
 	database *db.DB,
 	netParams *chaincfg.Params,
+	httpClient *http.Client,
+	confirmationURLs []string,
 ) *BTCConsolidationService {
-	slog.Info("BTC consolidation service created", "network", netParams.Name)
+	slog.Info("BTC consolidation service created",
+		"network", netParams.Name,
+		"confirmationURLs", confirmationURLs,
+	)
 	return &BTCConsolidationService{
-		keyService:   keyService,
-		utxoFetcher:  utxoFetcher,
-		feeEstimator: feeEstimator,
-		broadcaster:  broadcaster,
-		database:     database,
-		netParams:    netParams,
+		keyService:       keyService,
+		utxoFetcher:      utxoFetcher,
+		feeEstimator:     feeEstimator,
+		broadcaster:      broadcaster,
+		database:         database,
+		netParams:        netParams,
+		httpClient:       httpClient,
+		confirmationURLs: confirmationURLs,
 	}
 }
 
@@ -329,22 +340,43 @@ func (s *BTCConsolidationService) Preview(ctx context.Context, addresses []model
 	return preview, nil
 }
 
-// Execute performs the full consolidation: fetch UTXOs → build → sign → broadcast → record.
-func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []models.Address, destAddr string, feeRate int64) (*models.SendResult, error) {
+// Execute performs the full consolidation: fetch UTXOs → build → sign → broadcast → confirm → record.
+func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []models.Address, destAddr string, feeRate int64, sweepID string) (*models.SendResult, error) {
 	slog.Info("BTC consolidation execute",
 		"addressCount", len(addresses),
 		"destAddress", destAddr,
 		"requestedFeeRate", feeRate,
+		"sweepID", sweepID,
 	)
 	start := time.Now()
+
+	// Create tx_state row for this consolidated TX.
+	txStateID := GenerateTxStateID()
+	txState := db.TxStateRow{
+		ID:           txStateID,
+		SweepID:      sweepID,
+		Chain:        string(models.ChainBTC),
+		Token:        string(models.TokenNative),
+		AddressIndex: 0, // BTC consolidation is multi-input, no single index
+		FromAddress:  "consolidated",
+		ToAddress:    destAddr,
+		Amount:       "0", // Updated after building
+		Status:       config.TxStatePending,
+	}
+	if err := s.database.CreateTxState(txState); err != nil {
+		slog.Error("failed to create BTC tx_state", "error", err)
+		// Non-blocking: continue even if tx_state write fails
+	}
 
 	// 1. Fetch UTXOs.
 	utxos, err := s.utxoFetcher.FetchAllUTXOs(ctx, addresses)
 	if err != nil {
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("fetch UTXOs: %s", err))
 		return nil, fmt.Errorf("fetch UTXOs: %w", err)
 	}
 
 	if len(utxos) == 0 {
+		s.updateTxState(txStateID, config.TxStateFailed, "", "no confirmed UTXOs found")
 		return nil, fmt.Errorf("%w: no confirmed UTXOs found", config.ErrInsufficientUTXO)
 	}
 
@@ -352,6 +384,7 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 	if feeRate <= 0 {
 		estimate, err := s.feeEstimator.EstimateFee(ctx)
 		if err != nil {
+			s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("estimate fee: %s", err))
 			return nil, fmt.Errorf("estimate fee: %w", err)
 		}
 		feeRate = DefaultFeeRate(estimate)
@@ -365,7 +398,14 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 		NetParams:   s.netParams,
 	})
 	if err != nil {
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("build TX: %s", err))
 		return nil, fmt.Errorf("build TX: %w", err)
+	}
+
+	// Update tx_state with actual amount.
+	s.updateTxState(txStateID, config.TxStatePending, "", "")
+	if err := s.database.UpdateTxStatus(txStateID, config.TxStatePending, "", ""); err != nil {
+		slog.Error("failed to update BTC tx_state amount", "error", err)
 	}
 
 	// 4. Derive keys and prepare signing UTXOs.
@@ -377,17 +417,20 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 				su.PrivKey.Zero()
 			}
 		}
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("prepare signing: %s", err))
 		return nil, fmt.Errorf("prepare signing UTXOs: %w", err)
 	}
 
 	// 5. Sign the transaction.
 	if err := SignBTCTx(built.Tx, signingUTXOs); err != nil {
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("sign TX: %s", err))
 		return nil, fmt.Errorf("sign TX: %w", err)
 	}
 
 	// 6. Serialize to hex.
 	rawHex, err := SerializeBTCTx(built.Tx)
 	if err != nil {
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("serialize TX: %s", err))
 		return nil, fmt.Errorf("serialize TX: %w", err)
 	}
 
@@ -396,11 +439,16 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 		"inputCount", len(built.UTXOs),
 		"outputSats", built.OutputSats,
 		"feeSats", built.FeeSats,
+		"txStateID", txStateID,
 	)
 
-	// 7. Broadcast.
+	// 7. Update to broadcasting.
+	s.updateTxState(txStateID, config.TxStateBroadcasting, "", "")
+
+	// 8. Broadcast.
 	txHash, err := s.broadcaster.Broadcast(ctx, rawHex)
 	if err != nil {
+		s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("broadcast: %s", err))
 		return nil, fmt.Errorf("broadcast TX: %w", err)
 	}
 
@@ -409,19 +457,44 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 		"duration", time.Since(start).Round(time.Millisecond),
 	)
 
-	// 8. Record in database.
+	// 9. Update to confirming with txHash.
+	s.updateTxState(txStateID, config.TxStateConfirming, txHash, "")
+
+	// 10. Record in transactions table.
 	if err := s.recordTransaction(ctx, txHash, built, destAddr); err != nil {
-		// Broadcast succeeded — log error but don't fail.
 		slog.Error("failed to record BTC transaction in DB",
 			"txHash", txHash,
 			"error", err,
 		)
 	}
 
+	// 11. Wait for confirmation (best-effort — timeout is not a failure).
+	if err := WaitForBTCConfirmation(ctx, s.httpClient, s.confirmationURLs, txHash); err != nil {
+		slog.Warn("BTC confirmation polling timed out or failed",
+			"txHash", txHash,
+			"error", err,
+		)
+		s.updateTxState(txStateID, config.TxStateUncertain, txHash, fmt.Sprintf("confirmation: %s", err))
+	} else {
+		slog.Info("BTC transaction confirmed", "txHash", txHash)
+		s.updateTxState(txStateID, config.TxStateConfirmed, txHash, "")
+	}
+
 	return &models.SendResult{
 		TxHash: txHash,
 		Chain:  models.ChainBTC,
 	}, nil
+}
+
+// updateTxState is a non-blocking helper that logs errors but doesn't propagate them.
+func (s *BTCConsolidationService) updateTxState(id, status, txHash, txError string) {
+	if err := s.database.UpdateTxStatus(id, status, txHash, txError); err != nil {
+		slog.Error("failed to update BTC tx_state",
+			"id", id,
+			"status", status,
+			"error", err,
+		)
+	}
 }
 
 // prepareSigningUTXOs derives private keys and reconstructs pkScripts for each UTXO.
@@ -480,4 +553,94 @@ func (s *BTCConsolidationService) recordTransaction(_ context.Context, txHash st
 	}
 
 	return nil
+}
+
+// --- BTC Confirmation Polling ---
+
+// btcTxStatus is the JSON response from Esplora /tx/{txid}/status endpoint.
+type btcTxStatus struct {
+	Confirmed   bool  `json:"confirmed"`
+	BlockHeight int64 `json:"block_height"`
+	BlockHash   string `json:"block_hash"`
+	BlockTime   int64 `json:"block_time"`
+}
+
+// WaitForBTCConfirmation polls Esplora-compatible APIs for BTC transaction confirmation.
+// Returns nil if confirmed, ErrBTCConfirmationTimeout if timeout is reached.
+// This is best-effort — a timeout does NOT mean the TX failed.
+func WaitForBTCConfirmation(ctx context.Context, client *http.Client, providerURLs []string, txHash string) error {
+	if len(providerURLs) == 0 {
+		slog.Warn("BTC confirmation polling skipped: no provider URLs configured")
+		return nil
+	}
+
+	slog.Info("waiting for BTC confirmation",
+		"txHash", txHash,
+		"providerCount", len(providerURLs),
+		"timeout", config.BTCConfirmationTimeout,
+	)
+
+	pollCtx, cancel := context.WithTimeout(ctx, config.BTCConfirmationTimeout)
+	defer cancel()
+
+	providerIdx := 0
+	for {
+		baseURL := providerURLs[providerIdx%len(providerURLs)]
+		providerIdx++
+
+		url := baseURL + fmt.Sprintf(config.BTCTxStatusPath, txHash)
+
+		confirmed, err := pollBTCTxStatus(pollCtx, client, url)
+		if err != nil {
+			slog.Warn("BTC confirmation poll error",
+				"txHash", txHash,
+				"provider", baseURL,
+				"error", err,
+			)
+			// Transient error — try next provider on next iteration
+		} else if confirmed {
+			slog.Info("BTC transaction confirmed via polling",
+				"txHash", txHash,
+				"provider", baseURL,
+			)
+			return nil
+		}
+
+		select {
+		case <-pollCtx.Done():
+			return fmt.Errorf("%w: tx %s", config.ErrBTCConfirmationTimeout, txHash)
+		case <-time.After(config.BTCConfirmationPollInterval):
+			slog.Debug("BTC confirmation not ready, polling again", "txHash", txHash)
+		}
+	}
+}
+
+// pollBTCTxStatus makes a single request to check BTC TX confirmation status.
+func pollBTCTxStatus(ctx context.Context, client *http.Client, url string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, fmt.Errorf("create status request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("status request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		// TX not yet in mempool — not an error, just not found yet
+		return false, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	var status btcTxStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return false, fmt.Errorf("decode status response: %w", err)
+	}
+
+	return status.Confirmed, nil
 }

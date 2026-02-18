@@ -226,6 +226,23 @@ const (
 	MaxConsecutivePoolFails = 5               // max consecutive all-provider failures before stopping scan
 )
 
+// BTC Confirmation Polling
+const (
+	BTCConfirmationTimeout      = 10 * time.Minute // max wait for BTC TX to get 1 confirmation
+	BTCConfirmationPollInterval = 15 * time.Second  // poll interval for Esplora /tx/{txid}/status
+	BTCTxStatusPath             = "/tx/%s/status"   // Esplora endpoint format for TX status
+)
+
+// SOL Blockhash Cache
+const (
+	SOLBlockhashCacheTTL = 20 * time.Second // max age before fetching fresh blockhash
+)
+
+// SOL Confirmation
+const (
+	SOLMaxConfirmationRPCErrors = 3 // consecutive RPC errors before marking TX as uncertain
+)
+
 // TX State Statuses
 const (
 	TxStatePending      = "pending"
@@ -234,6 +251,7 @@ const (
 	TxStateConfirmed    = "confirmed"
 	TxStateFailed       = "failed"
 	TxStateUncertain    = "uncertain"
+	TxStateDismissed    = "dismissed"
 )
 
 // Provider Health Statuses

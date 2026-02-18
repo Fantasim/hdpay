@@ -4,9 +4,9 @@
 
 ## Current Position
 - **Version:** V2
-- **Phase:** Building (Phase 2 of 6 complete)
-- **Status:** V2 Build Phase 2 complete — scanner resilience hardened
-- **Last session:** 2026-02-18 — Built V2 Phase 2: Scanner Resilience
+- **Phase:** Building (Phase 3 of 6 complete)
+- **Status:** V2 Build Phase 3 complete — TX safety core hardened
+- **Last session:** 2026-02-18 — Built V2 Phase 3: TX Safety — Core
 
 ## Version History
 | Version | Completed | Summary |
@@ -18,7 +18,7 @@
 |-------|------|--------|
 | 1 | Foundation: Schema, Error Types & Circuit Breaker | **Completed** |
 | 2 | Scanner Resilience | **Completed** |
-| 3 | TX Safety — Core | Pending |
+| 3 | TX Safety — Core | **Completed** |
 | 4 | TX Safety — Advanced | Pending |
 | 5 | Provider Health & Broadcast Fallback | Pending |
 | 6 | Security Tests & Infrastructure | Pending |
@@ -28,17 +28,19 @@
 - **Circuit breaker**: threshold=3, 30s cooldown, 1 half-open test request per provider
 - **TransientError**: Wrapper with optional RetryAfter for retry decisions
 - **TX state tracking**: tx_state table for full TX lifecycle (pending→broadcasting→confirming→confirmed|failed|uncertain)
-- **Native/token decoupled**: Native balance failure does not block token scans (B8)
-- **Atomic batch writes**: Balances + scan state written in single DB transaction (B4)
-- **Consecutive failure abort**: Scan aborts after 5 consecutive all-provider failures
+- **Concurrent send**: Per-chain mutex with TryLock, HTTP 409 Conflict if busy
+- **Uncertain vs failed**: TX broadcast but unverifiable → "uncertain"; TX definitively failed → "failed"
+- **Non-blocking tx_state**: DB writes for tx_state don't abort sweeps on failure
+- **SOL blockhash cache**: 20s TTL, thread-safe, reduces RPC calls during multi-address sweeps
+- **BTC confirmation**: Best-effort polling via Esplora, timeout → uncertain (not failed)
 - All V1 decisions carry forward unchanged
 
 ## Tech Stack
 No changes from V1.
 
 ## Next Actions
-- Start V2 Build Phase 3: TX Safety — Core
-- Key files to read: `.project/v2/04-build-plan/phases/phase-03/PLAN.md`
+- Start V2 Build Phase 4: TX Safety — Advanced
+- Key files to read: `.project/v2/04-build-plan/phases/phase-04/PLAN.md`
 
 ## Files Reference
 | File | Purpose |
@@ -50,10 +52,12 @@ No changes from V1.
 | `.project/v2/04-build-plan/` | V2 build plan (6 phases) |
 | `.project/v2/04-build-plan/phases/phase-01/PLAN.md` | Phase 1 plan (completed) |
 | `.project/v2/04-build-plan/phases/phase-02/PLAN.md` | Phase 2 plan (completed) |
+| `.project/v2/04-build-plan/phases/phase-03/PLAN.md` | Phase 3 plan (completed) |
 
 ## Session History
 | # | Date | Phase | Summary |
 |---|------|-------|---------|
+| 15 | 2026-02-18 | building | V2 Build Phase 3: TX Safety Core — concurrent send mutex (A1), BTC confirmation polling (A2), SOL confirmation uncertainty (A3), in-flight TX persistence all chains (A4), SOL blockhash cache (A5). |
 | 14 | 2026-02-18 | building | V2 Build Phase 2: Scanner resilience — error collection, partial result validation, atomic DB writes, circuit breaker wiring, backoff, decoupled native/token, token error SSE, SSE resync. |
 | 13 | 2026-02-18 | building | V2 Build Phase 1: tx_state + provider_health DB, TransientError, circuit breaker, BalanceResult enhancement, sweep ID generator. 24 tests. |
 | 12 | 2026-02-18 | planning | V2 planning: robustness audit (37 issues), V2 plan + 6-phase build plan |

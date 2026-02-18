@@ -181,7 +181,7 @@ hdpay/
 | `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
 | `internal/api/handlers/scan.go` | Scan start/stop/status handlers + SSE streaming |
 | `internal/api/handlers/dashboard.go` | Prices + portfolio API handlers |
-| `internal/api/handlers/send.go` | Send preview/execute/gas-preseed handlers + SSE + chain dispatch |
+| `internal/api/handlers/send.go` | Send preview/execute/gas-preseed handlers + SSE + chain dispatch + concurrent mutex + pending/dismiss |
 | `internal/scanner/scanner.go` | Scanner orchestrator: multi-chain, resume, token scanning |
 | `internal/scanner/pool.go` | Provider pool with round-robin rotation + failover |
 | `internal/scanner/sse.go` | SSE hub for real-time scan progress broadcasting |
@@ -195,12 +195,13 @@ hdpay/
 | `internal/tx/key_service.go` | On-demand BTC/BSC private key derivation from mnemonic file |
 | `internal/tx/btc_utxo.go` | UTXO fetching with round-robin Blockstream/Mempool rotation |
 | `internal/tx/btc_fee.go` | Dynamic fee estimation from mempool.space with fallback |
-| `internal/tx/btc_tx.go` | Multi-input P2WPKH TX building, signing, consolidation orchestrator |
+| `internal/tx/btc_tx.go` | Multi-input P2WPKH TX building, signing, consolidation + confirmation polling |
 | `internal/tx/broadcaster.go` | Shared Broadcaster interface + BTC broadcast with provider fallback |
-| `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation |
+| `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation + tx_state tracking |
 | `internal/tx/gas.go` | Gas pre-seeding service: distribute BNB to addresses needing gas |
-| `internal/tx/sol_tx.go` | SOL native + SPL token consolidation service |
+| `internal/tx/sol_tx.go` | SOL native + SPL token consolidation + blockhash cache + tx_state + uncertain handling |
 | `internal/tx/sol_serialize.go` | Raw Solana binary TX serialization |
+| `internal/tx/sweep.go` | V2: Sweep ID generator (crypto/rand) |
 | `internal/tx/sse.go` | TX SSE hub for real-time transaction status broadcasting |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
@@ -255,6 +256,8 @@ hdpay/
 | POST | `/api/send/execute` | Implemented | `handlers/send.go` |
 | POST | `/api/send/gas-preseed` | Implemented | `handlers/send.go` |
 | GET | `/api/send/sse` | Implemented | `handlers/send.go` |
+| GET | `/api/send/pending` | Implemented | `handlers/send.go` |
+| POST | `/api/send/dismiss/{id}` | Implemented | `handlers/send.go` |
 | GET | `/api/settings` | Stub | `handlers/settings.go` |
 
 ## Database Schema

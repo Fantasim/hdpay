@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -280,39 +281,63 @@ func (c *DefaultSOLRPCClient) GetBalance(ctx context.Context, address string) (u
 // --- Confirmation Polling ---
 
 // WaitForSOLConfirmation polls getSignatureStatuses until the transaction is confirmed or fails.
+// Returns (slot, nil) on confirmation, or an error on failure/timeout/uncertainty.
+// If consecutive RPC errors exceed SOLMaxConfirmationRPCErrors, returns ErrSOLConfirmationUncertain
+// instead of continuing to retry — the TX may still land, but we can't verify it.
 func WaitForSOLConfirmation(ctx context.Context, client SOLRPCClient, signature string) (uint64, error) {
 	slog.Debug("waiting for SOL confirmation", "signature", signature)
 
 	pollCtx, cancel := context.WithTimeout(ctx, config.SOLConfirmationTimeout)
 	defer cancel()
 
+	consecutiveRPCErrors := 0
+
 	for {
 		statuses, err := client.GetSignatureStatuses(pollCtx, []string{signature})
 		if err != nil {
-			slog.Warn("SOL confirmation poll error", "signature", signature, "error", err)
-			// Transient RPC error — wait and retry.
-		} else if len(statuses) > 0 {
-			status := statuses[0]
+			consecutiveRPCErrors++
+			slog.Warn("SOL confirmation poll error",
+				"signature", signature,
+				"error", err,
+				"consecutiveErrors", consecutiveRPCErrors,
+				"maxErrors", config.SOLMaxConfirmationRPCErrors,
+			)
 
-			// Check for on-chain error.
-			if status.Err != nil {
-				slog.Error("SOL transaction failed on-chain",
+			if consecutiveRPCErrors >= config.SOLMaxConfirmationRPCErrors {
+				slog.Error("SOL confirmation uncertain: too many consecutive RPC errors",
 					"signature", signature,
-					"error", status.Err,
+					"consecutiveErrors", consecutiveRPCErrors,
 				)
-				return 0, fmt.Errorf("%w: %v", config.ErrSOLTxFailed, status.Err)
+				return 0, fmt.Errorf("%w: %d consecutive RPC errors for signature %s",
+					config.ErrSOLConfirmationUncertain, consecutiveRPCErrors, signature)
 			}
+		} else {
+			// Reset on successful RPC call.
+			consecutiveRPCErrors = 0
 
-			// Check confirmation status.
-			if status.ConfirmationStatus != nil {
-				cs := *status.ConfirmationStatus
-				if cs == "confirmed" || cs == "finalized" {
-					slog.Info("SOL transaction confirmed",
+			if len(statuses) > 0 {
+				status := statuses[0]
+
+				// Check for on-chain error.
+				if status.Err != nil {
+					slog.Error("SOL transaction failed on-chain",
 						"signature", signature,
-						"slot", status.Slot,
-						"confirmationStatus", cs,
+						"error", status.Err,
 					)
-					return status.Slot, nil
+					return 0, fmt.Errorf("%w: %v", config.ErrSOLTxFailed, status.Err)
+				}
+
+				// Check confirmation status.
+				if status.ConfirmationStatus != nil {
+					cs := *status.ConfirmationStatus
+					if cs == "confirmed" || cs == "finalized" {
+						slog.Info("SOL transaction confirmed",
+							"signature", signature,
+							"slot", status.Slot,
+							"confirmationStatus", cs,
+						)
+						return status.Slot, nil
+					}
 				}
 			}
 		}
@@ -335,6 +360,11 @@ type SOLConsolidationService struct {
 	rpcClient  SOLRPCClient
 	database   *db.DB
 	network    string
+
+	// Blockhash cache — avoids fetching a new blockhash for every single TX in a sweep.
+	blockhashCache    [32]byte
+	blockhashCachedAt time.Time
+	blockhashMu       sync.Mutex
 }
 
 // NewSOLConsolidationService creates the SOL consolidation orchestrator.
@@ -350,6 +380,54 @@ func NewSOLConsolidationService(
 		rpcClient:  rpcClient,
 		database:   database,
 		network:    network,
+	}
+}
+
+// getOrRefreshBlockhash returns a cached blockhash if still valid, or fetches a fresh one.
+func (s *SOLConsolidationService) getOrRefreshBlockhash(ctx context.Context) ([32]byte, error) {
+	s.blockhashMu.Lock()
+	defer s.blockhashMu.Unlock()
+
+	if !s.blockhashCachedAt.IsZero() && time.Since(s.blockhashCachedAt) < config.SOLBlockhashCacheTTL {
+		slog.Debug("using cached SOL blockhash",
+			"age", time.Since(s.blockhashCachedAt).Round(time.Millisecond),
+		)
+		return s.blockhashCache, nil
+	}
+
+	blockhash, _, err := s.rpcClient.GetLatestBlockhash(ctx)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("refresh blockhash: %w", err)
+	}
+
+	s.blockhashCache = blockhash
+	s.blockhashCachedAt = time.Now()
+
+	slog.Debug("SOL blockhash refreshed and cached")
+	return blockhash, nil
+}
+
+// updateTxState is a non-blocking helper that logs errors but doesn't propagate them.
+func (s *SOLConsolidationService) updateTxState(id, status, txHash, txError string) {
+	if s.database == nil {
+		return
+	}
+	if err := s.database.UpdateTxStatus(id, status, txHash, txError); err != nil {
+		slog.Error("failed to update SOL tx_state",
+			"id", id,
+			"status", status,
+			"error", err,
+		)
+	}
+}
+
+// createTxState is a non-blocking helper that creates a tx_state row if database is available.
+func (s *SOLConsolidationService) createTxState(txState db.TxStateRow) {
+	if s.database == nil {
+		return
+	}
+	if err := s.database.CreateTxState(txState); err != nil {
+		slog.Error("failed to create SOL tx_state", "id", txState.ID, "error", err)
 	}
 }
 
@@ -412,6 +490,7 @@ func (s *SOLConsolidationService) ExecuteNativeSweep(
 	ctx context.Context,
 	addresses []models.AddressWithBalance,
 	destAddress string,
+	sweepID string,
 ) (*models.SOLSendResult, error) {
 	slog.Info("SOL native sweep execute",
 		"addressCount", len(addresses),
@@ -438,7 +517,7 @@ func (s *SOLConsolidationService) ExecuteNativeSweep(
 			break
 		}
 
-		txResult := s.sweepNativeAddress(ctx, addr, destPubKey, feePerTx)
+		txResult := s.sweepNativeAddress(ctx, addr, destPubKey, feePerTx, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
 		if txResult.Status == "confirmed" {
@@ -468,11 +547,27 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 	addr models.AddressWithBalance,
 	dest SolPublicKey,
 	feePerTx uint64,
+	sweepID string,
 ) models.SOLTxResult {
 	txResult := models.SOLTxResult{
 		AddressIndex: addr.AddressIndex,
 		FromAddress:  addr.Address,
 	}
+
+	// Create tx_state for this individual address TX.
+	txStateID := GenerateTxStateID()
+	txState := db.TxStateRow{
+		ID:           txStateID,
+		SweepID:      sweepID,
+		Chain:        string(models.ChainSOL),
+		Token:        string(models.TokenNative),
+		AddressIndex: addr.AddressIndex,
+		FromAddress:  addr.Address,
+		ToAddress:    dest.ToBase58(),
+		Amount:       "0",
+		Status:       config.TxStatePending,
+	}
+	s.createTxState(txState)
 
 	// Get real-time balance.
 	balance, err := s.rpcClient.GetBalance(ctx, addr.Address)
@@ -480,6 +575,7 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get balance: %s", err)
 		slog.Error("SOL sweep: failed to get balance", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -491,6 +587,7 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 			"balance", balance,
 			"fee", feePerTx,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -502,6 +599,7 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("derive key: %s", err)
 		slog.Error("SOL sweep: key derivation failed", "index", addr.AddressIndex, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -516,15 +614,17 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 			"derived", derivedAddr,
 			"index", addr.AddressIndex,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
-	// Fetch recent blockhash.
-	blockhash, _, err := s.rpcClient.GetLatestBlockhash(ctx)
+	// Fetch recent blockhash (from cache or RPC).
+	blockhash, err := s.getOrRefreshBlockhash(ctx)
 	if err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get blockhash: %s", err)
 		slog.Error("SOL sweep: blockhash fetch failed", "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -542,6 +642,7 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("build tx: %s", err)
 		slog.Error("SOL sweep: build transaction failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -550,7 +651,11 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		"to", dest.ToBase58(),
 		"amount", sendAmount,
 		"txSize", len(txBytes),
+		"txStateID", txStateID,
 	)
+
+	// Update to broadcasting.
+	s.updateTxState(txStateID, config.TxStateBroadcasting, "", "")
 
 	// Broadcast.
 	txBase64 := base64.StdEncoding.EncodeToString(txBytes)
@@ -559,6 +664,7 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("broadcast: %s", err)
 		slog.Error("SOL sweep: broadcast failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -570,6 +676,9 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 	}
 	txResult.Amount = strconv.FormatUint(sendAmount, 10)
 
+	// Update to confirming with signature.
+	s.updateTxState(txStateID, config.TxStateConfirming, txResult.TxSignature, "")
+
 	slog.Info("SOL sweep: TX broadcast, waiting for confirmation",
 		"signature", txResult.TxSignature,
 		"from", addr.Address,
@@ -578,16 +687,26 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 	// Wait for confirmation.
 	slot, err := WaitForSOLConfirmation(ctx, s.rpcClient, txResult.TxSignature)
 	if err != nil {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("confirmation: %s", err)
-		slog.Error("SOL sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
-		// TX was broadcast — record as pending.
+		// Distinguish uncertain (RPC errors) from definite failure (on-chain error).
+		if errors.Is(err, config.ErrSOLConfirmationUncertain) {
+			txResult.Status = "uncertain"
+			txResult.Error = fmt.Sprintf("confirmation uncertain: %s", err)
+			slog.Warn("SOL sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
+			s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, txResult.Error)
+		} else {
+			txResult.Status = "failed"
+			txResult.Error = fmt.Sprintf("confirmation: %s", err)
+			slog.Error("SOL sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
+			s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, txResult.Error)
+		}
+		// TX was broadcast — record in transactions table.
 		s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, dest.ToBase58(), models.TokenNative, "pending")
 		return txResult
 	}
 
 	txResult.Status = "confirmed"
 	txResult.Slot = slot
+	s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
 
 	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, dest.ToBase58(), models.TokenNative, "confirmed")
 
@@ -692,6 +811,7 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 	destAddress string,
 	token models.Token,
 	mint string,
+	sweepID string,
 ) (*models.SOLSendResult, error) {
 	slog.Info("SOL token sweep execute",
 		"addressCount", len(addresses),
@@ -751,7 +871,7 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 			continue
 		}
 
-		txResult := s.sweepTokenAddress(ctx, addr, destPubKey, destATAPubKey, mintPubKey, tokenBal, feePerTx, token, mint, !destATAExists)
+		txResult := s.sweepTokenAddress(ctx, addr, destPubKey, destATAPubKey, mintPubKey, tokenBal, feePerTx, token, mint, !destATAExists, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
 		if txResult.Status == "confirmed" {
@@ -793,11 +913,27 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	token models.Token,
 	mint string,
 	needCreateATA bool,
+	sweepID string,
 ) models.SOLTxResult {
 	txResult := models.SOLTxResult{
 		AddressIndex: addr.AddressIndex,
 		FromAddress:  addr.Address,
 	}
+
+	// Create tx_state for this individual address TX.
+	txStateID := GenerateTxStateID()
+	txState := db.TxStateRow{
+		ID:           txStateID,
+		SweepID:      sweepID,
+		Chain:        string(models.ChainSOL),
+		Token:        string(token),
+		AddressIndex: addr.AddressIndex,
+		FromAddress:  addr.Address,
+		ToAddress:    destPubKey.ToBase58(),
+		Amount:       strconv.FormatUint(tokenAmount, 10),
+		Status:       config.TxStatePending,
+	}
+	s.createTxState(txState)
 
 	// Check native SOL balance for fee.
 	nativeBal, err := s.rpcClient.GetBalance(ctx, addr.Address)
@@ -805,6 +941,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get balance: %s", err)
 		slog.Error("SOL token sweep: failed to get balance", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -821,6 +958,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 			"balance", nativeBal,
 			"required", minRequired,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -830,6 +968,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("derive key: %s", err)
 		slog.Error("SOL token sweep: key derivation failed", "index", addr.AddressIndex, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -842,6 +981,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 			"expected", addr.Address,
 			"derived", derivedAddr,
 		)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -854,21 +994,24 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("derive source ATA: %s", err)
 		slog.Error("SOL token sweep: source ATA derivation failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 	sourceATAPubKey, err := SolPublicKeyFromBase58(sourceATAStr)
 	if err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("parse source ATA: %s", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
-	// Fetch recent blockhash.
-	blockhash, _, err := s.rpcClient.GetLatestBlockhash(ctx)
+	// Fetch recent blockhash (from cache or RPC).
+	blockhash, err := s.getOrRefreshBlockhash(ctx)
 	if err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get blockhash: %s", err)
 		slog.Error("SOL token sweep: blockhash fetch failed", "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -896,6 +1039,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("build tx: %s", err)
 		slog.Error("SOL token sweep: build transaction failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -905,7 +1049,11 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		"amount", tokenAmount,
 		"txSize", len(txBytes),
 		"includesCreateATA", needCreateATA,
+		"txStateID", txStateID,
 	)
+
+	// Update to broadcasting.
+	s.updateTxState(txStateID, config.TxStateBroadcasting, "", "")
 
 	// Broadcast.
 	txBase64 := base64.StdEncoding.EncodeToString(txBytes)
@@ -914,6 +1062,7 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("broadcast: %s", err)
 		slog.Error("SOL token sweep: broadcast failed", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
 
@@ -924,6 +1073,9 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	}
 	txResult.Amount = strconv.FormatUint(tokenAmount, 10)
 
+	// Update to confirming with signature.
+	s.updateTxState(txStateID, config.TxStateConfirming, txResult.TxSignature, "")
+
 	slog.Info("SOL token sweep: TX broadcast, waiting for confirmation",
 		"signature", txResult.TxSignature,
 		"from", addr.Address,
@@ -932,15 +1084,25 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	// Wait for confirmation.
 	slot, err := WaitForSOLConfirmation(ctx, s.rpcClient, txResult.TxSignature)
 	if err != nil {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("confirmation: %s", err)
-		slog.Error("SOL token sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
+		// Distinguish uncertain (RPC errors) from definite failure (on-chain error).
+		if errors.Is(err, config.ErrSOLConfirmationUncertain) {
+			txResult.Status = "uncertain"
+			txResult.Error = fmt.Sprintf("confirmation uncertain: %s", err)
+			slog.Warn("SOL token sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
+			s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, txResult.Error)
+		} else {
+			txResult.Status = "failed"
+			txResult.Error = fmt.Sprintf("confirmation: %s", err)
+			slog.Error("SOL token sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
+			s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, txResult.Error)
+		}
 		s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, destPubKey.ToBase58(), token, "pending")
 		return txResult
 	}
 
 	txResult.Status = "confirmed"
 	txResult.Slot = slot
+	s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
 
 	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, destPubKey.ToBase58(), token, "confirmed")
 
