@@ -31,21 +31,28 @@ hdpay/
 |   |   └-- router.go                # Chi router setup
 |   |-- config/
 |   |   |-- config.go                # Config struct (envconfig)
-|   |   |-- constants.go             # ALL numeric/string constants
-|   |   └-- errors.go                # ALL error codes
+|   |   |-- constants.go             # ALL numeric/string constants + V2 circuit breaker/TX state/provider health
+|   |   |-- errors.go                # ALL error codes + TransientError type + IsTransient/GetRetryAfter
+|   |   └-- errors_test.go           # TransientError tests (4 tests)
 |   |-- db/
 |   |   |-- addresses.go             # Address CRUD + GetAddressesWithBalances (filtered, paginated)
 |   |   |-- addresses_test.go        # Address DB tests (5 tests)
 |   |   |-- balances.go              # Balance CRUD + batch upsert, funded queries, aggregates, GetFundedAddressesJoined
 |   |   |-- balances_test.go         # Balance DB tests (10 tests)
 |   |   |-- migrations/
-|   |   |   └-- 001_initial.sql      # Initial schema: 5 tables
+|   |   |   |-- 001_initial.sql      # Initial schema: 5 tables
+|   |   |   |-- 005_tx_state.sql     # V2: TX state tracking table
+|   |   |   └-- 006_provider_health.sql # V2: Provider health + circuit breaker table
+|   |   |-- provider_health.go       # V2: Provider health CRUD (6 methods)
+|   |   |-- provider_health_test.go  # Provider health tests (6 tests)
 |   |   |-- scans.go                 # Scan state: GetScanState, UpsertScanState, ShouldResume
 |   |   |-- scans_test.go            # Scan state DB tests (8 tests)
 |   |   |-- sqlite.go                # SQLite connection, WAL mode, migrations
 |   |   |-- sqlite_test.go           # DB tests
 |   |   |-- transactions.go          # Transaction CRUD: insert, update status, get, list
-|   |   └-- transactions_test.go     # Transaction DB tests (7 tests)
+|   |   |-- transactions_test.go     # Transaction DB tests (7 tests)
+|   |   |-- tx_state.go              # V2: TX state CRUD (6 methods)
+|   |   └-- tx_state_test.go         # TX state tests (8 tests)
 |   |-- logging/
 |   |   |-- logger.go                # slog: stdout + daily rotated files
 |   |   └-- logger_test.go           # Logger tests
@@ -61,9 +68,11 @@ hdpay/
 |   |   |-- bsc_bscscan.go           # BscScan REST API provider
 |   |   |-- bsc_bscscan_test.go
 |   |   |-- bsc_rpc.go               # BSC ethclient JSON-RPC provider
+|   |   |-- circuit_breaker.go       # V2: Circuit breaker state machine (closed/open/half-open)
+|   |   |-- circuit_breaker_test.go  # Circuit breaker tests (8 tests)
 |   |   |-- pool.go                  # Provider pool: round-robin + failover
 |   |   |-- pool_test.go
-|   |   |-- provider.go              # Provider interface + BalanceResult type
+|   |   |-- provider.go              # Provider interface + BalanceResult (with Error+Source fields)
 |   |   |-- ratelimiter.go           # Per-provider rate limiter (x/time/rate)
 |   |   |-- scanner.go               # Scanner orchestrator: multi-chain, resume, token scan
 |   |   |-- scanner_test.go
@@ -92,7 +101,8 @@ hdpay/
 |   |   |-- sol_serialize_test.go    # Serialization tests
 |   |   |-- sol_tx.go                # SOL native + SPL token consolidation service
 |   |   |-- sol_tx_test.go           # SOL TX tests
-|   |   └-- sse.go                   # TX SSE hub: subscribe/unsubscribe/broadcast (tx events)
+|   |   |-- sse.go                   # TX SSE hub: subscribe/unsubscribe/broadcast (tx events)
+|   |   └-- sweep.go                 # V2: Sweep ID generator (crypto/rand)
 |   └-- wallet/
 |       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
 |       |-- bsc_test.go              # BSC tests with known vectors
@@ -249,12 +259,12 @@ hdpay/
 
 ## Database Schema
 
-**File**: `internal/db/migrations/001_initial.sql`
-
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `addresses` | HD wallet addresses | chain, address_index (PK), address |
-| `balances` | Latest scanned balances | chain, address_index, token, balance, last_scanned |
-| `transactions` | Transaction history | chain, tx_hash, status |
-| `scan_state` | Scan state for resume | chain, last_scanned_index, updated_at |
-| `settings` | User settings | key, value |
+| Table | Migration | Purpose | Key Columns |
+|-------|-----------|---------|-------------|
+| `addresses` | 001 | HD wallet addresses | chain, address_index (PK), address |
+| `balances` | 001 | Latest scanned balances | chain, address_index, token, balance, last_scanned |
+| `transactions` | 001 | Transaction history | chain, tx_hash, status |
+| `scan_state` | 001 | Scan state for resume | chain, last_scanned_index, updated_at |
+| `settings` | 001 | User settings | key, value |
+| `tx_state` | 005 | V2: TX lifecycle tracking | id (PK), sweep_id, chain, token, status, tx_hash, nonce |
+| `provider_health` | 006 | V2: Provider health + circuit breaker | provider_name (PK), chain, status, circuit_state, consecutive_fails |

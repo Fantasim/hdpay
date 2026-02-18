@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (V2 Phase 1) — Foundation: Schema, Error Types & Circuit Breaker
+
+#### Added
+- `tx_state` DB table + migration (005) for tracking individual TX lifecycle through broadcast (pending→broadcasting→confirming→confirmed|failed|uncertain)
+- `provider_health` DB table + migration (006) for per-provider health and circuit breaker state
+- TX state CRUD methods: CreateTxState, UpdateTxStatus, GetPendingTxStates, GetTxStatesBySweepID, GetTxStateByNonce, CountTxStatesByStatus
+- Provider health CRUD methods: UpsertProviderHealth, GetProviderHealth, GetProviderHealthByChain, GetAllProviderHealth, RecordProviderSuccess, RecordProviderFailure
+- `TransientError` type with `IsTransient()` and `GetRetryAfter()` helpers for retry classification
+- `ErrCircuitOpen` and `ErrProviderTimeout` sentinel errors
+- Circuit breaker state machine (closed/open/half-open) in `internal/scanner/circuit_breaker.go`
+- Sweep ID generator (`GenerateSweepID`) using crypto/rand
+- Constants: TX state statuses, provider health statuses, provider types, circuit states, circuit breaker config
+- 24 new tests: tx_state (8), provider_health (6), circuit_breaker (8), errors (4)
+
+#### Changed
+- `BalanceResult` now includes `Error` and `Source` fields for error annotation and provider attribution
+- All 6 scanner providers (Blockstream, Mempool, BscScan, BSCRPC, SolanaRPC x2) populate `Source` field
+- `TestRunMigrationsIdempotent` made migration-count-agnostic
+
 ### 2026-02-18 (Phase 11) — V1 COMPLETE
 
 #### Added

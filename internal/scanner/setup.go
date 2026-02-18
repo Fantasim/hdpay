@@ -118,6 +118,7 @@ func (p *testProvider) FetchNativeBalances(_ context.Context, addresses []models
 			Address:      a.Address,
 			AddressIndex: a.AddressIndex,
 			Balance:      "0",
+			Source:       p.Name(),
 		}
 	}
 	return results, nil

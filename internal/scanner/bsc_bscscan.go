@@ -144,6 +144,7 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 			Address:      item.Account,
 			AddressIndex: addrIndex,
 			Balance:      item.Balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("bscscan native balance fetched",
@@ -178,6 +179,7 @@ func (p *BscScanProvider) FetchTokenBalances(ctx context.Context, addresses []mo
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("bscscan token balance fetched",

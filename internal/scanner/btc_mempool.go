@@ -64,6 +64,7 @@ func (p *MempoolProvider) FetchNativeBalances(ctx context.Context, addresses []m
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("mempool balance fetched",

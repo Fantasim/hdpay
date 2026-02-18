@@ -212,6 +212,43 @@ const (
 	ExplorerSOLDevnet   = "https://solscan.io/tx/" // append ?cluster=devnet
 )
 
+// Circuit Breaker
+const (
+	CircuitBreakerThreshold   = 3               // consecutive failures to trip
+	CircuitBreakerCooldown    = 30 * time.Second // time before half-open test
+	CircuitBreakerHalfOpenMax = 1                // max requests in half-open
+)
+
+// TX State Statuses
+const (
+	TxStatePending      = "pending"
+	TxStateBroadcasting = "broadcasting"
+	TxStateConfirming   = "confirming"
+	TxStateConfirmed    = "confirmed"
+	TxStateFailed       = "failed"
+	TxStateUncertain    = "uncertain"
+)
+
+// Provider Health Statuses
+const (
+	ProviderStatusHealthy  = "healthy"
+	ProviderStatusDegraded = "degraded"
+	ProviderStatusDown     = "down"
+)
+
+// Provider Types
+const (
+	ProviderTypeScan      = "scan"
+	ProviderTypeBroadcast = "broadcast"
+)
+
+// Circuit States
+const (
+	CircuitClosed   = "closed"
+	CircuitOpen     = "open"
+	CircuitHalfOpen = "half_open"
+)
+
 // Token Decimals
 const (
 	BTCDecimals      = 8

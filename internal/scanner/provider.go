@@ -11,6 +11,8 @@ type BalanceResult struct {
 	Address      string
 	AddressIndex int
 	Balance      string // raw balance string (satoshis, wei, lamports)
+	Error        string // non-empty if balance is unreliable
+	Source       string // provider name that returned this result
 }
 
 // Provider fetches balance data from an external blockchain API.

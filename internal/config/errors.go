@@ -1,6 +1,9 @@
 package config
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 // Sentinel errors for internal use.
 var (
@@ -38,7 +41,47 @@ var (
 	ErrNoFundedAddresses = errors.New("no funded addresses found")
 	ErrInvalidDestination = errors.New("invalid destination address")
 	ErrSendInProgress    = errors.New("send operation already in progress")
+
+	// Circuit Breaker
+	ErrCircuitOpen = errors.New("circuit breaker is open")
+
+	// Provider
+	ErrProviderTimeout = errors.New("provider request timeout")
 )
+
+// TransientError wraps an error that should be retried.
+type TransientError struct {
+	Err        error
+	RetryAfter time.Duration // 0 = use default backoff
+}
+
+func (e *TransientError) Error() string { return e.Err.Error() }
+func (e *TransientError) Unwrap() error { return e.Err }
+
+// NewTransientError wraps an error as transient (retriable).
+func NewTransientError(err error) error {
+	return &TransientError{Err: err}
+}
+
+// NewTransientErrorWithRetry wraps with explicit retry delay.
+func NewTransientErrorWithRetry(err error, retryAfter time.Duration) error {
+	return &TransientError{Err: err, RetryAfter: retryAfter}
+}
+
+// IsTransient returns true if the error is transient (retriable).
+func IsTransient(err error) bool {
+	var te *TransientError
+	return errors.As(err, &te)
+}
+
+// GetRetryAfter returns the retry delay if set, or 0.
+func GetRetryAfter(err error) time.Duration {
+	var te *TransientError
+	if errors.As(err, &te) {
+		return te.RetryAfter
+	}
+	return 0
+}
 
 // Error codes — shared with frontend via API responses.
 const (
@@ -77,7 +120,13 @@ const (
 	ErrorSOLATACreationFailed   = "ERROR_SOL_ATA_CREATION_FAILED"
 
 	// Send
-	ErrorNoFundedAddresses = "ERROR_NO_FUNDED_ADDRESSES"
+	ErrorNoFundedAddresses  = "ERROR_NO_FUNDED_ADDRESSES"
 	ErrorInvalidDestination = "ERROR_INVALID_DESTINATION"
-	ErrorSendInProgress    = "ERROR_SEND_IN_PROGRESS"
+	ErrorSendInProgress     = "ERROR_SEND_IN_PROGRESS"
+
+	// Circuit Breaker
+	ErrorCircuitOpen = "ERROR_CIRCUIT_OPEN"
+
+	// Provider
+	ErrorProviderTimeout = "ERROR_PROVIDER_TIMEOUT"
 )

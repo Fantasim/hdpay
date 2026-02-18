@@ -73,6 +73,7 @@ func (p *BlockstreamProvider) FetchNativeBalances(ctx context.Context, addresses
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("blockstream balance fetched",

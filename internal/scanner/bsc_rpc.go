@@ -84,6 +84,7 @@ func (p *BSCRPCProvider) FetchNativeBalances(ctx context.Context, addresses []mo
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balanceStr,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("bsc rpc native balance fetched",
@@ -126,6 +127,7 @@ func (p *BSCRPCProvider) FetchTokenBalances(ctx context.Context, addresses []mod
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balanceStr,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("bsc rpc token balance fetched",

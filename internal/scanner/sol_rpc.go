@@ -166,6 +166,7 @@ func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses [
 			Address:      addresses[i].Address,
 			AddressIndex: addresses[i].AddressIndex,
 			Balance:      balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("solana native balance",
@@ -288,6 +289,7 @@ func (p *SolanaRPCProvider) FetchTokenBalances(ctx context.Context, addresses []
 			Address:      addr.Address,
 			AddressIndex: addr.AddressIndex,
 			Balance:      balance,
+			Source:       p.Name(),
 		})
 
 		slog.Debug("solana token balance",

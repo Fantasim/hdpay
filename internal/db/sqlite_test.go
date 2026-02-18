@@ -73,12 +73,20 @@ func TestRunMigrationsIdempotent(t *testing.T) {
 		t.Fatalf("second RunMigrations() error = %v", err)
 	}
 
-	// Verify only one migration recorded
+	// Verify each migration recorded exactly once (no duplicates from second run)
 	var count int
 	if err := d.Conn().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatalf("failed to count migrations: %v", err)
 	}
-	if count != 1 {
-		t.Errorf("expected 1 migration record, got %d", count)
+	// Count all embedded migration files to verify idempotency
+	entries, _ := migrationsFS.ReadDir("migrations")
+	expectedCount := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			expectedCount++
+		}
+	}
+	if count != expectedCount {
+		t.Errorf("expected %d migration records, got %d", expectedCount, count)
 	}
 }
