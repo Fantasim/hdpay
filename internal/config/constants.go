@@ -118,6 +118,18 @@ const (
 	SOLMaxInstructions  = 20
 )
 
+// SOL Transaction
+const (
+	SOLLamportsPerSOL           = 1_000_000_000       // 1 SOL = 10^9 lamports
+	SOLBaseTransactionFee       = 5_000                // lamports per signature
+	SOLMaxTxSize                = 1232                 // bytes — hard limit on Solana TX wire format
+	SOLConfirmationTimeout      = 60 * time.Second     // max wait for tx confirmation
+	SOLConfirmationPollInterval = 2 * time.Second      // poll interval for getSignatureStatuses
+	SOLATARentLamports          = 2_039_280            // rent-exempt minimum for ATA creation (~0.00204 SOL)
+	SOLSystemProgramID          = "11111111111111111111111111111111"
+	SOLRentSysvarID             = "SysvarRent111111111111111111111111111111111"
+)
+
 // BSC Chain IDs
 const (
 	BSCMainnetChainID = 56

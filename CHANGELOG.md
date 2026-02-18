@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (Phase 9)
+
+#### Added
+- Raw Solana binary transaction serialization: compact-u16 encoding, message headers, compiled instructions, ed25519 signing (`internal/tx/sol_serialize.go`)
+- SystemProgram.Transfer instruction builder for native SOL transfers
+- SPL Token.Transfer instruction builder for USDC/USDT token transfers
+- CreateAssociatedTokenAccount instruction builder for auto-ATA creation
+- SOL private key derivation via SLIP-10 ed25519 path m/44'/501'/N'/0' (`internal/tx/key_service.go`)
+- SOL JSON-RPC client with round-robin URL selection: getLatestBlockhash, sendTransaction, getSignatureStatuses, getAccountInfo, getBalance (`internal/tx/sol_tx.go`)
+- Confirmation polling with configurable timeout and "confirmed" commitment level
+- SOLConsolidationService: sequential per-address native SOL sweep + SPL token sweep with auto-ATA creation
+- Preview methods for native and token sweeps (dry-run cost/balance calculation)
+- SOL model types: `SOLSendPreview`, `SOLSendResult`, `SOLTxResult` (`internal/models/types.go`)
+- SOL transaction constants: lamports, fees, TX size limit, confirmation timing, program IDs (`internal/config/constants.go`)
+- 5 new sentinel errors + 5 error codes for SOL-specific failures (`internal/config/errors.go`)
+- 29 new tests: serialization (13), consolidation service (14), key derivation (2)
+
 ### 2026-02-18 (Phase 8)
 
 #### Added

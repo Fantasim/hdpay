@@ -209,6 +209,40 @@ type GasPreSeedResult struct {
 	TotalSent    string        `json:"totalSent"` // wei
 }
 
+// SOLSendPreview contains the preview of a SOL consolidation sweep.
+type SOLSendPreview struct {
+	Chain           Chain  `json:"chain"`
+	Token           Token  `json:"token"`
+	InputCount      int    `json:"inputCount"`
+	TotalAmount     string `json:"totalAmount"`     // lamports or token smallest unit
+	TotalFee        string `json:"totalFee"`         // lamports
+	NetAmount       string `json:"netAmount"`        // native only: totalAmount - totalFee
+	DestAddress     string `json:"destAddress"`
+	NeedATACreation bool   `json:"needATACreation"`  // SPL only
+	ATARentCost     string `json:"ataRentCost"`      // lamports, if ATA creation needed
+}
+
+// SOLSendResult contains the result of a SOL consolidation sweep.
+type SOLSendResult struct {
+	Chain        Chain         `json:"chain"`
+	Token        Token         `json:"token"`
+	TxResults    []SOLTxResult `json:"txResults"`
+	SuccessCount int           `json:"successCount"`
+	FailCount    int           `json:"failCount"`
+	TotalSwept   string        `json:"totalSwept"`
+}
+
+// SOLTxResult contains the result of a single SOL transaction within a sweep.
+type SOLTxResult struct {
+	AddressIndex int    `json:"addressIndex"`
+	FromAddress  string `json:"fromAddress"`
+	TxSignature  string `json:"txSignature"`
+	Amount       string `json:"amount"`
+	Status       string `json:"status"` // "confirmed", "failed"
+	Slot         uint64 `json:"slot,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
 // APIError is the standard error response.
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

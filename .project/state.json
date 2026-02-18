@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 8,
+  "current_build_phase": 9,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,7 +25,7 @@
   },
   "build": {
     "total_phases": 11,
-    "current_phase_index": 8,
+    "current_phase_index": 9,
     "phases": [
       { "name": "Project Foundation", "status": "completed", "plan_file": "04-build-plan/phases/phase-01/PLAN.md", "summary_file": "04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "HD Wallet & Address Generation", "status": "completed", "plan_file": "04-build-plan/phases/phase-02/PLAN.md", "summary_file": "04-build-plan/phases/phase-02/SUMMARY.md" },
@@ -35,7 +35,7 @@
       { "name": "Dashboard & Price Service", "status": "completed", "plan_file": "04-build-plan/phases/phase-06/PLAN.md", "summary_file": "04-build-plan/phases/phase-06/SUMMARY.md" },
       { "name": "BTC Transaction Engine", "status": "completed", "plan_file": "04-build-plan/phases/phase-07/PLAN.md", "summary_file": "04-build-plan/phases/phase-07/SUMMARY.md" },
       { "name": "BSC Transaction Engine + Gas Pre-Seed", "status": "completed", "plan_file": "04-build-plan/phases/phase-08/PLAN.md", "summary_file": "04-build-plan/phases/phase-08/SUMMARY.md" },
-      { "name": "SOL Transaction Engine", "status": "pending", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": null },
+      { "name": "SOL Transaction Engine", "status": "completed", "plan_file": "04-build-plan/phases/phase-09/PLAN.md", "summary_file": "04-build-plan/phases/phase-09/SUMMARY.md" },
       { "name": "Send Interface", "status": "pending", "plan_file": "04-build-plan/phases/phase-10/PLAN.md", "summary_file": null },
       { "name": "History, Settings & Deployment", "status": "pending", "plan_file": "04-build-plan/phases/phase-11/PLAN.md", "summary_file": null }
     ]
@@ -72,13 +72,16 @@
     "bsc_eip155": "BSC uses EIP-155 signing with chain ID 56 (mainnet) / 97 (testnet), LegacyTx via go-ethereum",
     "bsc_manual_abi": "BEP-20 transfer uses manual ABI encoding (0xa9059cbb + LeftPadBytes) — simpler than abi.Pack",
     "bsc_gas_buffer": "20% gas price buffer on SuggestGasPrice for BSC reliability",
-    "bsc_sequential_nonce": "Gas pre-seed uses PendingNonceAt once + local increment per TX"
+    "bsc_sequential_nonce": "Gas pre-seed uses PendingNonceAt once + local increment per TX",
+    "sol_sequential_sends": "SOL uses sequential per-address sends (not multi-signer batch) due to 1232-byte TX limit",
+    "sol_zero_sdk": "SOL TX serialization built from scratch — no external Solana SDK, only crypto/ed25519 + base58",
+    "sol_legacy_tx": "SOL uses legacy (non-versioned) transaction format for max validator compatibility"
   },
-  "session_count": 8,
+  "session_count": 9,
   "last_session": {
-    "id": 8,
+    "id": 9,
     "date": "2026-02-18",
-    "summary": "Phase 8 complete: BSC Transaction Engine + Gas Pre-Seed — BSC key derivation, native BNB + BEP-20 transfers, EIP-155 signing, receipt polling, BSC consolidation service, gas pre-seeding, 22 new tests",
+    "summary": "Phase 9 complete: SOL Transaction Engine — raw binary serialization, native SOL + SPL token sweep, sequential per-address sends, confirmation polling, 29 new tests, zero external Solana SDK",
     "phase": "building"
   },
   "pending_questions": false,

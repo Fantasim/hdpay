@@ -8,6 +8,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/mr-tron/base58"
 
 	"github.com/Fantasim/hdpay/internal/wallet"
 )
@@ -225,6 +226,75 @@ func TestKeyService_DeriveBSCPrivateKey_ContextCancelled(t *testing.T) {
 	_, _, err := ks.DeriveBSCPrivateKey(ctx, 0)
 	if err == nil {
 		t.Fatal("expected error when context is cancelled")
+	}
+}
+
+func TestKeyService_DeriveSOLPrivateKey_KnownVector(t *testing.T) {
+	// Using the 24-word "abandon...art" mnemonic, index 0 should produce
+	// the known SOL address: 3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "testnet")
+
+	privKey, err := ks.DeriveSOLPrivateKey(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("DeriveSOLPrivateKey(0) error = %v", err)
+	}
+
+	// ed25519 private key is seed(32) || pubkey(32)
+	pubBytes := privKey[32:]
+	gotAddr := base58.Encode(pubBytes)
+
+	// Verify against wallet.DeriveSOLAddress.
+	seed, err := wallet.MnemonicToSeed(testMnemonic24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedAddr, err := wallet.DeriveSOLAddress(seed, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotAddr != expectedAddr {
+		t.Errorf("SOL address index 0: got %s, want %s", gotAddr, expectedAddr)
+	}
+
+	// Also check the known address directly.
+	knownAddr := "3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx"
+	if gotAddr != knownAddr {
+		t.Errorf("SOL address index 0: got %s, want known %s", gotAddr, knownAddr)
+	}
+}
+
+func TestKeyService_DeriveSOLPrivateKey_MultipleIndices(t *testing.T) {
+	// Derive keys at indices 0, 1, 2 and verify they produce distinct addresses
+	// matching the known test vectors.
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "testnet")
+
+	expectedAddrs := []string{
+		"3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx",
+		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
+		"3SuKj3MZU9dMZ9oR1R7afttihZFkWpfUmduuv9rmfMa1",
+	}
+
+	seen := make(map[string]bool)
+	for i, expected := range expectedAddrs {
+		privKey, err := ks.DeriveSOLPrivateKey(context.Background(), uint32(i))
+		if err != nil {
+			t.Fatalf("DeriveSOLPrivateKey(%d) error = %v", i, err)
+		}
+
+		pubBytes := privKey[32:]
+		addr := base58.Encode(pubBytes)
+
+		if addr != expected {
+			t.Errorf("SOL address index %d: got %s, want %s", i, addr, expected)
+		}
+
+		if seen[addr] {
+			t.Errorf("duplicate address at index %d: %s", i, addr)
+		}
+		seen[addr] = true
 	}
 }
 

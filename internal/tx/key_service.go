@@ -3,6 +3,7 @@ package tx
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"fmt"
 	"log/slog"
 
@@ -157,6 +158,40 @@ func (ks *KeyService) deriveMasterKey() (*hdkeychain.ExtendedKey, error) {
 	}
 
 	return masterKey, nil
+}
+
+// DeriveSOLPrivateKey derives a SOL ed25519 private key at the given address index.
+// Path: m/44'/501'/N'/0' (SLIP-10 hardened, all levels).
+// Unlike BTC/BSC, SOL uses SLIP-10 from the raw BIP-39 seed, not BIP-32 extended keys.
+// The caller MUST discard the returned private key after use.
+func (ks *KeyService) DeriveSOLPrivateKey(ctx context.Context, index uint32) (ed25519.PrivateKey, error) {
+	if ks.mnemonicFilePath == "" {
+		return nil, config.ErrMnemonicFileNotSet
+	}
+
+	slog.Debug("deriving SOL private key", "index", index, "network", ks.network)
+
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled before SOL key derivation: %w", err)
+	}
+
+	mnemonic, err := wallet.ReadMnemonicFromFile(ks.mnemonicFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("read mnemonic for SOL key at index %d: %w", index, err)
+	}
+
+	seed, err := wallet.MnemonicToSeed(mnemonic)
+	if err != nil {
+		return nil, fmt.Errorf("mnemonic to seed for SOL key at index %d: %w", index, err)
+	}
+
+	privKey, err := wallet.DeriveSOLPrivateKey(seed, index)
+	if err != nil {
+		return nil, fmt.Errorf("%w: SOL index %d: %s", config.ErrKeyDerivation, index, err)
+	}
+
+	slog.Debug("SOL private key derived", "index", index)
+	return privKey, nil
 }
 
 // deriveBTCPrivKeyAtIndex walks the BIP-84 path m/84'/coin'/0'/0/N and returns the private key.

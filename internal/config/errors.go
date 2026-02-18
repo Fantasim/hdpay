@@ -25,6 +25,14 @@ var (
 	ErrInsufficientBNBForGas = errors.New("insufficient BNB for gas")
 	ErrGasPreSeedFailed     = errors.New("gas pre-seed failed")
 	ErrReceiptTimeout       = errors.New("receipt polling timeout")
+
+	// SOL
+	ErrSOLTxTooLarge           = errors.New("SOL transaction exceeds 1232 byte limit")
+	ErrSOLConfirmationTimeout  = errors.New("SOL transaction confirmation timeout")
+	ErrSOLTxFailed             = errors.New("SOL transaction failed on-chain")
+	ErrSOLInsufficientLamports = errors.New("insufficient lamports to cover transaction fee")
+	ErrSOLATACreationFailed    = errors.New("failed to create associated token account")
+	ErrSOLBlockhashExpired     = errors.New("recent blockhash expired")
 )
 
 // Error codes — shared with frontend via API responses.
@@ -55,4 +63,11 @@ const (
 	ErrorTxReverted         = "ERROR_TX_REVERTED"
 	ErrorReceiptTimeout     = "ERROR_RECEIPT_TIMEOUT"
 	ErrorGasPreSeedFailed   = "ERROR_GAS_PRESEED_FAILED"
+
+	// SOL
+	ErrorSOLTxTooLarge          = "ERROR_SOL_TX_TOO_LARGE"
+	ErrorSOLConfirmationTimeout = "ERROR_SOL_CONFIRMATION_TIMEOUT"
+	ErrorSOLTxFailed            = "ERROR_SOL_TX_FAILED"
+	ErrorSOLInsufficientLamports = "ERROR_SOL_INSUFFICIENT_LAMPORTS"
+	ErrorSOLATACreationFailed   = "ERROR_SOL_ATA_CREATION_FAILED"
 )

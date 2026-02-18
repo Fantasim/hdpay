@@ -3,9 +3,9 @@
 > A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.
 
 ## Current Position
-- **Phase:** building (Phase 9 of 11)
-- **Status:** Phase 8 complete — ready to start Phase 9: SOL Transaction Engine
-- **Last session:** Phase 8 completed (BSC Transaction Engine + Gas Pre-Seed — BSC key derivation, native BNB + BEP-20 transfers, EIP-155 signing, receipt polling, consolidation service, gas pre-seeding, 22 tests)
+- **Phase:** building (Phase 10 of 11)
+- **Status:** Phase 9 complete — ready to start Phase 10: Send Interface
+- **Last session:** Phase 9 completed (SOL Transaction Engine — raw binary serialization, native SOL + SPL token sweep, sequential per-address sends, confirmation polling, 29 tests)
 
 ## Build Progress
 
@@ -19,8 +19,8 @@
 | 6 | Dashboard & Price Service | **DONE** |
 | 7 | BTC Transaction Engine | **DONE** |
 | 8 | BSC Transaction Engine + Gas Pre-Seed | **DONE** |
-| 9 | SOL Transaction Engine | **NEXT** |
-| 10 | Send Interface | Pending (outline) |
+| 9 | SOL Transaction Engine | **DONE** |
+| 10 | Send Interface | **NEXT** |
 | 11 | History, Settings & Deployment | Pending (outline) |
 
 ## Key Decisions
@@ -40,20 +40,23 @@
 - **BSC manual ABI**: BEP-20 transfer uses 0xa9059cbb + LeftPadBytes (simpler than abi.Pack)
 - **BSC 20% gas buffer**: SuggestGasPrice * 12/10 to prevent stuck TXs
 - **BSC sequential nonce**: PendingNonceAt once + local increment for batch sends
+- **SOL sequential sends**: Per-address sends (not multi-signer batch) due to 1232-byte TX limit
+- **SOL zero SDK**: Raw binary serialization from scratch — only crypto/ed25519 + base58
+- **SOL legacy TX**: Non-versioned transaction format for max validator compatibility
 - **GitHub repo**: https://github.com/Fantasim/hdpay
 
 ## Next Actions
-- Run `/cf-next` to start Phase 9: SOL Transaction Engine
-- Phase 9 delivers: SOL native + SPL token transfers, multi-instruction consolidation TXs
-- `KeyService` needs `DeriveSOLPrivateKey` (SLIP-10 ed25519 path m/44'/501'/N'/0')
-- SOL uses different confirmation model (not receipt polling — uses commitment levels)
+- Run `/cf-next` to start Phase 10: Send Interface
+- Phase 10 delivers: Send page UI, preview/execute API handlers, chain-specific send panels
+- All three TX engines (BTC, BSC, SOL) are ready to be wired into the send API
+- Gas pre-seed UI needed for BSC token sends
 
 ## Files Reference
 | File | Purpose |
 |------|---------|
 | `.project/state.json` | Machine-readable state |
 | `.project/STATE.md` | This file — resume context |
-| `.project/04-build-plan/phases/phase-08/SUMMARY.md` | Phase 8 completion summary |
-| `.project/04-build-plan/phases/phase-09/PLAN.md` | Phase 9 build plan (outline) |
+| `.project/04-build-plan/phases/phase-09/SUMMARY.md` | Phase 9 completion summary |
+| `.project/04-build-plan/phases/phase-10/PLAN.md` | Phase 10 build plan (outline) |
 | `CLAUDE.md` | Code conventions and project guidelines |
 | `CHANGELOG.md` | Session changelog |
