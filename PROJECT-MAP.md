@@ -75,14 +75,18 @@ hdpay/
 |   |-- tx/
 |   |   |-- broadcaster.go           # Shared Broadcaster interface + BTC implementation
 |   |   |-- broadcaster_test.go      # Broadcaster tests (4 tests)
+|   |   |-- bsc_tx.go                # BSC native BNB + BEP-20 TX building, signing, consolidation
+|   |   |-- bsc_tx_test.go           # BSC TX tests (18 tests)
 |   |   |-- btc_fee.go               # Dynamic fee estimation from mempool.space
 |   |   |-- btc_fee_test.go          # Fee estimator tests (4 tests)
 |   |   |-- btc_tx.go                # Multi-input P2WPKH TX building, signing, consolidation
 |   |   |-- btc_tx_test.go           # TX builder tests (10 tests)
 |   |   |-- btc_utxo.go              # UTXO fetching with round-robin provider rotation
 |   |   |-- btc_utxo_test.go         # UTXO fetcher tests (7 tests)
-|   |   |-- key_service.go           # On-demand BIP-84 private key derivation from mnemonic
-|   |   └-- key_service_test.go      # Key service tests (7 tests)
+|   |   |-- gas.go                   # Gas pre-seeding service (BSC BNB distribution)
+|   |   |-- gas_test.go              # Gas pre-seed tests (4 tests)
+|   |   |-- key_service.go           # On-demand BTC/BSC private key derivation from mnemonic
+|   |   └-- key_service_test.go      # Key service tests (11 tests)
 |   └-- wallet/
 |       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
 |       |-- bsc_test.go              # BSC tests with known vectors
@@ -163,11 +167,13 @@ hdpay/
 | `internal/wallet/sol.go` | SOL via manual SLIP-10 ed25519: `m/44'/501'/N'/0'` |
 | `internal/wallet/generator.go` | Bulk generation with progress callbacks |
 | `internal/api/router.go` | Chi router with middleware stack |
-| `internal/tx/key_service.go` | On-demand BIP-84 private key derivation from mnemonic file |
+| `internal/tx/key_service.go` | On-demand BTC/BSC private key derivation from mnemonic file |
 | `internal/tx/btc_utxo.go` | UTXO fetching with round-robin Blockstream/Mempool rotation |
 | `internal/tx/btc_fee.go` | Dynamic fee estimation from mempool.space with fallback |
 | `internal/tx/btc_tx.go` | Multi-input P2WPKH TX building, signing, consolidation orchestrator |
 | `internal/tx/broadcaster.go` | Shared Broadcaster interface + BTC broadcast with provider fallback |
+| `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation service |
+| `internal/tx/gas.go` | Gas pre-seeding service: distribute BNB to addresses needing gas |
 | `internal/db/transactions.go` | Transaction CRUD: insert, update status, get by ID/hash, paginated list |
 | `web/src/lib/types.ts` | ALL TypeScript interfaces |
 | `web/src/lib/constants.ts` | ALL frontend constants |
