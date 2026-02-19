@@ -15,10 +15,10 @@ func (d *DB) UpsertBalance(chain models.Chain, addressIndex int, token models.To
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := d.conn.Exec(
-		`INSERT INTO balances (chain, address_index, token, balance, last_scanned)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(chain, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
-		string(chain), addressIndex, string(token), balance, now,
+		`INSERT INTO balances (chain, network, address_index, token, balance, last_scanned)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, network, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
+		string(chain), d.network, addressIndex, string(token), balance, now,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert balance %s/%d/%s: %w", chain, addressIndex, token, err)
@@ -48,9 +48,9 @@ func (d *DB) UpsertBalanceBatch(balances []models.Balance) error {
 	}
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO balances (chain, address_index, token, balance, last_scanned)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(chain, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
+		`INSERT INTO balances (chain, network, address_index, token, balance, last_scanned)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, network, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -59,7 +59,7 @@ func (d *DB) UpsertBalanceBatch(balances []models.Balance) error {
 	defer stmt.Close()
 
 	for _, b := range balances {
-		if _, err := stmt.Exec(string(b.Chain), b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
+		if _, err := stmt.Exec(string(b.Chain), d.network, b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec balance upsert %s/%d/%s: %w", b.Chain, b.AddressIndex, b.Token, err)
 		}
@@ -87,9 +87,9 @@ func (d *DB) UpsertBalanceBatchTx(tx *sql.Tx, balances []models.Balance) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO balances (chain, address_index, token, balance, last_scanned)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(chain, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
+		`INSERT INTO balances (chain, network, address_index, token, balance, last_scanned)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, network, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
 	)
 	if err != nil {
 		return fmt.Errorf("prepare balance upsert in tx: %w", err)
@@ -97,7 +97,7 @@ func (d *DB) UpsertBalanceBatchTx(tx *sql.Tx, balances []models.Balance) error {
 	defer stmt.Close()
 
 	for _, b := range balances {
-		if _, err := stmt.Exec(string(b.Chain), b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
+		if _, err := stmt.Exec(string(b.Chain), d.network, b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
 			return fmt.Errorf("exec balance upsert in tx %s/%d/%s: %w", b.Chain, b.AddressIndex, b.Token, err)
 		}
 	}
@@ -119,9 +119,9 @@ func (d *DB) GetFundedAddresses(chain models.Chain, token models.Token) ([]model
 
 	rows, err := d.conn.Query(
 		`SELECT chain, address_index, token, balance, last_scanned FROM balances
-		 WHERE chain = ? AND token = ? AND balance != '0'
+		 WHERE chain = ? AND network = ? AND token = ? AND balance != '0'
 		 ORDER BY address_index`,
-		string(chain), string(token),
+		string(chain), d.network, string(token),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query funded addresses %s/%s: %w", chain, token, err)
@@ -166,10 +166,10 @@ func (d *DB) GetFundedAddressesJoined(chain models.Chain, token models.Token) ([
 	rows, err := d.conn.Query(
 		`SELECT b.address_index, a.address, b.balance
 		 FROM balances b
-		 JOIN addresses a ON a.chain = b.chain AND a.address_index = b.address_index
-		 WHERE b.chain = ? AND b.token = ? AND b.balance != '0'
+		 JOIN addresses a ON a.chain = b.chain AND a.network = b.network AND a.address_index = b.address_index
+		 WHERE b.chain = ? AND b.network = ? AND b.token = ? AND b.balance != '0'
 		 ORDER BY b.address_index`,
-		string(chain), string(token),
+		string(chain), d.network, string(token),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query funded addresses joined %s/%s: %w", chain, token, err)
@@ -204,8 +204,8 @@ func (d *DB) GetFundedAddressesJoined(chain models.Chain, token models.Token) ([
 
 	for _, f := range funded {
 		balRows, err := d.conn.Query(
-			`SELECT token, balance, last_scanned FROM balances WHERE chain = ? AND address_index = ?`,
-			string(chain), f.index,
+			`SELECT token, balance, last_scanned FROM balances WHERE chain = ? AND network = ? AND address_index = ?`,
+			string(chain), d.network, f.index,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("query all balances for %s/%d: %w", chain, f.index, err)
@@ -281,9 +281,9 @@ func (d *DB) GetBalanceSummary(chain models.Chain) (*BalanceSummary, error) {
 	rows, err := d.conn.Query(
 		`SELECT token, COUNT(*) as funded_count
 		 FROM balances
-		 WHERE chain = ? AND balance != '0'
+		 WHERE chain = ? AND network = ? AND balance != '0'
 		 GROUP BY token`,
-		string(chain),
+		string(chain), d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query balance summary for %s: %w", chain, err)
@@ -334,9 +334,10 @@ func (d *DB) GetBalanceAggregates() ([]BalanceAggregate, error) {
 	rows, err := d.conn.Query(
 		`SELECT chain, token, printf('%.0f', SUM(CAST(balance AS REAL))), COUNT(*)
 		 FROM balances
-		 WHERE balance != '0'
+		 WHERE network = ? AND balance != '0'
 		 GROUP BY chain, token
 		 ORDER BY chain, token`,
+		d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query balance aggregates: %w", err)
@@ -368,8 +369,9 @@ func (d *DB) GetFundedCountByChain() (map[models.Chain]int, error) {
 	rows, err := d.conn.Query(
 		`SELECT chain, COUNT(DISTINCT address_index)
 		 FROM balances
-		 WHERE balance != '0'
+		 WHERE network = ? AND balance != '0'
 		 GROUP BY chain`,
+		d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query funded count by chain: %w", err)
@@ -400,7 +402,7 @@ func (d *DB) GetLatestScanTime() (string, error) {
 	slog.Debug("fetching latest scan time")
 
 	var lastScan *string
-	err := d.conn.QueryRow("SELECT MAX(updated_at) FROM scan_state").Scan(&lastScan)
+	err := d.conn.QueryRow("SELECT MAX(updated_at) FROM scan_state WHERE network = ?", d.network).Scan(&lastScan)
 	if err != nil {
 		return "", fmt.Errorf("query latest scan time: %w", err)
 	}
@@ -425,15 +427,16 @@ func (d *DB) GetAddressesBatch(chain models.Chain, startIndex, count int) ([]mod
 	)
 
 	placeholders := make([]string, count)
-	args := make([]interface{}, count+1)
+	args := make([]interface{}, count+2)
 	args[0] = string(chain)
+	args[1] = d.network
 	for i := 0; i < count; i++ {
 		placeholders[i] = "?"
-		args[i+1] = startIndex + i
+		args[i+2] = startIndex + i
 	}
 
 	query := fmt.Sprintf(
-		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND address_index IN (%s) ORDER BY address_index",
+		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND network = ? AND address_index IN (%s) ORDER BY address_index",
 		strings.Join(placeholders, ","),
 	)
 

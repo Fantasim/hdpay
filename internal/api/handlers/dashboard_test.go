@@ -20,7 +20,7 @@ func setupDashboardTestDB(t *testing.T, withBalances bool) *db.DB {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_dashboard.sqlite")
 
-	database, err := db.New(dbPath)
+	database, err := db.New(dbPath, "testnet")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

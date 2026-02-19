@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Network Column: Mainnet/Testnet Coexistence
+
+#### Added
+- **Migration 007**: Adds `network` column to all core tables (addresses, balances, scan_state, transactions, tx_state) so mainnet and testnet data coexist in the same database
+- **Network-scoped DB queries**: All queries automatically filter by the active network via `DB.network` field — no caller changes needed
+- **Network isolation tests**: `TestNetworkIsolation` verifies two DB instances (testnet + mainnet) on the same file see only their own data across all tables
+- **Network-scoped reset tests**: `TestResetBalances_NetworkScoped` and `TestResetAll_NetworkScoped` verify reset operations only affect the active network
+
+#### Changed
+- `db.New(path)` signature changed to `db.New(path, network)` — all callers updated
+- Migration auto-detects network for existing data using BTC address prefix (`bc1` = mainnet, `tb1` = testnet)
+- Model structs (`Address`, `Balance`, `ScanState`, `Transaction`, `AddressWithBalance`) now include `Network` field
+
+#### Fixed
+- **BTC scan fails on mainnet**: Testnet addresses (`tb1...`) were being sent to mainnet APIs (Blockstream, Mempool) which returned HTTP 400, causing scan abort after 5 consecutive failures. Now switching `HDPAY_NETWORK` seamlessly switches which addresses are visible/scanned
+
 ### 2026-02-19 — Network Setting: Env-Only, Default Testnet
 
 #### Fixed

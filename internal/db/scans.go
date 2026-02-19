@@ -28,8 +28,8 @@ func (d *DB) GetScanState(chain models.Chain) (*models.ScanState, error) {
 
 	err := d.conn.QueryRow(
 		`SELECT chain, last_scanned_index, max_scan_id, status, started_at, updated_at
-		 FROM scan_state WHERE chain = ?`,
-		string(chain),
+		 FROM scan_state WHERE chain = ? AND network = ?`,
+		string(chain), d.network,
 	).Scan(&state.Chain, &state.LastScannedIndex, &state.MaxScanID, &state.Status, &startedAt, &updatedAt)
 
 	if err == sql.ErrNoRows {
@@ -62,15 +62,15 @@ func (d *DB) UpsertScanState(state models.ScanState) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := d.conn.Exec(
-		`INSERT INTO scan_state (chain, last_scanned_index, max_scan_id, status, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(chain) DO UPDATE SET
+		`INSERT INTO scan_state (chain, network, last_scanned_index, max_scan_id, status, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, network) DO UPDATE SET
 		   last_scanned_index = excluded.last_scanned_index,
 		   max_scan_id = excluded.max_scan_id,
 		   status = excluded.status,
 		   started_at = COALESCE(NULLIF(excluded.started_at, ''), scan_state.started_at),
 		   updated_at = excluded.updated_at`,
-		string(state.Chain), state.LastScannedIndex, state.MaxScanID, state.Status,
+		string(state.Chain), d.network, state.LastScannedIndex, state.MaxScanID, state.Status,
 		state.StartedAt, now,
 	)
 	if err != nil {
@@ -93,15 +93,15 @@ func (d *DB) UpsertScanStateTx(tx *sql.Tx, state models.ScanState) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := tx.Exec(
-		`INSERT INTO scan_state (chain, last_scanned_index, max_scan_id, status, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(chain) DO UPDATE SET
+		`INSERT INTO scan_state (chain, network, last_scanned_index, max_scan_id, status, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(chain, network) DO UPDATE SET
 		   last_scanned_index = excluded.last_scanned_index,
 		   max_scan_id = excluded.max_scan_id,
 		   status = excluded.status,
 		   started_at = COALESCE(NULLIF(excluded.started_at, ''), scan_state.started_at),
 		   updated_at = excluded.updated_at`,
-		string(state.Chain), state.LastScannedIndex, state.MaxScanID, state.Status,
+		string(state.Chain), d.network, state.LastScannedIndex, state.MaxScanID, state.Status,
 		state.StartedAt, now,
 	)
 	if err != nil {
@@ -123,7 +123,8 @@ func (d *DB) GetAllScanStates() ([]models.ScanState, error) {
 
 	rows, err := d.conn.Query(
 		`SELECT chain, last_scanned_index, max_scan_id, status, started_at, updated_at
-		 FROM scan_state`,
+		 FROM scan_state WHERE network = ?`,
+		d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query all scan states: %w", err)

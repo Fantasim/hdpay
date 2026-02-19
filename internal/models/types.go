@@ -31,36 +31,40 @@ const (
 
 // Address represents a derived HD wallet address.
 type Address struct {
-	Chain        Chain  `json:"chain"`
-	AddressIndex int    `json:"addressIndex"`
-	Address      string `json:"address"`
-	CreatedAt    string `json:"createdAt"`
+	Chain        Chain       `json:"chain"`
+	Network      NetworkMode `json:"network,omitempty"`
+	AddressIndex int         `json:"addressIndex"`
+	Address      string      `json:"address"`
+	CreatedAt    string      `json:"createdAt"`
 }
 
 // Balance represents the balance of an address for a specific token.
 type Balance struct {
-	Chain        Chain  `json:"chain"`
-	AddressIndex int    `json:"addressIndex"`
-	Token        Token  `json:"token"`
-	Balance      string `json:"balance"`
-	LastScanned  string `json:"lastScanned,omitempty"`
+	Chain        Chain       `json:"chain"`
+	Network      NetworkMode `json:"network,omitempty"`
+	AddressIndex int         `json:"addressIndex"`
+	Token        Token       `json:"token"`
+	Balance      string      `json:"balance"`
+	LastScanned  string      `json:"lastScanned,omitempty"`
 }
 
 // ScanState represents the scanning progress for a chain.
 type ScanState struct {
-	Chain            Chain  `json:"chain"`
-	LastScannedIndex int    `json:"lastScannedIndex"`
-	MaxScanID        int    `json:"maxScanId"`
-	Status           string `json:"status"`
-	StartedAt        string `json:"startedAt,omitempty"`
-	UpdatedAt        string `json:"updatedAt,omitempty"`
+	Chain            Chain       `json:"chain"`
+	Network          NetworkMode `json:"network,omitempty"`
+	LastScannedIndex int         `json:"lastScannedIndex"`
+	MaxScanID        int         `json:"maxScanId"`
+	Status           string      `json:"status"`
+	StartedAt        string      `json:"startedAt,omitempty"`
+	UpdatedAt        string      `json:"updatedAt,omitempty"`
 }
 
 // Transaction represents a recorded transaction.
 type Transaction struct {
-	ID           int    `json:"id"`
-	Chain        Chain  `json:"chain"`
-	AddressIndex int    `json:"addressIndex"`
+	ID           int         `json:"id"`
+	Chain        Chain       `json:"chain"`
+	Network      NetworkMode `json:"network,omitempty"`
+	AddressIndex int         `json:"addressIndex"`
 	TxHash       string `json:"txHash"`
 	Direction    string `json:"direction"`
 	Token        Token  `json:"token"`
@@ -76,6 +80,7 @@ type Transaction struct {
 // AddressWithBalance represents an address with its balance data for API responses.
 type AddressWithBalance struct {
 	Chain         Chain              `json:"chain"`
+	Network       NetworkMode        `json:"network,omitempty"`
 	AddressIndex  int                `json:"addressIndex"`
 	Address       string             `json:"address"`
 	NativeBalance string             `json:"nativeBalance"`

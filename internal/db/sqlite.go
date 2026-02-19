@@ -19,12 +19,19 @@ var migrationsFS embed.FS
 
 // DB wraps the sql.DB connection with application-specific methods.
 type DB struct {
-	conn *sql.DB
-	path string
+	conn    *sql.DB
+	path    string
+	network string
+}
+
+// Network returns the active network for this database instance.
+func (d *DB) Network() string {
+	return d.network
 }
 
 // New opens a SQLite database at the given path with WAL mode and busy timeout.
-func New(path string) (*DB, error) {
+// The network parameter determines which network's data is visible (mainnet/testnet).
+func New(path string, network string) (*DB, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory %q: %w", dir, err)
@@ -74,7 +81,9 @@ func New(path string) (*DB, error) {
 		"connMaxLifetime", config.DBConnMaxLifetime,
 	)
 
-	return &DB{conn: conn, path: path}, nil
+	slog.Info("database opened", "path", path, "network", network)
+
+	return &DB{conn: conn, path: path, network: network}, nil
 }
 
 // Close closes the database connection.

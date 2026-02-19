@@ -17,7 +17,7 @@ func setupTestDB(t *testing.T) *db.DB {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.sqlite")
 
-	database, err := db.New(dbPath)
+	database, err := db.New(dbPath, "testnet")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

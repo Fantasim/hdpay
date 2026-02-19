@@ -54,14 +54,14 @@ func (d *DB) insertBatch(addresses []models.Address) error {
 
 	// Build multi-value INSERT for performance.
 	valueStrings := make([]string, 0, len(addresses))
-	valueArgs := make([]interface{}, 0, len(addresses)*3)
+	valueArgs := make([]interface{}, 0, len(addresses)*4)
 
 	for _, addr := range addresses {
-		valueStrings = append(valueStrings, "(?, ?, ?)")
-		valueArgs = append(valueArgs, string(addr.Chain), addr.AddressIndex, addr.Address)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?)")
+		valueArgs = append(valueArgs, string(addr.Chain), d.network, addr.AddressIndex, addr.Address)
 	}
 
-	query := "INSERT INTO addresses (chain, address_index, address) VALUES " + strings.Join(valueStrings, ", ")
+	query := "INSERT INTO addresses (chain, network, address_index, address) VALUES " + strings.Join(valueStrings, ", ")
 
 	if _, err := tx.Exec(query, valueArgs...); err != nil {
 		tx.Rollback()
@@ -78,7 +78,7 @@ func (d *DB) insertBatch(addresses []models.Address) error {
 // CountAddresses returns the number of addresses stored for a chain.
 func (d *DB) CountAddresses(chain models.Chain) (int, error) {
 	var count int
-	err := d.conn.QueryRow("SELECT COUNT(*) FROM addresses WHERE chain = ?", string(chain)).Scan(&count)
+	err := d.conn.QueryRow("SELECT COUNT(*) FROM addresses WHERE chain = ? AND network = ?", string(chain), d.network).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count addresses for %s: %w", chain, err)
 	}
@@ -92,8 +92,8 @@ func (d *DB) GetAddresses(chain models.Chain, offset, limit int) ([]models.Addre
 	slog.Debug("fetching addresses", "chain", chain, "offset", offset, "limit", limit)
 
 	rows, err := d.conn.Query(
-		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? ORDER BY address_index LIMIT ? OFFSET ?",
-		string(chain), limit, offset,
+		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND network = ? ORDER BY address_index LIMIT ? OFFSET ?",
+		string(chain), d.network, limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query addresses for %s: %w", chain, err)
@@ -139,18 +139,18 @@ func (d *DB) GetAddressesWithBalances(f AddressFilter) ([]models.AddressWithBala
 	)
 
 	// Build WHERE clause
-	where := "a.chain = ?"
-	args := []interface{}{string(f.Chain)}
+	where := "a.chain = ? AND a.network = ?"
+	args := []interface{}{string(f.Chain), d.network}
 
 	if f.HasBalance {
-		where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.balance != '0')"
+		where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.network = a.network AND b.address_index = a.address_index AND b.balance != '0')"
 	}
 
 	if f.Token != "" {
 		if f.Token == "NATIVE" {
-			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.token = 'NATIVE' AND b.balance != '0')"
+			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.network = a.network AND b.address_index = a.address_index AND b.token = 'NATIVE' AND b.balance != '0')"
 		} else {
-			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.address_index = a.address_index AND b.token = ? AND b.balance != '0')"
+			where += " AND EXISTS (SELECT 1 FROM balances b WHERE b.chain = a.chain AND b.network = a.network AND b.address_index = a.address_index AND b.token = ? AND b.balance != '0')"
 			args = append(args, f.Token)
 		}
 	}
@@ -200,15 +200,16 @@ func (d *DB) hydrateBalances(addresses []models.AddressWithBalance) error {
 		return nil
 	}
 
-	// Build (chain, address_index) IN clause
+	// Build (chain, address_index) IN clause, scoped to current network
 	placeholders := make([]string, len(addresses))
-	args := make([]interface{}, 0, len(addresses)*2)
+	args := make([]interface{}, 0, 1+len(addresses)*2)
+	args = append(args, d.network)
 	for i, addr := range addresses {
 		placeholders[i] = "(?, ?)"
 		args = append(args, string(addr.Chain), addr.AddressIndex)
 	}
 
-	query := "SELECT chain, address_index, token, balance, last_scanned FROM balances WHERE (chain, address_index) IN (" + strings.Join(placeholders, ", ") + ")"
+	query := "SELECT chain, address_index, token, balance, last_scanned FROM balances WHERE network = ? AND (chain, address_index) IN (" + strings.Join(placeholders, ", ") + ")"
 
 	rows, err := d.conn.Query(query, args...)
 	if err != nil {
@@ -274,8 +275,8 @@ func (d *DB) hydrateBalances(addresses []models.AddressWithBalance) error {
 func (d *DB) GetAddressByIndex(chain models.Chain, index int) (*models.Address, error) {
 	var addr models.Address
 	err := d.conn.QueryRow(
-		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND address_index = ?",
-		string(chain), index,
+		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND network = ? AND address_index = ?",
+		string(chain), d.network, index,
 	).Scan(&addr.Chain, &addr.AddressIndex, &addr.Address, &addr.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get address %s/%d: %w", chain, index, err)
@@ -286,7 +287,7 @@ func (d *DB) GetAddressByIndex(chain models.Chain, index int) (*models.Address, 
 
 // DeleteAddresses deletes all addresses for a chain.
 func (d *DB) DeleteAddresses(chain models.Chain) error {
-	result, err := d.conn.Exec("DELETE FROM addresses WHERE chain = ?", string(chain))
+	result, err := d.conn.Exec("DELETE FROM addresses WHERE chain = ? AND network = ?", string(chain), d.network)
 	if err != nil {
 		return fmt.Errorf("delete addresses for %s: %w", chain, err)
 	}
@@ -299,8 +300,8 @@ func (d *DB) DeleteAddresses(chain models.Chain) error {
 // StreamAddresses streams all addresses for a chain via a callback, avoiding loading all into memory.
 func (d *DB) StreamAddresses(chain models.Chain, fn func(addr models.Address) error) error {
 	rows, err := d.conn.Query(
-		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? ORDER BY address_index",
-		string(chain),
+		"SELECT chain, address_index, address, created_at FROM addresses WHERE chain = ? AND network = ? ORDER BY address_index",
+		string(chain), d.network,
 	)
 	if err != nil {
 		return fmt.Errorf("query addresses for streaming %s: %w", chain, err)

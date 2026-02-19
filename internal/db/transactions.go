@@ -21,9 +21,10 @@ func (d *DB) InsertTransaction(tx models.Transaction) (int64, error) {
 	)
 
 	result, err := d.conn.Exec(
-		`INSERT INTO transactions (chain, address_index, tx_hash, direction, token, amount, from_address, to_address, status)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO transactions (chain, network, address_index, tx_hash, direction, token, amount, from_address, to_address, status)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(tx.Chain),
+		d.network,
 		tx.AddressIndex,
 		tx.TxHash,
 		tx.Direction,
@@ -98,13 +99,13 @@ func (d *DB) UpdateTransactionStatusByHash(chain, txHash, status string) error {
 	var err error
 	if status == "confirmed" {
 		_, err = d.conn.Exec(
-			"UPDATE transactions SET status = ?, confirmed_at = datetime('now') WHERE chain = ? AND tx_hash = ?",
-			status, chain, txHash,
+			"UPDATE transactions SET status = ?, confirmed_at = datetime('now') WHERE chain = ? AND network = ? AND tx_hash = ?",
+			status, chain, d.network, txHash,
 		)
 	} else {
 		_, err = d.conn.Exec(
-			"UPDATE transactions SET status = ? WHERE chain = ? AND tx_hash = ?",
-			status, chain, txHash,
+			"UPDATE transactions SET status = ? WHERE chain = ? AND network = ? AND tx_hash = ?",
+			status, chain, d.network, txHash,
 		)
 	}
 	if err != nil {
@@ -167,8 +168,8 @@ func (d *DB) GetTransactionByHash(chain models.Chain, txHash string) (*models.Tr
 	err := d.conn.QueryRow(
 		`SELECT id, chain, address_index, tx_hash, direction, token, amount,
 		        from_address, to_address, block_number, status, created_at, confirmed_at
-		 FROM transactions WHERE chain = ? AND tx_hash = ? LIMIT 1`,
-		string(chain), txHash,
+		 FROM transactions WHERE chain = ? AND network = ? AND tx_hash = ? LIMIT 1`,
+		string(chain), d.network, txHash,
 	).Scan(
 		&tx.ID, &tx.Chain, &tx.AddressIndex, &tx.TxHash, &tx.Direction,
 		&tx.Token, &tx.Amount, &tx.FromAddress, &tx.ToAddress,
@@ -222,9 +223,9 @@ func (d *DB) ListTransactionsFiltered(filter TransactionFilter) ([]models.Transa
 		"offset", offset,
 	)
 
-	// Build WHERE clause dynamically.
-	var conditions []string
-	var args []interface{}
+	// Build WHERE clause dynamically. Network is always filtered.
+	conditions := []string{"network = ?"}
+	args := []interface{}{d.network}
 
 	if filter.Chain != nil {
 		conditions = append(conditions, "chain = ?")
@@ -243,10 +244,7 @@ func (d *DB) ListTransactionsFiltered(filter TransactionFilter) ([]models.Transa
 		args = append(args, *filter.Status)
 	}
 
-	where := "1=1"
-	if len(conditions) > 0 {
-		where = fmt.Sprintf("%s", joinConditions(conditions))
-	}
+	where := joinConditions(conditions)
 
 	// Count total matching rows.
 	var total int64

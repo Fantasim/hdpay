@@ -17,7 +17,7 @@ func setupTestDB(t *testing.T) *db.DB {
 	t.Helper()
 
 	tmpFile := t.TempDir() + "/test.sqlite"
-	database, err := db.New(tmpFile)
+	database, err := db.New(tmpFile, "testnet")
 	if err != nil {
 		t.Fatalf("failed to create test db: %v", err)
 	}

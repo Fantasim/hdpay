@@ -20,7 +20,7 @@ func setupReconcilerTestDB(t *testing.T) *db.DB {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "reconciler_test.sqlite")
 
-	d, err := db.New(dbPath)
+	d, err := db.New(dbPath, "testnet")
 	if err != nil {
 		t.Fatalf("db.New() error = %v", err)
 	}

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/Fantasim/hdpay/internal/models"
@@ -180,5 +181,162 @@ func TestResetAll(t *testing.T) {
 	}
 	if total != 0 || len(txs) != 0 {
 		t.Errorf("transactions total = %d, len = %d, want 0", total, len(txs))
+	}
+}
+
+// setupDualNetworkDB creates testnet and mainnet DB instances on the same file,
+// each seeded with addresses and a transaction.
+func setupDualNetworkDB(t *testing.T) (testnetDB, mainnetDB *DB) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.sqlite")
+
+	testnetDB, err := New(dbPath, "testnet")
+	if err != nil {
+		t.Fatalf("New(testnet) error = %v", err)
+	}
+	if err := testnetDB.RunMigrations(); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	t.Cleanup(func() { testnetDB.Close() })
+
+	mainnetDB, err = New(dbPath, "mainnet")
+	if err != nil {
+		t.Fatalf("New(mainnet) error = %v", err)
+	}
+	t.Cleanup(func() { mainnetDB.Close() })
+
+	// Seed testnet: 3 addresses + 1 balance + 1 transaction.
+	seedAddresses(t, testnetDB, models.ChainBTC, 3)
+	testnetDB.UpsertBalance(models.ChainBTC, 0, models.TokenNative, "100000")
+	testnetDB.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, TxHash: "testnet_tx_0000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "50000",
+		FromAddress: "tb1qfrom", ToAddress: "tb1qto", Status: "pending",
+	})
+
+	// Seed mainnet: 2 addresses + 1 balance + 1 transaction.
+	mainnetAddrs := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "bc1qmainnet0"},
+		{Chain: models.ChainBTC, AddressIndex: 1, Address: "bc1qmainnet1"},
+	}
+	mainnetDB.InsertAddressBatch(models.ChainBTC, mainnetAddrs)
+	mainnetDB.UpsertBalance(models.ChainBTC, 0, models.TokenNative, "200000")
+	mainnetDB.InsertTransaction(models.Transaction{
+		Chain: models.ChainBTC, TxHash: "mainnet_tx_0000000000000000000000000000000000000000000000000000",
+		Direction: "out", Token: models.TokenNative, Amount: "75000",
+		FromAddress: "bc1qfrom", ToAddress: "bc1qto", Status: "pending",
+	})
+
+	return testnetDB, mainnetDB
+}
+
+func TestResetBalances_NetworkScoped(t *testing.T) {
+	testnetDB, mainnetDB := setupDualNetworkDB(t)
+
+	// Reset testnet balances.
+	if err := testnetDB.ResetBalances(); err != nil {
+		t.Fatalf("ResetBalances(testnet) error = %v", err)
+	}
+
+	// Testnet: addresses preserved, transactions + balances gone.
+	count, err := testnetDB.CountAddresses(models.ChainBTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 3 {
+		t.Errorf("testnet address count = %d, want 3 (preserved)", count)
+	}
+
+	testnetTxs, testnetTotal, err := testnetDB.ListTransactions(nil, 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if testnetTotal != 0 || len(testnetTxs) != 0 {
+		t.Errorf("testnet transactions total=%d len=%d, want 0", testnetTotal, len(testnetTxs))
+	}
+
+	testnetFunded, err := testnetDB.GetFundedAddresses(models.ChainBTC, models.TokenNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(testnetFunded) != 0 {
+		t.Errorf("testnet funded = %d, want 0", len(testnetFunded))
+	}
+
+	// Mainnet: everything untouched.
+	mainnetCount, err := mainnetDB.CountAddresses(models.ChainBTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mainnetCount != 2 {
+		t.Errorf("mainnet address count = %d, want 2 (untouched)", mainnetCount)
+	}
+
+	mainnetTxs, mainnetTotal, err := mainnetDB.ListTransactions(nil, 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mainnetTotal != 1 || len(mainnetTxs) != 1 {
+		t.Errorf("mainnet transactions total=%d len=%d, want 1", mainnetTotal, len(mainnetTxs))
+	}
+
+	mainnetFunded, err := mainnetDB.GetFundedAddresses(models.ChainBTC, models.TokenNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mainnetFunded) != 1 {
+		t.Errorf("mainnet funded = %d, want 1 (untouched)", len(mainnetFunded))
+	}
+}
+
+func TestResetAll_NetworkScoped(t *testing.T) {
+	testnetDB, mainnetDB := setupDualNetworkDB(t)
+
+	// Reset ALL testnet data.
+	if err := testnetDB.ResetAll(); err != nil {
+		t.Fatalf("ResetAll(testnet) error = %v", err)
+	}
+
+	// Testnet: everything gone.
+	testnetCount, err := testnetDB.CountAddresses(models.ChainBTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if testnetCount != 0 {
+		t.Errorf("testnet address count = %d, want 0", testnetCount)
+	}
+
+	testnetTxs, testnetTotal, err := testnetDB.ListTransactions(nil, 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if testnetTotal != 0 || len(testnetTxs) != 0 {
+		t.Errorf("testnet transactions total=%d len=%d, want 0", testnetTotal, len(testnetTxs))
+	}
+
+	// Mainnet: everything untouched.
+	mainnetCount, err := mainnetDB.CountAddresses(models.ChainBTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mainnetCount != 2 {
+		t.Errorf("mainnet address count = %d, want 2 (untouched)", mainnetCount)
+	}
+
+	mainnetTxs, mainnetTotal, err := mainnetDB.ListTransactions(nil, 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mainnetTotal != 1 || len(mainnetTxs) != 1 {
+		t.Errorf("mainnet transactions total=%d len=%d, want 1", mainnetTotal, len(mainnetTxs))
+	}
+
+	mainnetFunded, err := mainnetDB.GetFundedAddresses(models.ChainBTC, models.TokenNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mainnetFunded) != 1 {
+		t.Errorf("mainnet funded = %d, want 1 (untouched)", len(mainnetFunded))
 	}
 }

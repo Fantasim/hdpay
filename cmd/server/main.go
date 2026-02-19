@@ -92,7 +92,7 @@ func runServe() error {
 		"logLevel", cfg.LogLevel,
 	)
 
-	database, err := db.New(cfg.DBPath)
+	database, err := db.New(cfg.DBPath, cfg.Network)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -257,7 +257,7 @@ func runInit() error {
 	}
 
 	// Open database.
-	database, err := db.New(cfg.DBPath)
+	database, err := db.New(cfg.DBPath, cfg.Network)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -494,7 +494,7 @@ func runExport() error {
 		cfg.Network = *network
 	}
 
-	database, err := db.New(cfg.DBPath)
+	database, err := db.New(cfg.DBPath, cfg.Network)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

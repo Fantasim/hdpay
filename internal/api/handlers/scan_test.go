@@ -24,7 +24,7 @@ func setupScanTestDB(t *testing.T) *db.DB {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_scan.sqlite")
 
-	database, err := db.New(dbPath)
+	database, err := db.New(dbPath, "testnet")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

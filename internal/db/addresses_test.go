@@ -13,7 +13,7 @@ func setupTestDB(t *testing.T) *DB {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.sqlite")
 
-	d, err := New(dbPath)
+	d, err := New(dbPath, "testnet")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -103,12 +103,12 @@ func TestGetAddressesWithBalances_HasBalanceFilter(t *testing.T) {
 	seedAddresses(t, d, models.ChainBSC, 10)
 
 	// Insert balances for some addresses
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"BSC", 2, "NATIVE", "1000000000000000000")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"BSC", 5, "NATIVE", "500000000000000000")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"BSC", 7, "USDC", "1000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"BSC", "testnet", 2, "NATIVE", "1000000000000000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"BSC", "testnet", 5, "NATIVE", "500000000000000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"BSC", "testnet", 7, "USDC", "1000000")
 
 	// Without filter — all addresses
 	results, total, err := d.GetAddressesWithBalances(AddressFilter{
@@ -149,14 +149,14 @@ func TestGetAddressesWithBalances_TokenFilter(t *testing.T) {
 	seedAddresses(t, d, models.ChainSOL, 10)
 
 	// Insert balances
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"SOL", 0, "NATIVE", "5000000000")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"SOL", 0, "USDC", "1000000")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"SOL", 3, "USDT", "5000000")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance) VALUES (?, ?, ?, ?)",
-		"SOL", 5, "USDC", "2500000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"SOL", "testnet", 0, "NATIVE", "5000000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"SOL", "testnet", 0, "USDC", "1000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"SOL", "testnet", 3, "USDT", "5000000")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance) VALUES (?, ?, ?, ?, ?)",
+		"SOL", "testnet", 5, "USDC", "2500000")
 
 	// Filter by USDC
 	results, total, err := d.GetAddressesWithBalances(AddressFilter{
@@ -195,12 +195,12 @@ func TestGetAddressesWithBalances_HydratesBalances(t *testing.T) {
 	seedAddresses(t, d, models.ChainBSC, 5)
 
 	// Insert balances for index 2
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?)",
-		"BSC", 2, "NATIVE", "1000000000000000000", "2026-02-18 10:00:00")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?)",
-		"BSC", 2, "USDC", "5000000", "2026-02-18 10:00:00")
-	d.Conn().Exec("INSERT INTO balances (chain, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?)",
-		"BSC", 2, "USDT", "3000000", "2026-02-18 10:00:00")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?, ?)",
+		"BSC", "testnet", 2, "NATIVE", "1000000000000000000", "2026-02-18 10:00:00")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?, ?)",
+		"BSC", "testnet", 2, "USDC", "5000000", "2026-02-18 10:00:00")
+	d.Conn().Exec("INSERT INTO balances (chain, network, address_index, token, balance, last_scanned) VALUES (?, ?, ?, ?, ?, ?)",
+		"BSC", "testnet", 2, "USDT", "3000000", "2026-02-18 10:00:00")
 
 	results, _, err := d.GetAddressesWithBalances(AddressFilter{
 		Chain:    models.ChainBSC,

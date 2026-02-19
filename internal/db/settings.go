@@ -93,13 +93,13 @@ func (d *DB) ResetBalances() error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec("DELETE FROM balances"); err != nil {
+	if _, err := tx.Exec("DELETE FROM balances WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete balances: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM scan_state"); err != nil {
+	if _, err := tx.Exec("DELETE FROM scan_state WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete scan_state: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM transactions"); err != nil {
+	if _, err := tx.Exec("DELETE FROM transactions WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete transactions: %w", err)
 	}
 
@@ -107,7 +107,7 @@ func (d *DB) ResetBalances() error {
 		return fmt.Errorf("commit reset: %w", err)
 	}
 
-	slog.Info("balances reset complete")
+	slog.Info("balances reset complete", "network", d.network)
 	return nil
 }
 
@@ -121,16 +121,16 @@ func (d *DB) ResetAll() error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec("DELETE FROM balances"); err != nil {
+	if _, err := tx.Exec("DELETE FROM balances WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete balances: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM scan_state"); err != nil {
+	if _, err := tx.Exec("DELETE FROM scan_state WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete scan_state: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM transactions"); err != nil {
+	if _, err := tx.Exec("DELETE FROM transactions WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete transactions: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM addresses"); err != nil {
+	if _, err := tx.Exec("DELETE FROM addresses WHERE network = ?", d.network); err != nil {
 		return fmt.Errorf("delete addresses: %w", err)
 	}
 
@@ -138,6 +138,6 @@ func (d *DB) ResetAll() error {
 		return fmt.Errorf("commit reset: %w", err)
 	}
 
-	slog.Info("full reset complete")
+	slog.Info("full reset complete", "network", d.network)
 	return nil
 }

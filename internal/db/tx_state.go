@@ -39,11 +39,12 @@ func (d *DB) CreateTxState(tx TxStateRow) error {
 	)
 
 	_, err := d.conn.Exec(
-		`INSERT INTO tx_state (id, sweep_id, chain, token, address_index, from_address, to_address, amount, tx_hash, nonce, status, error)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tx_state (id, sweep_id, chain, network, token, address_index, from_address, to_address, amount, tx_hash, nonce, status, error)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tx.ID,
 		tx.SweepID,
 		tx.Chain,
+		d.network,
 		tx.Token,
 		tx.AddressIndex,
 		tx.FromAddress,
@@ -108,9 +109,9 @@ func (d *DB) GetPendingTxStates(chain string) ([]TxStateRow, error) {
 		`SELECT id, sweep_id, chain, token, address_index, from_address, to_address, amount,
 		        COALESCE(tx_hash, '') as tx_hash, COALESCE(nonce, 0) as nonce, status, created_at, updated_at, COALESCE(error, '') as error
 		 FROM tx_state
-		 WHERE chain = ? AND status IN ('pending', 'broadcasting', 'confirming', 'uncertain')
+		 WHERE chain = ? AND network = ? AND status IN ('pending', 'broadcasting', 'confirming', 'uncertain')
 		 ORDER BY created_at ASC`,
-		chain,
+		chain, d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query pending tx states for %s: %w", chain, err)
@@ -153,9 +154,10 @@ func (d *DB) GetTxStateByNonce(chain, fromAddress string, nonce int64) (*TxState
 		`SELECT id, sweep_id, chain, token, address_index, from_address, to_address, amount,
 		        COALESCE(tx_hash, '') as tx_hash, COALESCE(nonce, 0) as nonce, status, created_at, updated_at, COALESCE(error, '') as error
 		 FROM tx_state
-		 WHERE chain = ? AND from_address = ? AND nonce = ?
+		 WHERE chain = ? AND network = ? AND from_address = ? AND nonce = ?
 		 ORDER BY created_at DESC LIMIT 1`,
 		chain,
+		d.network,
 		fromAddress,
 		nonce,
 	)
@@ -220,8 +222,9 @@ func (d *DB) GetAllPendingTxStates() ([]TxStateRow, error) {
 		`SELECT id, sweep_id, chain, token, address_index, from_address, to_address, amount,
 		        COALESCE(tx_hash, '') as tx_hash, COALESCE(nonce, 0) as nonce, status, created_at, updated_at, COALESCE(error, '') as error
 		 FROM tx_state
-		 WHERE status IN ('pending', 'broadcasting', 'confirming', 'uncertain')
+		 WHERE network = ? AND status IN ('pending', 'broadcasting', 'confirming', 'uncertain')
 		 ORDER BY created_at ASC`,
+		d.network,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query all pending tx states: %w", err)
