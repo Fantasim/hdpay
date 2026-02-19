@@ -34,6 +34,12 @@ export function formatRawBalance(rawBalance: string, chain: Chain, token: string
 	let raw = rawBalance.replace(/^0+/, '') || '0';
 	if (raw === '0') return '0';
 
+	// Truncate at decimal point — raw balances should be integers.
+	// SQLite CAST(REAL AS TEXT) may append ".0" which breaks string slicing.
+	if (raw.includes('.')) {
+		raw = raw.split('.')[0] || '0';
+	}
+
 	if (decimals === 0) return raw;
 
 	// Pad with leading zeros if the raw string is shorter than decimals.

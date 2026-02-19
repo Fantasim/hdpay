@@ -560,7 +560,7 @@ func (s *SOLConsolidationService) ExecuteNativeSweep(
 		txResult := s.sweepNativeAddress(ctx, addr, destPubKey, feePerTx, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
-		if txResult.Status == "confirmed" {
+		if txResult.Status == "success" || txResult.Status == "confirmed" {
 			result.SuccessCount++
 			amount, _ := strconv.ParseUint(txResult.Amount, 10, 64)
 			totalSwept += amount
@@ -724,38 +724,36 @@ func (s *SOLConsolidationService) sweepNativeAddress(
 		"from", addr.Address,
 	)
 
-	// Wait for confirmation.
-	slot, err := WaitForSOLConfirmation(ctx, s.rpcClient, txResult.TxSignature)
-	if err != nil {
-		// Distinguish uncertain (RPC errors) from definite failure (on-chain error).
-		if errors.Is(err, config.ErrSOLConfirmationUncertain) {
-			txResult.Status = "uncertain"
-			txResult.Error = fmt.Sprintf("confirmation uncertain: %s", err)
-			slog.Warn("SOL sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
-			s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, txResult.Error)
-		} else {
-			txResult.Status = "failed"
-			txResult.Error = fmt.Sprintf("confirmation: %s", err)
-			slog.Error("SOL sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
-			s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, txResult.Error)
-		}
-		// TX was broadcast — record in transactions table.
-		s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, dest.ToBase58(), models.TokenNative, "pending")
-		return txResult
-	}
+	// Record transaction as pending (broadcast succeeded).
+	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, dest.ToBase58(), models.TokenNative, "pending")
+	txResult.Status = "success"
 
-	txResult.Status = "confirmed"
-	txResult.Slot = slot
-	s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
-
-	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, dest.ToBase58(), models.TokenNative, "confirmed")
-
-	slog.Info("SOL sweep: native transfer confirmed",
+	slog.Info("SOL sweep: native transfer broadcast successful",
 		"signature", txResult.TxSignature,
 		"from", addr.Address,
 		"amount", sendAmount,
-		"slot", slot,
 	)
+
+	// Poll for confirmation in background.
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), config.SOLConfirmationTimeout)
+		defer cancel()
+
+		slot, err := WaitForSOLConfirmation(bgCtx, s.rpcClient, txResult.TxSignature)
+		if err != nil {
+			if errors.Is(err, config.ErrSOLConfirmationUncertain) {
+				slog.Warn("SOL sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
+				s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, fmt.Sprintf("confirmation uncertain: %s", err))
+			} else {
+				slog.Error("SOL sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
+				s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, fmt.Sprintf("confirmation: %s", err))
+			}
+			return
+		}
+
+		slog.Info("SOL sweep: native transfer confirmed", "signature", txResult.TxSignature, "slot", slot)
+		s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
+	}()
 
 	return txResult
 }
@@ -911,10 +909,31 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 			continue
 		}
 
+		// Check that the address has enough SOL for the transaction fee.
+		nativeBal, parseErr := strconv.ParseUint(addr.NativeBalance, 10, 64)
+		if parseErr != nil || nativeBal < feePerTx {
+			slog.Warn("SOL token sweep: skipping address with insufficient SOL for fee",
+				"address", addr.Address,
+				"addressIndex", addr.AddressIndex,
+				"nativeBalance", addr.NativeBalance,
+				"requiredFee", feePerTx,
+				"tokenBalance", tokenBal,
+			)
+			result.TxResults = append(result.TxResults, models.SOLTxResult{
+				AddressIndex: addr.AddressIndex,
+				FromAddress:  addr.Address,
+				Amount:       strconv.FormatUint(tokenBal, 10),
+				Status:       "failed",
+				Error:        "insufficient SOL for transaction fee",
+			})
+			result.FailCount++
+			continue
+		}
+
 		txResult := s.sweepTokenAddress(ctx, addr, destPubKey, destATAPubKey, mintPubKey, tokenBal, feePerTx, token, mint, !destATAExists, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
-		if txResult.Status == "confirmed" {
+		if txResult.Status == "success" || txResult.Status == "confirmed" {
 			result.SuccessCount++
 			amount, _ := strconv.ParseUint(txResult.Amount, 10, 64)
 			totalSwept += amount
@@ -1122,43 +1141,37 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	// Update to confirming with signature.
 	s.updateTxState(txStateID, config.TxStateConfirming, txResult.TxSignature, "")
 
-	slog.Info("SOL token sweep: TX broadcast, waiting for confirmation",
-		"signature", txResult.TxSignature,
-		"from", addr.Address,
-	)
+	// Record transaction as pending (broadcast succeeded).
+	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, destPubKey.ToBase58(), token, "pending")
+	txResult.Status = "success"
 
-	// Wait for confirmation.
-	slot, err := WaitForSOLConfirmation(ctx, s.rpcClient, txResult.TxSignature)
-	if err != nil {
-		// Distinguish uncertain (RPC errors) from definite failure (on-chain error).
-		if errors.Is(err, config.ErrSOLConfirmationUncertain) {
-			txResult.Status = "uncertain"
-			txResult.Error = fmt.Sprintf("confirmation uncertain: %s", err)
-			slog.Warn("SOL token sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
-			s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, txResult.Error)
-		} else {
-			txResult.Status = "failed"
-			txResult.Error = fmt.Sprintf("confirmation: %s", err)
-			slog.Error("SOL token sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
-			s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, txResult.Error)
-		}
-		s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, destPubKey.ToBase58(), token, "pending")
-		return txResult
-	}
-
-	txResult.Status = "confirmed"
-	txResult.Slot = slot
-	s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
-
-	s.recordSOLTransaction(addr, txResult.TxSignature, txResult.Amount, destPubKey.ToBase58(), token, "confirmed")
-
-	slog.Info("SOL token sweep: transfer confirmed",
+	slog.Info("SOL token sweep: transfer broadcast successful",
 		"signature", txResult.TxSignature,
 		"from", addr.Address,
 		"token", token,
 		"amount", tokenAmount,
-		"slot", slot,
 	)
+
+	// Poll for confirmation in background.
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), config.SOLConfirmationTimeout)
+		defer cancel()
+
+		slot, err := WaitForSOLConfirmation(bgCtx, s.rpcClient, txResult.TxSignature)
+		if err != nil {
+			if errors.Is(err, config.ErrSOLConfirmationUncertain) {
+				slog.Warn("SOL token sweep: confirmation uncertain", "signature", txResult.TxSignature, "error", err)
+				s.updateTxState(txStateID, config.TxStateUncertain, txResult.TxSignature, fmt.Sprintf("confirmation uncertain: %s", err))
+			} else {
+				slog.Error("SOL token sweep: confirmation failed", "signature", txResult.TxSignature, "error", err)
+				s.updateTxState(txStateID, config.TxStateFailed, txResult.TxSignature, fmt.Sprintf("confirmation: %s", err))
+			}
+			return
+		}
+
+		slog.Info("SOL token sweep: transfer confirmed", "signature", txResult.TxSignature, "slot", slot)
+		s.updateTxState(txStateID, config.TxStateConfirmed, txResult.TxSignature, "")
+	}()
 
 	return txResult
 }

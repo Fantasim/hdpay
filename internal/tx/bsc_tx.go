@@ -379,7 +379,7 @@ func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addres
 		txResult := s.sweepNativeAddress(ctx, addr, dest, gasPrice, gasCostPerTx, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
-		if txResult.Status == "confirmed" {
+		if txResult.Status == "success" || txResult.Status == "confirmed" {
 			result.SuccessCount++
 			amount, _ := new(big.Int).SetString(txResult.Amount, 10)
 			if amount != nil {
@@ -551,35 +551,31 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 	// Update to confirming with txHash.
 	s.updateTxState(txStateID, config.TxStateConfirming, txHash.Hex(), "")
 
-	slog.Info("BSC sweep: TX broadcast, waiting for receipt",
-		"txHash", txHash.Hex(),
-		"from", addr.Address,
-	)
+	// Record transaction as pending (broadcast succeeded).
+	s.recordBSCTransaction(addr, txHash.Hex(), sendAmount.String(), dest.Hex(), models.TokenNative, "pending")
+	txResult.Status = "success"
 
-	// Wait for receipt.
-	receipt, err := WaitForReceipt(ctx, s.ethClient, txHash)
-	if err != nil {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("receipt: %s", err)
-		slog.Error("BSC sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
-		s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), txResult.Error)
-		// TX was broadcast — record it even if receipt polling fails.
-		s.recordBSCTransaction(addr, txHash.Hex(), sendAmount.String(), dest.Hex(), models.TokenNative, "pending")
-		return txResult
-	}
-
-	txResult.Status = "confirmed"
-	s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
-
-	// Record in DB.
-	s.recordBSCTransaction(addr, txHash.Hex(), sendAmount.String(), dest.Hex(), models.TokenNative, "confirmed")
-
-	slog.Info("BSC sweep: native transfer confirmed",
+	slog.Info("BSC sweep: native transfer broadcast successful",
 		"txHash", txHash.Hex(),
 		"from", addr.Address,
 		"amount", sendAmount,
-		"block", receipt.BlockNumber,
 	)
+
+	// Poll for receipt in background.
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), config.BSCReceiptPollTimeout)
+		defer cancel()
+
+		receipt, err := WaitForReceipt(bgCtx, s.ethClient, txHash)
+		if err != nil {
+			slog.Error("BSC sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
+			s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), fmt.Sprintf("receipt: %s", err))
+			return
+		}
+
+		slog.Info("BSC sweep: native transfer confirmed", "txHash", txHash.Hex(), "block", receipt.BlockNumber)
+		s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
+	}()
 
 	return txResult
 }
@@ -655,7 +651,7 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 		txResult := s.sweepTokenAddress(ctx, addr, dest, contract, token, gasPrice, sweepID)
 		result.TxResults = append(result.TxResults, txResult)
 
-		if txResult.Status == "confirmed" {
+		if txResult.Status == "success" || txResult.Status == "confirmed" {
 			result.SuccessCount++
 			amount, _ := new(big.Int).SetString(txResult.Amount, 10)
 			if amount != nil {
@@ -859,34 +855,32 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 	// Update to confirming with txHash.
 	s.updateTxState(txStateID, config.TxStateConfirming, txHash.Hex(), "")
 
-	slog.Info("BSC token sweep: TX broadcast, waiting for receipt",
-		"txHash", txHash.Hex(),
-		"from", addr.Address,
-	)
+	// Record transaction as pending (broadcast succeeded).
+	s.recordBSCTransaction(addr, txHash.Hex(), tokenBalance.String(), dest.Hex(), token, "pending")
+	txResult.Status = "success"
 
-	// Wait for receipt.
-	receipt, err := WaitForReceipt(ctx, s.ethClient, txHash)
-	if err != nil {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("receipt: %s", err)
-		slog.Error("BSC token sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
-		s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), txResult.Error)
-		s.recordBSCTransaction(addr, txHash.Hex(), tokenBalance.String(), dest.Hex(), token, "pending")
-		return txResult
-	}
-
-	txResult.Status = "confirmed"
-	s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
-
-	s.recordBSCTransaction(addr, txHash.Hex(), tokenBalance.String(), dest.Hex(), token, "confirmed")
-
-	slog.Info("BSC token sweep: transfer confirmed",
+	slog.Info("BSC token sweep: transfer broadcast successful",
 		"txHash", txHash.Hex(),
 		"from", addr.Address,
 		"token", token,
 		"amount", tokenBalance,
-		"block", receipt.BlockNumber,
 	)
+
+	// Poll for receipt in background.
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), config.BSCReceiptPollTimeout)
+		defer cancel()
+
+		receipt, err := WaitForReceipt(bgCtx, s.ethClient, txHash)
+		if err != nil {
+			slog.Error("BSC token sweep: receipt failed", "txHash", txHash.Hex(), "error", err)
+			s.updateTxState(txStateID, config.TxStateFailed, txHash.Hex(), fmt.Sprintf("receipt: %s", err))
+			return
+		}
+
+		slog.Info("BSC token sweep: transfer confirmed", "txHash", txHash.Hex(), "block", receipt.BlockNumber)
+		s.updateTxState(txStateID, config.TxStateConfirmed, txHash.Hex(), "")
+	}()
 
 	return txResult
 }

@@ -416,12 +416,18 @@ func buildSOLNativePreview(ctx context.Context, deps *SendDeps, req models.SendR
 func buildSOLTokenPreview(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance) (*models.UnifiedSendPreview, error) {
 	mint := getTokenContractAddress(req.Chain, req.Token, deps.Config.Network)
 
+	// Call PreviewTokenSweep for fee estimation and ATA check only.
 	solPreview, err := deps.SOLService.PreviewTokenSweep(ctx, funded, req.Destination, req.Token, mint)
 	if err != nil {
 		return nil, fmt.Errorf("SOL token preview failed: %w", err)
 	}
 
+	// Calculate totals and per-address gas status (mirrors BSC token preview pattern).
+	feePerTx := uint64(config.SOLBaseTransactionFee)
+	var totalAmount uint64
+	var gasPreSeedCount int
 	fundedInfos := make([]models.FundedAddressInfo, len(funded))
+
 	for i, f := range funded {
 		tokenBal := "0"
 		for _, tb := range f.TokenBalances {
@@ -430,25 +436,38 @@ func buildSOLTokenPreview(ctx context.Context, deps *SendDeps, req models.SendRe
 				break
 			}
 		}
+
+		bal, _ := strconv.ParseUint(tokenBal, 10, 64)
+		totalAmount += bal
+
+		// Check if address has enough SOL for the transaction fee.
+		nativeBal, _ := strconv.ParseUint(f.NativeBalance, 10, 64)
+		hasGas := nativeBal >= feePerTx
+		if !hasGas {
+			gasPreSeedCount++
+		}
+
 		fundedInfos[i] = models.FundedAddressInfo{
 			AddressIndex: f.AddressIndex,
 			Address:      f.Address,
 			Balance:      tokenBal,
-			HasGas:       true, // SOL: fee deducted from SOL balance, not token.
+			HasGas:       hasGas,
 		}
 	}
+
+	totalAmountStr := strconv.FormatUint(totalAmount, 10)
 
 	return &models.UnifiedSendPreview{
 		Chain:           req.Chain,
 		Token:           req.Token,
 		Destination:     req.Destination,
-		FundedCount:     solPreview.InputCount,
-		TotalAmount:     solPreview.TotalAmount,
+		FundedCount:     len(funded),
+		TotalAmount:     totalAmountStr,
 		FeeEstimate:     solPreview.TotalFee,
-		NetAmount:       solPreview.NetAmount,
-		TxCount:         solPreview.InputCount,
-		NeedsGasPreSeed: false,
-		GasPreSeedCount: 0,
+		NetAmount:       totalAmountStr, // Token sweep: fee paid in SOL, not deducted from token.
+		TxCount:         len(funded),
+		NeedsGasPreSeed: gasPreSeedCount > 0,
+		GasPreSeedCount: gasPreSeedCount,
 		FundedAddresses: fundedInfos,
 	}, nil
 }

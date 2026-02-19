@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### 2026-02-19
+
+#### Fixed
+- **SOL USDC balance display mangled**: SQLite `CAST(SUM(CAST(balance AS REAL)) AS TEXT)` appended ".0" to aggregated balances, causing `formatRawBalance` string slicing to produce "4000.0000." instead of "40" — switched SQL to `printf('%.0f', SUM(...))` and added defensive decimal-point truncation in frontend (`internal/db/balances.go`, `web/src/lib/utils/formatting.ts`)
+- **SOL token preview undercounts funded addresses**: `buildSOLTokenPreview()` now calculates `HasGas` per-address by checking native SOL balance, sums total from ALL funded addresses, and sets `NeedsGasPreSeed` when addresses lack SOL for fees — mirrors BSC token preview pattern (`internal/api/handlers/send.go`)
+- **SOL token execute crashes on gas-less addresses**: `ExecuteTokenSweep()` now checks native balance before attempting each transfer, skipping gas-less addresses gracefully with a logged warning instead of failing at broadcast (`internal/tx/sol_tx.go`)
+- **All chains send stuck on "Executing..."**: SOL and BSC sweep services waited for TX confirmation synchronously inside the HTTP handler, exceeding `ServerWriteTimeout`. Moved confirmation polling to background goroutines for all sweep paths (SOL native, SOL token, BSC native, BSC token) — returns immediately after broadcast with "success" status, background updates tx_state (`internal/tx/sol_tx.go`, `internal/tx/bsc_tx.go`)
+
 ### 2026-02-19 — Post-V2 Comprehensive Audit Fixes
 
 #### Security

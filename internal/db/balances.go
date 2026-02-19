@@ -330,7 +330,7 @@ func (d *DB) GetBalanceAggregates() ([]BalanceAggregate, error) {
 	slog.Debug("fetching balance aggregates")
 
 	rows, err := d.conn.Query(
-		`SELECT chain, token, CAST(SUM(CAST(balance AS REAL)) AS TEXT), COUNT(*)
+		`SELECT chain, token, printf('%.0f', SUM(CAST(balance AS REAL))), COUNT(*)
 		 FROM balances
 		 WHERE balance != '0'
 		 GROUP BY chain, token

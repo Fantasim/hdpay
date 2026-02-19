@@ -217,9 +217,10 @@ func TestSOLNativeSweep_ConfirmationTimeout(t *testing.T) {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
 
-	// Should have 1 result, failed due to confirmation timeout.
-	if result.FailCount != 1 {
-		t.Errorf("failCount = %d, want 1", result.FailCount)
+	// Confirmation is now async — broadcast success counts as success.
+	// The background goroutine will update tx_state later.
+	if result.SuccessCount != 1 {
+		t.Errorf("successCount = %d, want 1", result.SuccessCount)
 	}
 }
 
@@ -252,8 +253,10 @@ func TestSOLNativeSweep_ConfirmationFailed(t *testing.T) {
 		t.Fatalf("ExecuteNativeSweep error = %v", err)
 	}
 
-	if result.FailCount != 1 {
-		t.Errorf("failCount = %d, want 1", result.FailCount)
+	// Confirmation is now async — broadcast success counts as success.
+	// On-chain failure is detected by background goroutine and updates tx_state.
+	if result.SuccessCount != 1 {
+		t.Errorf("successCount = %d, want 1", result.SuccessCount)
 	}
 }
 
