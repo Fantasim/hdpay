@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/models"
 	"github.com/go-chi/chi/v5"
 )
@@ -16,10 +15,8 @@ func setupSettingsRouter(t *testing.T) (http.Handler, func()) {
 	t.Helper()
 	database := setupTestDB(t)
 
-	cfg := &config.Config{Network: "testnet"}
-
 	r := chi.NewRouter()
-	r.Get("/api/settings", GetSettings(database, cfg))
+	r.Get("/api/settings", GetSettings(database))
 	r.Put("/api/settings", UpdateSettings(database))
 	r.Post("/api/settings/reset-balances", ResetBalancesHandler(database))
 	r.Post("/api/settings/reset-all", ResetAllHandler(database))

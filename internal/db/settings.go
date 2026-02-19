@@ -13,6 +13,7 @@ var defaultSettings = map[string]string{
 	"btc_fee_rate":           "10",
 	"bsc_gas_preseed_bnb":    "0.005",
 	"log_level":              "info",
+	"network":                "testnet",
 }
 
 // GetSetting retrieves a single setting value by key, returning the default if not set.

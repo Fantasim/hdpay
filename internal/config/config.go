@@ -16,7 +16,7 @@ type Config struct {
 	Port         int    `envconfig:"HDPAY_PORT" default:"8080"`
 	LogLevel     string `envconfig:"HDPAY_LOG_LEVEL" default:"info"`
 	LogDir       string `envconfig:"HDPAY_LOG_DIR" default:"./logs"`
-	Network      string `envconfig:"HDPAY_NETWORK" default:"mainnet"`
+	Network      string `envconfig:"HDPAY_NETWORK" default:"testnet"`
 
 	BscScanAPIKey string `envconfig:"HDPAY_BSCSCAN_API_KEY"`
 	HeliusAPIKey  string `envconfig:"HDPAY_HELIUS_API_KEY"`

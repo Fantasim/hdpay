@@ -12,7 +12,9 @@
 	let btcFeeRate = $state('10');
 	let bscGasPreseedBnb = $state('0.005');
 	let logLevel = $state('info');
-	let networkMode = $state<'mainnet' | 'testnet'>('mainnet');
+	let networkMode = $state<'mainnet' | 'testnet'>('testnet');
+	let initialNetworkMode = $state<'mainnet' | 'testnet'>('testnet');
+	let networkChanged = $state(false);
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -36,6 +38,8 @@
 			btcFeeRate = s.btc_fee_rate ?? '10';
 			bscGasPreseedBnb = s.bsc_gas_preseed_bnb ?? '0.005';
 			logLevel = s.log_level ?? 'info';
+			networkMode = (s.network === 'mainnet' ? 'mainnet' : 'testnet');
+			initialNetworkMode = networkMode;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load settings';
 		} finally {
@@ -55,7 +59,11 @@
 				btc_fee_rate: btcFeeRate,
 				bsc_gas_preseed_bnb: bscGasPreseedBnb,
 				log_level: logLevel,
+				network: networkMode,
 			});
+			if (networkMode !== initialNetworkMode) {
+				networkChanged = true;
+			}
 			saveSuccess = true;
 			setTimeout(() => { saveSuccess = false; }, 2000);
 		} catch (err) {
@@ -112,6 +120,17 @@
 
 {#if error}
 	<div class="error-banner">{error}</div>
+{/if}
+
+{#if networkChanged}
+	<div class="restart-banner">
+		<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+			<path d="M9 2L1.5 15.5h15L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+			<path d="M9 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+			<circle cx="9" cy="13" r="0.5" fill="currentColor"/>
+		</svg>
+		Restart required for network change to take effect.
+	</div>
 {/if}
 
 {#if loading}
@@ -745,6 +764,18 @@
 		border-radius: 6px;
 		background: var(--color-error-muted);
 		color: var(--color-error);
+		font-size: 0.8125rem;
+	}
+
+	.restart-banner {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+		padding: 0.75rem 1rem;
+		border-radius: 6px;
+		background: var(--color-warning-muted);
+		color: var(--color-warning);
 		font-size: 0.8125rem;
 	}
 </style>

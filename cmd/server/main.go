@@ -106,6 +106,14 @@ func runServe() error {
 
 	slog.Info("database migrations applied")
 
+	// Override network from DB setting (persisted via Settings UI).
+	if dbNetwork, err := database.GetSetting("network"); err == nil && (dbNetwork == "mainnet" || dbNetwork == "testnet") {
+		if dbNetwork != cfg.Network {
+			slog.Info("overriding network from DB setting", "envDefault", cfg.Network, "dbValue", dbNetwork)
+			cfg.Network = dbNetwork
+		}
+	}
+
 	// Setup SSE hub and scanner engine.
 	hub := scanner.NewSSEHub()
 	hubCtx, hubCancel := context.WithCancel(context.Background())
@@ -200,7 +208,7 @@ func runInit() error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	mnemonicFile := fs.String("mnemonic-file", "", "Path to file containing 24-word BIP-39 mnemonic (required)")
 	dbPath := fs.String("db", "", "Database path (default: from HDPAY_DB_PATH or ./data/hdpay.sqlite)")
-	network := fs.String("network", "", "Network: mainnet or testnet (default: from HDPAY_NETWORK or mainnet)")
+	network := fs.String("network", "", "Network: mainnet or testnet (default: from HDPAY_NETWORK or testnet)")
 	count := fs.Int("count", config.MaxAddressesPerChain, "Number of addresses per chain")
 	fs.Parse(os.Args[2:])
 
@@ -472,7 +480,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 func runExport() error {
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
 	dbPath := fs.String("db", "", "Database path (default: from HDPAY_DB_PATH or ./data/hdpay.sqlite)")
-	network := fs.String("network", "", "Network: mainnet or testnet (default: from HDPAY_NETWORK or mainnet)")
+	network := fs.String("network", "", "Network: mainnet or testnet (default: from HDPAY_NETWORK or testnet)")
 	outputDir := fs.String("output", "", "Output directory (default: ./data/export)")
 	fs.Parse(os.Args[2:])
 

@@ -19,12 +19,11 @@ var validSettingKeys = map[string]bool{
 	"btc_fee_rate":           true,
 	"bsc_gas_preseed_bnb":    true,
 	"log_level":              true,
+	"network":                true,
 }
 
 // GetSettings handles GET /api/settings.
-// Includes the read-only "network" field from server config so the frontend
-// can build correct explorer links and display the active network.
-func GetSettings(database *db.DB, cfg *config.Config) http.HandlerFunc {
+func GetSettings(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -36,9 +35,6 @@ func GetSettings(database *db.DB, cfg *config.Config) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to get settings")
 			return
 		}
-
-		// Include read-only server config fields.
-		settings["network"] = cfg.Network
 
 		elapsed := time.Since(start).Milliseconds()
 
