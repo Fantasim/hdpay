@@ -768,6 +768,27 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		return txResult
 	}
 
+	// Per-TX gas check: verify this address still has enough BNB for gas.
+	// Gas prices may have changed since the initial sweep-level check.
+	gasCostPerTx := new(big.Int).Mul(gasPrice, big.NewInt(int64(config.BSCGasLimitBEP20)))
+	bnbBalance, err := s.ethClient.BalanceAt(ctx, fromAddr, nil)
+	if err != nil {
+		slog.Warn("BSC token sweep: gas balance check failed, proceeding with caution",
+			"address", addr.Address,
+			"error", err,
+		)
+	} else if bnbBalance.Cmp(gasCostPerTx) < 0 {
+		txResult.Status = "failed"
+		txResult.Error = fmt.Sprintf("insufficient gas: have %s BNB, need %s for fee", bnbBalance.String(), gasCostPerTx.String())
+		slog.Warn("BSC token sweep: skipping address due to insufficient gas",
+			"address", addr.Address,
+			"index", addr.AddressIndex,
+			"bnbBalance", bnbBalance,
+			"gasCostPerTx", gasCostPerTx,
+		)
+		return txResult
+	}
+
 	// Create tx_state for this individual address TX.
 	txStateID := GenerateTxStateID()
 	txState := db.TxStateRow{

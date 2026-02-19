@@ -91,9 +91,10 @@ func (s *Scanner) StartScan(ctx context.Context, chain models.Chain, maxID int) 
 		return fmt.Errorf("no provider pool registered for %s", chain)
 	}
 
-	// Use background context — NOT the HTTP request context, which is
+	// Use background context with timeout — NOT the HTTP request context, which is
 	// cancelled as soon as the handler returns a response.
-	scanCtx, cancel := context.WithCancel(context.Background())
+	// The timeout prevents goroutine leaks if the scan runs indefinitely.
+	scanCtx, cancel := context.WithTimeout(context.Background(), config.ScanContextTimeout)
 	s.cancels[chain] = cancel
 	s.mu.Unlock()
 
@@ -185,7 +186,8 @@ func (s *Scanner) removeScan(chain models.Chain) {
 // runScan performs the actual scanning work.
 // V2: atomic DB writes, decoupled native/token, exponential backoff, token error SSE.
 func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, startIndex, maxID int) {
-	defer s.removeScan(chain)
+	// NOTE: removeScan is called inside finishScan AFTER all DB writes complete,
+	// to prevent a race where a new scan starts while final state write is in flight.
 
 	startTime := time.Now()
 	batchSize := pool.MaxBatchSize()
@@ -222,6 +224,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					Message: "scan cancelled by user",
 				},
 			})
+			s.removeScan(chain)
 			return
 		default:
 		}
@@ -244,6 +247,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					MaxScanID:        maxID,
 					Status:           db.ScanStatusScanning,
 				})
+				s.removeScan(chain)
 				return
 			}
 		}
@@ -291,6 +295,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					MaxScanID:        maxID,
 					Status:           db.ScanStatusScanning,
 				})
+				s.removeScan(chain)
 				return
 			}
 			slog.Error("native balance fetch failed, continuing to tokens",
@@ -325,9 +330,13 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 			tokenResults, err := pool.FetchTokenBalances(ctx, addresses, tc.Token, tc.Contract)
 			if err != nil {
 				if ctx.Err() != nil {
+					s.removeScan(chain)
 					return
 				}
 				// Token fetch failures are non-fatal — broadcast SSE event (B7).
+				// Increment failure counter to trigger backoff, preventing
+				// repeated hammering of rate-limited providers.
+				consecutivePoolFails++
 				slog.Warn("token balance fetch failed",
 					"chain", chain,
 					"token", tc.Token,
@@ -406,17 +415,32 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				return
 			}
 		} else {
-			// Native failed and no token balances — still update scan state (non-atomic is fine).
+			// Native failed and no token balances — still update scan state.
+			// Retry once on failure to prevent lost progress.
 			if err := s.db.UpsertScanState(models.ScanState{
 				Chain:            chain,
 				LastScannedIndex: scanned,
 				MaxScanID:        maxID,
 				Status:           db.ScanStatusScanning,
 			}); err != nil {
-				slog.Warn("failed to update scan state after native failure",
+				slog.Warn("scan state write failed, retrying once",
 					"chain", chain,
 					"error", err,
 				)
+				// Retry after a brief pause.
+				time.Sleep(100 * time.Millisecond)
+				if retryErr := s.db.UpsertScanState(models.ScanState{
+					Chain:            chain,
+					LastScannedIndex: scanned,
+					MaxScanID:        maxID,
+					Status:           db.ScanStatusScanning,
+				}); retryErr != nil {
+					slog.Error("scan state write failed on retry, progress may be lost",
+						"chain", chain,
+						"scanned", scanned,
+						"error", retryErr,
+					)
+				}
 			}
 		}
 
@@ -511,4 +535,9 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found int, stat
 			},
 		})
 	}
+
+	// Remove scan from active set AFTER all DB writes and broadcasts are complete.
+	// This prevents a race where StartScan on the same chain proceeds while
+	// finishScan is still writing final state.
+	s.removeScan(chain)
 }

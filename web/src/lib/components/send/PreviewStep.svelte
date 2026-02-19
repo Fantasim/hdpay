@@ -74,7 +74,12 @@
 				</span>
 
 				<span class="summary-label">Transactions</span>
-				<span class="summary-value">{preview.txCount}</span>
+				<span class="summary-value">
+					{preview.txCount}
+					{#if preview.txCount > 1}
+						<span class="tx-count-hint">(one per funded address, each costs gas)</span>
+					{/if}
+				</span>
 
 				{#if preview.needsGasPreSeed}
 					<span class="summary-label">Gas pre-seed needed</span>
@@ -220,6 +225,13 @@
 		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		word-break: break-all;
+	}
+
+	.tx-count-hint {
+		color: var(--color-text-muted);
+		font-weight: 400;
+		font-size: 0.75rem;
+		margin-left: 0.375rem;
 	}
 
 	.text-muted {

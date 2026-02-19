@@ -63,6 +63,14 @@ const (
 	ProviderMaxRetries            = 3
 	ProviderRetryBaseDelay        = 1 * time.Second
 	SSEHubChannelBuffer           = 64
+	ScanContextTimeout            = 24 * time.Hour // upper bound on scan goroutine lifetime
+)
+
+// HTTP Client Connection Pool
+const (
+	HTTPMaxConnsPerHost     = 10  // max connections per provider host
+	HTTPMaxIdleConnsPerHost = 5   // max idle connections per provider host
+	HTTPMaxIdleConns        = 50  // max idle connections across all hosts
 )
 
 // Provider URLs — BTC Mainnet
@@ -151,11 +159,12 @@ const (
 
 // BTC Transaction Building
 const (
-	BTCDefaultFeeRate    = 10      // Fallback sat/vB if fee estimation fails
-	BTCMinFeeRate        = 1       // Absolute minimum sat/vB
-	BTCDustThresholdSats = 546     // Minimum P2WPKH output value
-	BTCMaxTxWeight       = 400_000 // Max standard transaction weight units
-	BTCMaxInputsPerTx    = 500     // Practical input limit before hitting size
+	BTCDefaultFeeRate       = 10      // Fallback sat/vB if fee estimation fails
+	BTCMinFeeRate           = 1       // Absolute minimum sat/vB
+	BTCDustThresholdSats    = 546     // Minimum P2WPKH output value
+	BTCMaxTxWeight          = 400_000 // Max standard transaction weight units
+	BTCMaxInputsPerTx       = 500     // Practical input limit before hitting size
+	BTCFeeSafetyMarginPct   = 2       // Percentage added to estimated fee to prevent underestimation
 )
 
 // BTC Transaction vsize estimation (weight units per BIP-141)
@@ -252,7 +261,21 @@ const (
 
 // SOL Blockhash Cache
 const (
-	SOLBlockhashCacheTTL = 20 * time.Second // max age before fetching fresh blockhash
+	SOLBlockhashCacheTTL = 10 * time.Second // max age before fetching fresh blockhash (reduced from 20s for safety)
+)
+
+// SOL Block Production
+var (
+	// SOLBlocksPerSecondEstimate is the average Solana block production rate.
+	// Used to estimate whether a cached blockhash has likely expired.
+	SOLBlocksPerSecondEstimate float64 = 2.5
+)
+
+const (
+	// SOLBlockhashSafetyMarginBlocks is the safety margin in blocks.
+	// If estimated consumed blocks exceeds this, force a blockhash refresh.
+	// Solana blockhashes are valid for ~150 blocks; we refresh well before that.
+	SOLBlockhashSafetyMarginBlocks uint64 = 100
 )
 
 // SOL ATA Confirmation
@@ -261,10 +284,11 @@ const (
 	SOLATAConfirmationPollInterval = 2 * time.Second  // poll interval for GetAccountInfo(destATA)
 )
 
-// BTC UTXO Re-Validation (preview→execute divergence thresholds)
+// BTC UTXO Re-Validation (preview->execute divergence thresholds)
+// Tightened from 20%/10% to 5%/3% to prevent silent value slippage.
 const (
-	BTCUTXOCountDivergenceThreshold = 0.20 // reject if UTXO count dropped >20%
-	BTCUTXOValueDivergenceThreshold = 0.10 // reject if total value dropped >10%
+	BTCUTXOCountDivergenceThreshold = 0.05 // reject if UTXO count dropped >5%
+	BTCUTXOValueDivergenceThreshold = 0.03 // reject if total value dropped >3%
 )
 
 // BSC Balance Recheck

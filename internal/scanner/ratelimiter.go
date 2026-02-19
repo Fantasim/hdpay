@@ -20,7 +20,10 @@ func NewRateLimiter(name string, rps int) *RateLimiter {
 		"rps", rps,
 	)
 	return &RateLimiter{
-		limiter: rate.NewLimiter(rate.Limit(rps), rps),
+		// Burst(1) ensures requests are spread evenly across the second,
+		// preventing bursty traffic that can trigger provider rate limiting
+		// even when the average rate is within limits.
+		limiter: rate.NewLimiter(rate.Limit(rps), 1),
 		name:    name,
 	}
 }

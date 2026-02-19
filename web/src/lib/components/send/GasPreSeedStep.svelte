@@ -14,6 +14,9 @@
 	// Source index: default to 0 (first BNB-funded address).
 	let sourceIndex = $state(0);
 
+	// Skip warning modal state.
+	let showSkipWarning = $state(false);
+
 	let addressesNeedingGas = $derived(
 		preview?.fundedAddresses.filter((a) => !a.hasGas) ?? []
 	);
@@ -26,8 +29,17 @@
 		await store.executeGasPreSeed(sourceIndex);
 	}
 
-	function handleSkip(): void {
+	function handleSkipClick(): void {
+		showSkipWarning = true;
+	}
+
+	function handleSkipConfirm(): void {
+		showSkipWarning = false;
 		store.skipGasPreSeed();
+	}
+
+	function handleSkipCancel(): void {
+		showSkipWarning = false;
 	}
 </script>
 
@@ -134,7 +146,7 @@
 				Back
 			</button>
 			<div class="action-right">
-				<button class="btn btn-ghost" onclick={handleSkip}>
+				<button class="btn btn-ghost" onclick={handleSkipClick}>
 					Skip
 				</button>
 				{#if gasResult}
@@ -157,6 +169,35 @@
 		</div>
 	</div>
 </div>
+
+<!-- Skip Warning Modal -->
+{#if showSkipWarning}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={handleSkipCancel}>
+		<div class="modal" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h3 class="modal-title">Skip Gas Pre-Seed?</h3>
+			</div>
+			<div class="modal-body">
+				<p class="modal-warning-text">
+					<strong>{addressesNeedingGas.length} addresses</strong> have tokens but no native gas (BNB) for transfer fees.
+				</p>
+				<p class="modal-warning-text">
+					If you skip gas pre-seeding, these addresses <strong>will fail</strong> during the token sweep because they cannot pay transaction fees.
+				</p>
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-primary" onclick={handleSkipCancel}>
+					Go Back
+				</button>
+				<button class="btn btn-ghost" onclick={handleSkipConfirm}>
+					Skip Anyway
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.card {
@@ -337,5 +378,57 @@
 	.btn-ghost:hover {
 		color: var(--color-text-primary);
 		background: var(--color-bg-surface-hover);
+	}
+
+	/* Modal */
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 100;
+		backdrop-filter: blur(2px);
+	}
+
+	.modal {
+		background: var(--color-bg-surface);
+		border: 1px solid var(--color-border-subtle);
+		border-radius: 12px;
+		width: 100%;
+		max-width: 440px;
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+	}
+
+	.modal-header {
+		padding: 1.25rem 1.5rem;
+		border-bottom: 1px solid var(--color-border-subtle);
+	}
+
+	.modal-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text-primary);
+		margin: 0;
+	}
+
+	.modal-body { padding: 1.5rem; }
+
+	.modal-warning-text {
+		font-size: 0.875rem;
+		color: var(--color-text-secondary);
+		line-height: 1.6;
+		margin: 0 0 0.75rem 0;
+	}
+
+	.modal-warning-text:last-child { margin-bottom: 0; }
+
+	.modal-footer {
+		padding: 1rem 1.5rem;
+		border-top: 1px solid var(--color-border-subtle);
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
 	}
 </style>

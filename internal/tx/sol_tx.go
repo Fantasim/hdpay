@@ -402,9 +402,10 @@ type SOLConsolidationService struct {
 	network    string
 
 	// Blockhash cache — avoids fetching a new blockhash for every single TX in a sweep.
-	blockhashCache    [32]byte
-	blockhashCachedAt time.Time
-	blockhashMu       sync.Mutex
+	blockhashCache             [32]byte
+	blockhashLastValidHeight   uint64
+	blockhashCachedAt          time.Time
+	blockhashMu                sync.Mutex
 }
 
 // NewSOLConsolidationService creates the SOL consolidation orchestrator.
@@ -424,26 +425,47 @@ func NewSOLConsolidationService(
 }
 
 // getOrRefreshBlockhash returns a cached blockhash if still valid, or fetches a fresh one.
+// It tracks lastValidBlockHeight to detect expiry — Solana blockhashes are only valid for
+// ~150 blocks (~60 seconds). A stale blockhash will cause all subsequent TXs to fail silently.
 func (s *SOLConsolidationService) getOrRefreshBlockhash(ctx context.Context) ([32]byte, error) {
 	s.blockhashMu.Lock()
 	defer s.blockhashMu.Unlock()
 
 	if !s.blockhashCachedAt.IsZero() && time.Since(s.blockhashCachedAt) < config.SOLBlockhashCacheTTL {
-		slog.Debug("using cached SOL blockhash",
-			"age", time.Since(s.blockhashCachedAt).Round(time.Millisecond),
+		// Additional safety: estimate if the blockhash is still likely valid.
+		// Solana produces ~2.5 blocks/sec, so in the time since caching we've consumed ~(elapsed * 2.5) blocks.
+		// The blockhash is valid for lastValidBlockHeight - fetchBlockHeight (~150 blocks).
+		// If we've likely consumed more than the safety margin, force a refresh.
+		elapsedSec := time.Since(s.blockhashCachedAt).Seconds()
+		estimatedBlocksConsumed := uint64(elapsedSec * config.SOLBlocksPerSecondEstimate)
+
+		if estimatedBlocksConsumed < config.SOLBlockhashSafetyMarginBlocks {
+			slog.Debug("using cached SOL blockhash",
+				"age", time.Since(s.blockhashCachedAt).Round(time.Millisecond),
+				"estimatedBlocksConsumed", estimatedBlocksConsumed,
+				"safetyMargin", config.SOLBlockhashSafetyMarginBlocks,
+			)
+			return s.blockhashCache, nil
+		}
+
+		slog.Info("SOL blockhash cache expired by block estimate, refreshing",
+			"estimatedBlocksConsumed", estimatedBlocksConsumed,
+			"safetyMargin", config.SOLBlockhashSafetyMarginBlocks,
 		)
-		return s.blockhashCache, nil
 	}
 
-	blockhash, _, err := s.rpcClient.GetLatestBlockhash(ctx)
+	blockhash, lastValidHeight, err := s.rpcClient.GetLatestBlockhash(ctx)
 	if err != nil {
 		return [32]byte{}, fmt.Errorf("refresh blockhash: %w", err)
 	}
 
 	s.blockhashCache = blockhash
+	s.blockhashLastValidHeight = lastValidHeight
 	s.blockhashCachedAt = time.Now()
 
-	slog.Debug("SOL blockhash refreshed and cached")
+	slog.Debug("SOL blockhash refreshed and cached",
+		"lastValidBlockHeight", lastValidHeight,
+	)
 	return blockhash, nil
 }
 

@@ -112,9 +112,14 @@ func TestBuildBTCConsolidationTx_Basic(t *testing.T) {
 		t.Errorf("TotalInputSats = %d, want 100000", built.TotalInputSats)
 	}
 
-	// Verify fee.
+	// Verify fee (includes BTCFeeSafetyMarginPct safety margin).
 	expectedVsize := EstimateBTCVsize(3, 1)
-	expectedFee := feeRate * int64(expectedVsize)
+	baseFee := feeRate * int64(expectedVsize)
+	safetyMargin := baseFee * int64(config.BTCFeeSafetyMarginPct) / 100
+	if safetyMargin < 1 {
+		safetyMargin = 1
+	}
+	expectedFee := baseFee + safetyMargin
 	if built.FeeSats != expectedFee {
 		t.Errorf("FeeSats = %d, want %d", built.FeeSats, expectedFee)
 	}
@@ -341,7 +346,7 @@ func TestPKScriptFromAddress_InvalidAddress(t *testing.T) {
 }
 
 func TestValidateUTXOsAgainstPreview_CountDiverged(t *testing.T) {
-	// Expected 10 UTXOs, got 7 → 30% drop → should fail (threshold 20%).
+	// Expected 10 UTXOs, got 7 → 30% drop → should fail (threshold 5%).
 	utxos := make([]models.UTXO, 7)
 	for i := range utxos {
 		utxos[i] = models.UTXO{Value: 10000}
@@ -357,7 +362,7 @@ func TestValidateUTXOsAgainstPreview_CountDiverged(t *testing.T) {
 }
 
 func TestValidateUTXOsAgainstPreview_ValueDiverged(t *testing.T) {
-	// Expected 100000 sats total, got 85000 → 15% drop → should fail (threshold 10%).
+	// Expected 100000 sats total, got 85000 → 15% drop → should fail (threshold 3%).
 	utxos := []models.UTXO{
 		{Value: 50000},
 		{Value: 35000},
@@ -373,23 +378,16 @@ func TestValidateUTXOsAgainstPreview_ValueDiverged(t *testing.T) {
 }
 
 func TestValidateUTXOsAgainstPreview_WithinTolerance(t *testing.T) {
-	// Expected 10 UTXOs / 100000 sats, got 9 UTXOs / 95000 sats.
-	// Count drop = 10%, value drop = 5% — both within threshold.
-	utxos := make([]models.UTXO, 9)
-	var total int64
+	// Expected 50 UTXOs / 500000 sats, got 48 UTXOs / 490000 sats.
+	// Count drop = 4% (within 5% threshold), value drop = 2% (within 3% threshold).
+	utxos := make([]models.UTXO, 48)
 	for i := range utxos {
-		v := int64(10555 + i*10)
-		utxos[i] = models.UTXO{Value: v}
-		total += v
+		utxos[i] = models.UTXO{Value: 10000}
 	}
-	// Adjust to hit 95000 total.
-	utxos = []models.UTXO{
-		{Value: 10000}, {Value: 10000}, {Value: 10000},
-		{Value: 10000}, {Value: 10000}, {Value: 10000},
-		{Value: 10000}, {Value: 10000}, {Value: 15000},
-	}
+	// 48 * 10000 = 480000, need 490000 → add 10000 to last
+	utxos[47].Value = 20000
 
-	err := ValidateUTXOsAgainstPreview(utxos, 10, 100000)
+	err := ValidateUTXOsAgainstPreview(utxos, 50, 500000)
 	if err != nil {
 		t.Fatalf("expected no error for within-tolerance UTXOs, got %v", err)
 	}

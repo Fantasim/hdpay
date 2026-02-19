@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Security Audit: Scanning, Fund Movement & UX Safety
+
+#### Security (Critical)
+- **SOL blockhash staleness** (TX-1 CRITICAL): Cached blockhash was not tracking `lastValidBlockHeight`, so during multi-address sweeps later TXs could use expired blockhashes and silently fail. Now stores `lastValidBlockHeight`, estimates block consumption rate, and forces refresh when nearing expiry. Reduced cache TTL from 20s to 10s (`internal/tx/sol_tx.go`, `internal/config/constants.go`)
+- **Confirmation modal for irreversible sends** (UX-2 CRITICAL): Added typed "CONFIRM" + 3-second countdown modal before sweep execution. No accidental sends possible (`web/src/lib/components/send/ExecuteStep.svelte`)
+- **Full destination address at execute step** (UX-1 CRITICAL): Was truncated to 10 chars — now shows full address with copy button (`web/src/lib/components/send/ExecuteStep.svelte`)
+- **Network badge at execution** (UX-3 CRITICAL): Now displays prominent MAINNET (red) / TESTNET (yellow) badge at the critical send moment (`web/src/lib/components/send/ExecuteStep.svelte`)
+
+#### Security (High)
+- **BTC fee safety margin** (TX-2): Added 2% safety margin to fee estimation to prevent underestimation from vsize rounding (`internal/tx/btc_tx.go`, `internal/config/constants.go`)
+- **BTC UTXO divergence thresholds tightened** (TX-3): Reduced from 20%/10% to 5%/3% count/value thresholds. Added warning logs for ANY divergence (`internal/tx/btc_tx.go`, `internal/config/constants.go`)
+- **BSC per-TX gas check** (TX-5): Token sweep now checks gas balance before EACH transfer, skipping addresses that ran out of gas mid-sweep instead of failing entire batch (`internal/tx/bsc_tx.go`)
+- **Scanner completion race** (SC-2): `removeScan()` was firing via defer before `finishScan()` DB writes completed. Moved into `finishScan()` after all writes, and added to all cancellation return paths (`internal/scanner/scanner.go`)
+- **Double-click protection** (UX-6): Added synchronous click guard + `pointer-events: none` CSS to prevent duplicate sweep execution (`web/src/lib/components/send/ExecuteStep.svelte`)
+- **Gas pre-seed skip warning** (UX-7): "Skip" button now shows warning modal explaining token transfers will fail without gas (`web/src/lib/components/send/GasPreSeedStep.svelte`)
+
+#### Security (Medium)
+- **Scan context timeout** (SC-6): Scan goroutine now has 24h upper bound via `context.WithTimeout` to prevent goroutine leaks (`internal/scanner/scanner.go`, `internal/config/constants.go`)
+- **Token failure backoff** (SC-5): Token fetch failures now trigger exponential backoff like native failures, preventing provider hammering (`internal/scanner/scanner.go`)
+- **Non-atomic scan state retry** (SC-3): Added single retry with 100ms pause for scan state writes that fail outside transactions (`internal/scanner/scanner.go`)
+- **Rate limiter burst control** (SC-7): Changed from `Burst(rps)` to `Burst(1)` for even request distribution (`internal/scanner/ratelimiter.go`)
+- **HTTP connection pool limits** (SC-8): Configured `Transport` with `MaxConnsPerHost=10`, `MaxIdleConnsPerHost=5`, `MaxIdleConns=50` to prevent file descriptor exhaustion (`internal/scanner/setup.go`)
+
+#### Added
+- USD value display on execute step using price API (`web/src/lib/components/send/ExecuteStep.svelte`)
+- Fee estimate display on execute step (`web/src/lib/components/send/ExecuteStep.svelte`)
+- TX count explanation for multi-TX chains ("one per funded address") (`web/src/lib/components/send/PreviewStep.svelte`)
+- SSE connection status indicator during execution (`web/src/lib/components/send/ExecuteStep.svelte`)
+- "View Transactions" link after sweep completion (`web/src/lib/components/send/ExecuteStep.svelte`)
+- Copy buttons for destination address and TX hashes (`web/src/lib/components/send/ExecuteStep.svelte`)
+- SOL blockhash safety constants: `SOLBlocksPerSecondEstimate`, `SOLBlockhashSafetyMarginBlocks` (`internal/config/constants.go`)
+
 ### 2026-02-19
 
 #### Fixed

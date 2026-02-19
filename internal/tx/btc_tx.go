@@ -93,13 +93,22 @@ func BuildBTCConsolidationTx(params BTCBuildParams) (*BTCBuiltTx, error) {
 	}
 
 	estimatedVsize := EstimateBTCVsize(len(params.UTXOs), 1)
-	feeSats := params.FeeRate * int64(estimatedVsize)
+	baseFee := params.FeeRate * int64(estimatedVsize)
+	// Add safety margin to prevent fee underestimation. Actual signed TX may be
+	// slightly larger than estimated vsize due to variable-length witness data.
+	safetyMargin := baseFee * int64(config.BTCFeeSafetyMarginPct) / 100
+	if safetyMargin < 1 {
+		safetyMargin = 1 // At least 1 sat safety margin.
+	}
+	feeSats := baseFee + safetyMargin
 	outputSats := totalInputSats - feeSats
 
 	slog.Info("BTC TX fee calculation",
 		"totalInputSats", totalInputSats,
 		"estimatedVsize", estimatedVsize,
 		"feeRate", params.FeeRate,
+		"baseFee", baseFee,
+		"safetyMargin", safetyMargin,
 		"feeSats", feeSats,
 		"outputSats", outputSats,
 	)
@@ -596,6 +605,14 @@ func ValidateUTXOsAgainstPreview(utxos []models.UTXO, expectedCount int, expecte
 	// Check count divergence.
 	if expectedCount > 0 {
 		countDrop := 1.0 - float64(actualCount)/float64(expectedCount)
+		if countDrop > 0 {
+			slog.Warn("BTC UTXO count changed between preview and execute",
+				"expectedCount", expectedCount,
+				"actualCount", actualCount,
+				"dropPercent", fmt.Sprintf("%.1f%%", countDrop*100),
+				"threshold", fmt.Sprintf("%.0f%%", config.BTCUTXOCountDivergenceThreshold*100),
+			)
+		}
 		if countDrop > config.BTCUTXOCountDivergenceThreshold {
 			slog.Error("BTC UTXO count diverged beyond threshold",
 				"expectedCount", expectedCount,
@@ -603,7 +620,7 @@ func ValidateUTXOsAgainstPreview(utxos []models.UTXO, expectedCount int, expecte
 				"dropPercent", countDrop*100,
 				"threshold", config.BTCUTXOCountDivergenceThreshold*100,
 			)
-			return fmt.Errorf("%w: expected %d UTXOs but found %d (%.0f%% drop, threshold %.0f%%)",
+			return fmt.Errorf("%w: expected %d UTXOs but found %d (%.1f%% drop, threshold %.0f%%)",
 				config.ErrUTXODiverged, expectedCount, actualCount, countDrop*100, config.BTCUTXOCountDivergenceThreshold*100)
 		}
 	}
@@ -611,6 +628,14 @@ func ValidateUTXOsAgainstPreview(utxos []models.UTXO, expectedCount int, expecte
 	// Check value divergence.
 	if expectedTotalSats > 0 {
 		valueDrop := 1.0 - float64(actualTotal)/float64(expectedTotalSats)
+		if valueDrop > 0 {
+			slog.Warn("BTC UTXO total value changed between preview and execute",
+				"expectedTotalSats", expectedTotalSats,
+				"actualTotalSats", actualTotal,
+				"dropPercent", fmt.Sprintf("%.1f%%", valueDrop*100),
+				"threshold", fmt.Sprintf("%.0f%%", config.BTCUTXOValueDivergenceThreshold*100),
+			)
+		}
 		if valueDrop > config.BTCUTXOValueDivergenceThreshold {
 			slog.Error("BTC UTXO total value diverged beyond threshold",
 				"expectedTotalSats", expectedTotalSats,
@@ -618,7 +643,7 @@ func ValidateUTXOsAgainstPreview(utxos []models.UTXO, expectedCount int, expecte
 				"dropPercent", valueDrop*100,
 				"threshold", config.BTCUTXOValueDivergenceThreshold*100,
 			)
-			return fmt.Errorf("%w: expected %d sats but found %d sats (%.0f%% drop, threshold %.0f%%)",
+			return fmt.Errorf("%w: expected %d sats but found %d sats (%.1f%% drop, threshold %.0f%%)",
 				config.ErrUTXODiverged, expectedTotalSats, actualTotal, valueDrop*100, config.BTCUTXOValueDivergenceThreshold*100)
 		}
 	}

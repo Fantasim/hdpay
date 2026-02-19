@@ -19,6 +19,11 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 
 	httpClient := &http.Client{
 		Timeout: config.ProviderRequestTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     config.HTTPMaxConnsPerHost,
+			MaxIdleConnsPerHost: config.HTTPMaxIdleConnsPerHost,
+			MaxIdleConns:        config.HTTPMaxIdleConns,
+		},
 	}
 
 	scanner := New(database, cfg, hub)
