@@ -340,13 +340,16 @@ func (s *BTCConsolidationService) Preview(ctx context.Context, addresses []model
 	return preview, nil
 }
 
-// Execute performs the full consolidation: fetch UTXOs → build → sign → broadcast → confirm → record.
-func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []models.Address, destAddr string, feeRate int64, sweepID string) (*models.SendResult, error) {
+// Execute performs the full consolidation: fetch UTXOs → validate → build → sign → broadcast → confirm → record.
+// If expectedInputCount > 0, validates that re-fetched UTXOs haven't diverged significantly from preview.
+func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []models.Address, destAddr string, feeRate int64, sweepID string, expectedInputCount int, expectedTotalSats int64) (*models.SendResult, error) {
 	slog.Info("BTC consolidation execute",
 		"addressCount", len(addresses),
 		"destAddress", destAddr,
 		"requestedFeeRate", feeRate,
 		"sweepID", sweepID,
+		"expectedInputCount", expectedInputCount,
+		"expectedTotalSats", expectedTotalSats,
 	)
 	start := time.Now()
 
@@ -378,6 +381,14 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 	if len(utxos) == 0 {
 		s.updateTxState(txStateID, config.TxStateFailed, "", "no confirmed UTXOs found")
 		return nil, fmt.Errorf("%w: no confirmed UTXOs found", config.ErrInsufficientUTXO)
+	}
+
+	// 1b. Validate UTXOs against preview expectations (if provided).
+	if expectedInputCount > 0 {
+		if err := ValidateUTXOsAgainstPreview(utxos, expectedInputCount, expectedTotalSats); err != nil {
+			s.updateTxState(txStateID, config.TxStateFailed, "", fmt.Sprintf("UTXO validation: %s", err))
+			return nil, err
+		}
 	}
 
 	// 2. Estimate fee if not provided.
@@ -552,6 +563,58 @@ func (s *BTCConsolidationService) recordTransaction(_ context.Context, txHash st
 		}
 	}
 
+	return nil
+}
+
+// --- BTC UTXO Re-Validation ---
+
+// ValidateUTXOsAgainstPreview compares re-fetched UTXOs at execute time against the preview expectations.
+// Returns an error if the UTXO set diverged significantly (UTXOs spent externally between preview and execute).
+func ValidateUTXOsAgainstPreview(utxos []models.UTXO, expectedCount int, expectedTotalSats int64) error {
+	actualCount := len(utxos)
+	var actualTotal int64
+	for _, u := range utxos {
+		actualTotal += u.Value
+	}
+
+	slog.Info("BTC UTXO re-validation",
+		"expectedCount", expectedCount,
+		"actualCount", actualCount,
+		"expectedTotalSats", expectedTotalSats,
+		"actualTotalSats", actualTotal,
+	)
+
+	// Check count divergence.
+	if expectedCount > 0 {
+		countDrop := 1.0 - float64(actualCount)/float64(expectedCount)
+		if countDrop > config.BTCUTXOCountDivergenceThreshold {
+			slog.Error("BTC UTXO count diverged beyond threshold",
+				"expectedCount", expectedCount,
+				"actualCount", actualCount,
+				"dropPercent", countDrop*100,
+				"threshold", config.BTCUTXOCountDivergenceThreshold*100,
+			)
+			return fmt.Errorf("%w: expected %d UTXOs but found %d (%.0f%% drop, threshold %.0f%%)",
+				config.ErrUTXODiverged, expectedCount, actualCount, countDrop*100, config.BTCUTXOCountDivergenceThreshold*100)
+		}
+	}
+
+	// Check value divergence.
+	if expectedTotalSats > 0 {
+		valueDrop := 1.0 - float64(actualTotal)/float64(expectedTotalSats)
+		if valueDrop > config.BTCUTXOValueDivergenceThreshold {
+			slog.Error("BTC UTXO total value diverged beyond threshold",
+				"expectedTotalSats", expectedTotalSats,
+				"actualTotalSats", actualTotal,
+				"dropPercent", valueDrop*100,
+				"threshold", config.BTCUTXOValueDivergenceThreshold*100,
+			)
+			return fmt.Errorf("%w: expected %d sats but found %d sats (%.0f%% drop, threshold %.0f%%)",
+				config.ErrUTXODiverged, expectedTotalSats, actualTotal, valueDrop*100, config.BTCUTXOValueDivergenceThreshold*100)
+		}
+	}
+
+	slog.Info("BTC UTXO re-validation passed")
 	return nil
 }
 

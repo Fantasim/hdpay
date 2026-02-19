@@ -248,6 +248,30 @@ type SendRequest struct {
 	Chain       Chain  `json:"chain"`
 	Token       Token  `json:"token"`
 	Destination string `json:"destination"`
+
+	// Preview→Execute validation (optional, set by frontend from preview response)
+	ExpectedInputCount int    `json:"expectedInputCount,omitempty"` // BTC: UTXO count from preview
+	ExpectedTotalSats  int64  `json:"expectedTotalSats,omitempty"`  // BTC: total input sats from preview
+	ExpectedGasPrice   string `json:"expectedGasPrice,omitempty"`   // BSC: gas price (wei) from preview
+}
+
+// ResumeRequest is the request body for resuming a partial sweep.
+type ResumeRequest struct {
+	SweepID     string `json:"sweepID"`
+	Destination string `json:"destination"`
+}
+
+// ResumeSummary describes the state of a sweep for resume.
+type ResumeSummary struct {
+	SweepID   string `json:"sweepID"`
+	Chain     string `json:"chain"`
+	Token     string `json:"token"`
+	TotalTxs  int    `json:"totalTxs"`
+	Confirmed int    `json:"confirmed"`
+	Failed    int    `json:"failed"`
+	Uncertain int    `json:"uncertain"`
+	Pending   int    `json:"pending"`
+	ToRetry   int    `json:"toRetry"`
 }
 
 // GasPreSeedRequest is the request body for gas pre-seeding.

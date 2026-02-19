@@ -2,6 +2,7 @@ package tx
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -336,6 +337,71 @@ func TestPKScriptFromAddress_InvalidAddress(t *testing.T) {
 	_, err := PKScriptFromAddress("invalid_address", &chaincfg.MainNetParams)
 	if err == nil {
 		t.Fatal("expected error for invalid address")
+	}
+}
+
+func TestValidateUTXOsAgainstPreview_CountDiverged(t *testing.T) {
+	// Expected 10 UTXOs, got 7 → 30% drop → should fail (threshold 20%).
+	utxos := make([]models.UTXO, 7)
+	for i := range utxos {
+		utxos[i] = models.UTXO{Value: 10000}
+	}
+
+	err := ValidateUTXOsAgainstPreview(utxos, 10, 100000)
+	if err == nil {
+		t.Fatal("expected error for UTXO count divergence")
+	}
+	if !errors.Is(err, config.ErrUTXODiverged) {
+		t.Errorf("expected ErrUTXODiverged, got %v", err)
+	}
+}
+
+func TestValidateUTXOsAgainstPreview_ValueDiverged(t *testing.T) {
+	// Expected 100000 sats total, got 85000 → 15% drop → should fail (threshold 10%).
+	utxos := []models.UTXO{
+		{Value: 50000},
+		{Value: 35000},
+	}
+
+	err := ValidateUTXOsAgainstPreview(utxos, 2, 100000)
+	if err == nil {
+		t.Fatal("expected error for UTXO value divergence")
+	}
+	if !errors.Is(err, config.ErrUTXODiverged) {
+		t.Errorf("expected ErrUTXODiverged, got %v", err)
+	}
+}
+
+func TestValidateUTXOsAgainstPreview_WithinTolerance(t *testing.T) {
+	// Expected 10 UTXOs / 100000 sats, got 9 UTXOs / 95000 sats.
+	// Count drop = 10%, value drop = 5% — both within threshold.
+	utxos := make([]models.UTXO, 9)
+	var total int64
+	for i := range utxos {
+		v := int64(10555 + i*10)
+		utxos[i] = models.UTXO{Value: v}
+		total += v
+	}
+	// Adjust to hit 95000 total.
+	utxos = []models.UTXO{
+		{Value: 10000}, {Value: 10000}, {Value: 10000},
+		{Value: 10000}, {Value: 10000}, {Value: 10000},
+		{Value: 10000}, {Value: 10000}, {Value: 15000},
+	}
+
+	err := ValidateUTXOsAgainstPreview(utxos, 10, 100000)
+	if err != nil {
+		t.Fatalf("expected no error for within-tolerance UTXOs, got %v", err)
+	}
+}
+
+func TestValidateUTXOsAgainstPreview_NoExpectedSkips(t *testing.T) {
+	// expectedInputCount = 0 means no validation.
+	utxos := []models.UTXO{{Value: 1000}}
+
+	err := ValidateUTXOsAgainstPreview(utxos, 0, 0)
+	if err != nil {
+		t.Fatalf("expected no error when no expectations set, got %v", err)
 	}
 }
 

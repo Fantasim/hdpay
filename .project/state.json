@@ -46,7 +46,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 3,
+  "current_build_phase": 4,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "v2/00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "v2/01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -62,7 +62,7 @@
       { "name": "Foundation: Schema, Error Types & Circuit Breaker", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-01/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "Scanner Resilience", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-02/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-02/SUMMARY.md" },
       { "name": "TX Safety — Core", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-03/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-03/SUMMARY.md" },
-      { "name": "TX Safety — Advanced", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-04/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-04/SUMMARY.md" },
+      { "name": "TX Safety — Advanced", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-04/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-04/SUMMARY.md" },
       { "name": "Provider Health & Broadcast Fallback", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-05/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-05/SUMMARY.md" },
       { "name": "Security Tests & Infrastructure", "status": "pending", "plan_file": "v2/04-build-plan/phases/phase-06/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-06/SUMMARY.md" }
     ]
@@ -112,11 +112,11 @@
     "v2_transient_errors": "TransientError wrapper with optional RetryAfter duration. IsTransient() for retry decisions.",
     "v2_tx_state_tracking": "tx_state table tracks individual TX lifecycle: pending→broadcasting→confirming→confirmed|failed|uncertain"
   },
-  "session_count": 15,
+  "session_count": 16,
   "last_session": {
-    "id": 15,
+    "id": 16,
     "date": "2026-02-18",
-    "summary": "V2 Build Phase 3 complete: TX Safety Core — concurrent send mutex (A1), BTC confirmation polling (A2), SOL confirmation uncertainty (A3), in-flight TX persistence for all 3 chains (A4), SOL blockhash cache (A5). All tests passing.",
+    "summary": "V2 Build Phase 4 complete: TX Safety Advanced — UTXO re-validation (A6), BSC balance recheck (A7), partial sweep resume (A8), gas pre-seed idempotency (A9), SOL ATA confirmation (A10), BSC gas re-estimation (A11), nonce gap handling (A12). 14 new tests. All tests passing.",
     "phase": "building"
   },
   "pending_questions": false,

@@ -28,6 +28,7 @@ type EthClientWrapper interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 }
 
 // bep20TransferSelector is the 4-byte function selector for transfer(address,uint256).
@@ -51,6 +52,80 @@ func BufferedGasPrice(suggested *big.Int) *big.Int {
 	buffered := new(big.Int).Mul(suggested, big.NewInt(int64(config.BSCGasPriceBufferNumerator)))
 	buffered.Div(buffered, big.NewInt(int64(config.BSCGasPriceBufferDenominator)))
 	return buffered
+}
+
+// bep20BalanceOfSelector is the 4-byte function selector for balanceOf(address).
+var bep20BalanceOfSelector = func() []byte {
+	b, _ := hex.DecodeString(config.BEP20BalanceOfMethodID)
+	return b
+}()
+
+// BalanceOfBEP20 fetches the on-chain BEP-20 token balance for an address.
+func BalanceOfBEP20(ctx context.Context, client EthClientWrapper, contractAddr common.Address, owner common.Address) (*big.Int, error) {
+	data := make([]byte, 0, 36)
+	data = append(data, bep20BalanceOfSelector...)
+	data = append(data, common.LeftPadBytes(owner.Bytes(), 32)...)
+
+	result, err := client.CallContract(ctx, ethereum.CallMsg{
+		To:   &contractAddr,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("balanceOf call for %s on contract %s: %w", owner.Hex(), contractAddr.Hex(), err)
+	}
+
+	if len(result) < 32 {
+		return nil, fmt.Errorf("balanceOf returned %d bytes, expected 32", len(result))
+	}
+
+	balance := new(big.Int).SetBytes(result[:32])
+	return balance, nil
+}
+
+// bscMinNativeSweepWei is the minimum BNB balance to sweep an address.
+var bscMinNativeSweepWei = func() *big.Int {
+	val, _ := new(big.Int).SetString(config.BSCMinNativeSweepWei, 10)
+	return val
+}()
+
+// ValidateGasPriceAgainstPreview compares the current gas price with the preview gas price.
+// If the current price exceeds the preview by more than BSCGasPriceMaxIncreaseMultiplier (2x),
+// returns ErrGasPriceSpiked. Pass expectedGasPrice as "0" or "" to skip validation.
+func ValidateGasPriceAgainstPreview(currentGasPrice *big.Int, expectedGasPrice string) error {
+	if expectedGasPrice == "" || expectedGasPrice == "0" {
+		return nil
+	}
+
+	expected, ok := new(big.Int).SetString(expectedGasPrice, 10)
+	if !ok || expected.Sign() <= 0 {
+		return nil
+	}
+
+	// maxAllowed = expected * multiplier
+	maxAllowed := new(big.Int).Mul(expected, big.NewInt(int64(config.BSCGasPriceMaxIncreaseMultiplier)))
+
+	if currentGasPrice.Cmp(maxAllowed) > 0 {
+		slog.Error("BSC gas price spiked beyond preview threshold",
+			"currentGasPrice", currentGasPrice.String(),
+			"expectedGasPrice", expected.String(),
+			"maxAllowed", maxAllowed.String(),
+			"multiplier", config.BSCGasPriceMaxIncreaseMultiplier,
+		)
+		return fmt.Errorf("%w: current %s > %dx preview %s",
+			config.ErrGasPriceSpiked,
+			currentGasPrice.String(),
+			config.BSCGasPriceMaxIncreaseMultiplier,
+			expected.String(),
+		)
+	}
+
+	slog.Debug("BSC gas price within preview tolerance",
+		"currentGasPrice", currentGasPrice.String(),
+		"expectedGasPrice", expected.String(),
+		"maxAllowed", maxAllowed.String(),
+	)
+
+	return nil
 }
 
 // BSCChainID returns the correct chain ID for the given network.
@@ -257,7 +332,9 @@ func (s *BSCConsolidationService) createTxState(txState db.TxStateRow) {
 }
 
 // ExecuteNativeSweep performs sequential BNB transfers from funded addresses to a destination.
-func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addresses []models.AddressWithBalance, destAddr string, sweepID string) (*models.BSCSendResult, error) {
+// expectedGasPrice is the gas price (wei) from the preview. If non-empty, the sweep
+// will be rejected if the current gas price exceeds 2x the preview price.
+func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addresses []models.AddressWithBalance, destAddr string, sweepID string, expectedGasPrice ...string) (*models.BSCSendResult, error) {
 	slog.Info("BSC native sweep execute",
 		"addressCount", len(addresses),
 		"destAddress", destAddr,
@@ -272,6 +349,14 @@ func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addres
 		return nil, fmt.Errorf("suggest gas price: %w", err)
 	}
 	gasPrice = BufferedGasPrice(gasPrice)
+
+	// Validate gas price against preview (if provided).
+	if len(expectedGasPrice) > 0 && expectedGasPrice[0] != "" {
+		if err := ValidateGasPriceAgainstPreview(gasPrice, expectedGasPrice[0]); err != nil {
+			return nil, err
+		}
+	}
+
 	gasCostPerTx := new(big.Int).Mul(gasPrice, big.NewInt(int64(config.BSCGasLimitTransfer)))
 
 	slog.Info("BSC sweep gas price",
@@ -348,12 +433,35 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 
 	fromAddr := common.HexToAddress(addr.Address)
 
-	// Get real-time balance.
+	// Get real-time balance and log divergence from DB-stored value.
 	balance, err := s.ethClient.BalanceAt(ctx, fromAddr, nil)
 	if err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("get balance: %s", err)
 		slog.Error("BSC sweep: failed to get balance", "address", addr.Address, "error", err)
+		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
+		return txResult
+	}
+
+	// Log DB vs real-time balance divergence.
+	dbBalance, _ := new(big.Int).SetString(addr.NativeBalance, 10)
+	if dbBalance != nil && dbBalance.Cmp(balance) != 0 {
+		slog.Warn("BSC sweep: balance diverged from DB",
+			"address", addr.Address,
+			"dbBalance", dbBalance.String(),
+			"realTimeBalance", balance.String(),
+		)
+	}
+
+	// Skip if balance below minimum sweep threshold.
+	if balance.Cmp(bscMinNativeSweepWei) < 0 {
+		txResult.Status = "failed"
+		txResult.Error = "balance below minimum sweep threshold"
+		slog.Warn("BSC sweep: balance below minimum sweep threshold",
+			"address", addr.Address,
+			"balance", balance.String(),
+			"minSweep", bscMinNativeSweepWei.String(),
+		)
 		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
@@ -476,6 +584,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 }
 
 // ExecuteTokenSweep performs sequential BEP-20 token transfers from funded addresses.
+// expectedGasPrice is the gas price (wei) from the preview for spike detection.
 func (s *BSCConsolidationService) ExecuteTokenSweep(
 	ctx context.Context,
 	addresses []models.AddressWithBalance,
@@ -483,6 +592,7 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 	token models.Token,
 	contractAddr string,
 	sweepID string,
+	expectedGasPrice ...string,
 ) (*models.BSCSendResult, error) {
 	slog.Info("BSC token sweep execute",
 		"addressCount", len(addresses),
@@ -501,6 +611,14 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 		return nil, fmt.Errorf("suggest gas price: %w", err)
 	}
 	gasPrice = BufferedGasPrice(gasPrice)
+
+	// Validate gas price against preview (if provided).
+	if len(expectedGasPrice) > 0 && expectedGasPrice[0] != "" {
+		if err := ValidateGasPriceAgainstPreview(gasPrice, expectedGasPrice[0]); err != nil {
+			return nil, err
+		}
+	}
+
 	gasCostPerTx := new(big.Int).Mul(gasPrice, big.NewInt(int64(config.BSCGasLimitBEP20)))
 
 	slog.Info("BSC token sweep gas price",
@@ -605,21 +723,51 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		FromAddress:  addr.Address,
 	}
 
-	// Find the token balance for this address.
-	var tokenBalance *big.Int
+	// Find the DB-stored token balance for this address.
+	var dbTokenBalance *big.Int
 	for _, tb := range addr.TokenBalances {
 		if tb.Symbol == token {
 			bal, ok := new(big.Int).SetString(tb.Balance, 10)
 			if ok && bal.Sign() > 0 {
-				tokenBalance = bal
+				dbTokenBalance = bal
 			}
 			break
 		}
 	}
 
-	if tokenBalance == nil || tokenBalance.Sign() <= 0 {
+	if dbTokenBalance == nil || dbTokenBalance.Sign() <= 0 {
 		txResult.Status = "failed"
 		txResult.Error = "no token balance"
+		return txResult
+	}
+
+	// Re-fetch on-chain token balance to detect preview→execute divergence.
+	fromAddr := common.HexToAddress(addr.Address)
+	onChainBalance, err := BalanceOfBEP20(ctx, s.ethClient, contract, fromAddr)
+	if err != nil {
+		slog.Warn("BSC token sweep: failed to re-fetch on-chain token balance, using DB value",
+			"address", addr.Address,
+			"token", token,
+			"error", err,
+		)
+		onChainBalance = dbTokenBalance
+	} else if onChainBalance.Cmp(dbTokenBalance) != 0 {
+		slog.Warn("BSC token sweep: token balance diverged from DB",
+			"address", addr.Address,
+			"token", token,
+			"dbBalance", dbTokenBalance.String(),
+			"onChainBalance", onChainBalance.String(),
+		)
+	}
+
+	// Use the lower of DB and on-chain balance (conservative).
+	tokenBalance := dbTokenBalance
+	if onChainBalance.Cmp(dbTokenBalance) < 0 {
+		tokenBalance = onChainBalance
+	}
+	if tokenBalance.Sign() <= 0 {
+		txResult.Status = "failed"
+		txResult.Error = "on-chain token balance is zero"
 		return txResult
 	}
 
@@ -637,8 +785,6 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		Status:       config.TxStatePending,
 	}
 	s.createTxState(txState)
-
-	fromAddr := common.HexToAddress(addr.Address)
 
 	// Derive private key.
 	privKey, derivedAddr, err := s.keyService.DeriveBSCPrivateKey(ctx, uint32(addr.AddressIndex))

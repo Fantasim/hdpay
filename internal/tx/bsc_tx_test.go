@@ -29,6 +29,8 @@ type mockEthClient struct {
 	receiptErr      error
 	balance         *big.Int
 	balanceErr      error
+	callResult      []byte
+	callErr         error
 
 	// Track calls for assertions
 	sentTxs []*types.Transaction
@@ -62,6 +64,13 @@ func (m *mockEthClient) BalanceAt(_ context.Context, _ common.Address, _ *big.In
 		return nil, m.balanceErr
 	}
 	return new(big.Int).Set(m.balance), nil
+}
+
+func (m *mockEthClient) CallContract(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
+	if m.callErr != nil {
+		return nil, m.callErr
+	}
+	return m.callResult, nil
 }
 
 // --- Tests ---
@@ -467,6 +476,138 @@ func TestCheckGasForTokenSweep_SomeNeedGas(t *testing.T) {
 	}
 	if len(needsGas) != 2 {
 		t.Errorf("expected 2 addresses needing gas, got %d", len(needsGas))
+	}
+}
+
+// --- Task 2: BSC Balance Recheck Tests (A7) ---
+
+func TestBalanceOfBEP20_Success(t *testing.T) {
+	// Simulate a balanceOf call returning 1,000,000 (1 USDC, 6 decimals).
+	expected := big.NewInt(1_000_000)
+	result := common.LeftPadBytes(expected.Bytes(), 32)
+
+	mock := &mockEthClient{
+		callResult: result,
+	}
+
+	contract := common.HexToAddress("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d")
+	owner := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+	balance, err := BalanceOfBEP20(context.Background(), mock, contract, owner)
+	if err != nil {
+		t.Fatalf("BalanceOfBEP20: %v", err)
+	}
+	if balance.Cmp(expected) != 0 {
+		t.Errorf("expected %s, got %s", expected, balance)
+	}
+}
+
+func TestBalanceOfBEP20_CallError(t *testing.T) {
+	mock := &mockEthClient{
+		callErr: errors.New("rpc error"),
+	}
+
+	contract := common.HexToAddress("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d")
+	owner := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+	_, err := BalanceOfBEP20(context.Background(), mock, contract, owner)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestBalanceOfBEP20_ShortResult(t *testing.T) {
+	mock := &mockEthClient{
+		callResult: []byte{0x01, 0x02}, // Only 2 bytes, not 32
+	}
+
+	contract := common.HexToAddress("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d")
+	owner := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+	_, err := BalanceOfBEP20(context.Background(), mock, contract, owner)
+	if err == nil {
+		t.Fatal("expected error for short result")
+	}
+}
+
+func TestBalanceOfBEP20_ZeroBalance(t *testing.T) {
+	result := make([]byte, 32) // All zeros = 0 balance
+
+	mock := &mockEthClient{
+		callResult: result,
+	}
+
+	contract := common.HexToAddress("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d")
+	owner := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+	balance, err := BalanceOfBEP20(context.Background(), mock, contract, owner)
+	if err != nil {
+		t.Fatalf("BalanceOfBEP20: %v", err)
+	}
+	if balance.Sign() != 0 {
+		t.Errorf("expected zero balance, got %s", balance)
+	}
+}
+
+// --- Task 6: BSC Gas Re-Estimation Tests (A11) ---
+
+func TestValidateGasPriceAgainstPreview_WithinTolerance(t *testing.T) {
+	current := big.NewInt(3_600_000_000)   // 3.6 Gwei
+	expected := "3000000000"                // 3 Gwei — current is 1.2x, within 2x
+
+	err := ValidateGasPriceAgainstPreview(current, expected)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestValidateGasPriceAgainstPreview_Spiked(t *testing.T) {
+	current := big.NewInt(7_000_000_000)   // 7 Gwei
+	expected := "3000000000"                // 3 Gwei — current is 2.33x, exceeds 2x
+
+	err := ValidateGasPriceAgainstPreview(current, expected)
+	if err == nil {
+		t.Fatal("expected gas price spike error")
+	}
+	if !errors.Is(err, config.ErrGasPriceSpiked) {
+		t.Errorf("expected ErrGasPriceSpiked, got: %v", err)
+	}
+}
+
+func TestValidateGasPriceAgainstPreview_ExactlyDouble(t *testing.T) {
+	current := big.NewInt(6_000_000_000)   // 6 Gwei
+	expected := "3000000000"                // 3 Gwei — exactly 2x, should be OK
+
+	err := ValidateGasPriceAgainstPreview(current, expected)
+	if err != nil {
+		t.Errorf("expected no error at exactly 2x, got: %v", err)
+	}
+}
+
+func TestValidateGasPriceAgainstPreview_EmptyExpected(t *testing.T) {
+	current := big.NewInt(100_000_000_000) // Huge gas price
+
+	// Empty expected should skip validation.
+	if err := ValidateGasPriceAgainstPreview(current, ""); err != nil {
+		t.Errorf("expected no error with empty expected, got: %v", err)
+	}
+
+	// Zero expected should skip validation.
+	if err := ValidateGasPriceAgainstPreview(current, "0"); err != nil {
+		t.Errorf("expected no error with zero expected, got: %v", err)
+	}
+}
+
+func TestBSCMinNativeSweepThreshold(t *testing.T) {
+	// Verify the minimum sweep threshold is correctly parsed.
+	expected, _ := new(big.Int).SetString(config.BSCMinNativeSweepWei, 10)
+	if bscMinNativeSweepWei.Cmp(expected) != 0 {
+		t.Errorf("bscMinNativeSweepWei: expected %s, got %s", expected, bscMinNativeSweepWei)
+	}
+
+	// Should be 0.0001 BNB = 100,000,000,000,000 wei
+	if bscMinNativeSweepWei.Sign() <= 0 {
+		t.Error("bscMinNativeSweepWei should be positive")
 	}
 }
 

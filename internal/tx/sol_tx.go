@@ -878,10 +878,16 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 			result.SuccessCount++
 			amount, _ := strconv.ParseUint(txResult.Amount, 10, 64)
 			totalSwept += amount
-			// After first successful tx with ATA creation, mark it as existing.
+			// After first successful tx with ATA creation, verify ATA is visible.
 			if !destATAExists {
 				destATAExists = true
-				slog.Info("SOL token sweep: destination ATA created", "destATA", destATAStr)
+				slog.Info("SOL token sweep: destination ATA created, verifying visibility", "destATA", destATAStr)
+				if ataErr := s.waitForATAVisibility(ctx, destATAStr); ataErr != nil {
+					slog.Error("SOL token sweep: ATA visibility check failed, subsequent transfers may fail",
+						"destATA", destATAStr,
+						"error", ataErr,
+					)
+				}
 			}
 		} else {
 			result.FailCount++
@@ -1115,6 +1121,36 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	)
 
 	return txResult
+}
+
+// waitForATAVisibility polls GetAccountInfo until the ATA is visible on the RPC.
+// This prevents a race condition where subsequent token transfers fail because the
+// ATA created in the first TX isn't yet visible to the RPC node.
+func (s *SOLConsolidationService) waitForATAVisibility(ctx context.Context, ataAddress string) error {
+	slog.Info("SOL: waiting for ATA visibility", "ata", ataAddress)
+
+	pollCtx, cancel := context.WithTimeout(ctx, config.SOLATAConfirmationTimeout)
+	defer cancel()
+
+	for {
+		exists, _, err := s.rpcClient.GetAccountInfo(pollCtx, ataAddress)
+		if err != nil {
+			slog.Warn("SOL: ATA visibility check failed, retrying",
+				"ata", ataAddress,
+				"error", err,
+			)
+		} else if exists {
+			slog.Info("SOL: ATA is visible", "ata", ataAddress)
+			return nil
+		}
+
+		select {
+		case <-pollCtx.Done():
+			return fmt.Errorf("%w: ATA %s not visible within timeout", config.ErrSOLATANotVisible, ataAddress)
+		case <-time.After(config.SOLATAConfirmationPollInterval):
+			slog.Debug("SOL: ATA not yet visible, polling again", "ata", ataAddress)
+		}
+	}
 }
 
 // --- Helpers ---

@@ -605,7 +605,7 @@ func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest
 		}
 	}
 
-	btcResult, err := deps.BTCService.Execute(ctx, addresses, req.Destination, 0, sweepID)
+	btcResult, err := deps.BTCService.Execute(ctx, addresses, req.Destination, 0, sweepID, req.ExpectedInputCount, req.ExpectedTotalSats)
 	if err != nil {
 		return nil, fmt.Errorf("BTC execute failed: %w", err)
 	}
@@ -627,7 +627,7 @@ func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest
 
 // executeBSCNativeSweep executes a BSC native BNB sweep.
 func executeBSCNativeSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
-	bscResult, err := deps.BSCService.ExecuteNativeSweep(ctx, funded, req.Destination, sweepID)
+	bscResult, err := deps.BSCService.ExecuteNativeSweep(ctx, funded, req.Destination, sweepID, req.ExpectedGasPrice)
 	if err != nil {
 		return nil, fmt.Errorf("BSC native sweep failed: %w", err)
 	}
@@ -658,7 +658,7 @@ func executeBSCNativeSweep(ctx context.Context, deps *SendDeps, req models.SendR
 func executeBSCTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	contractAddr := getTokenContractAddress(req.Chain, req.Token, deps.Config.Network)
 
-	bscResult, err := deps.BSCService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, contractAddr, sweepID)
+	bscResult, err := deps.BSCService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, contractAddr, sweepID, req.ExpectedGasPrice)
 	if err != nil {
 		return nil, fmt.Errorf("BSC token sweep failed: %w", err)
 	}
@@ -915,6 +915,221 @@ func GetPendingTxStates(deps *SendDeps) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, models.APIResponse{
 			Data: allStates,
+			Meta: &models.APIMeta{ExecutionTime: time.Since(start).Milliseconds()},
+		})
+	}
+}
+
+// GetResumeSummary handles GET /api/send/resume/{sweepID}.
+// Returns the state of a sweep for the resume UI.
+func GetResumeSummary(deps *SendDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sweepID := chi.URLParam(r, "sweepID")
+		if sweepID == "" {
+			writeError(w, http.StatusBadRequest, config.ErrorSweepNotFound, "sweep ID is required")
+			return
+		}
+
+		slog.Info("resume summary requested", "sweepID", sweepID)
+
+		// Check sweep exists.
+		chain, token, _, err := deps.DB.GetSweepMeta(sweepID)
+		if err != nil {
+			slog.Error("failed to get sweep meta", "sweepID", sweepID, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch sweep metadata")
+			return
+		}
+		if chain == "" {
+			slog.Warn("sweep not found", "sweepID", sweepID)
+			writeError(w, http.StatusNotFound, config.ErrorSweepNotFound, "sweep not found")
+			return
+		}
+
+		// Count by status.
+		counts, err := deps.DB.CountTxStatesByStatus(sweepID)
+		if err != nil {
+			slog.Error("failed to count tx states", "sweepID", sweepID, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to count transaction states")
+			return
+		}
+
+		totalTxs := 0
+		for _, c := range counts {
+			totalTxs += c
+		}
+
+		summary := models.ResumeSummary{
+			SweepID:   sweepID,
+			Chain:     chain,
+			Token:     token,
+			TotalTxs:  totalTxs,
+			Confirmed: counts[config.TxStateConfirmed],
+			Failed:    counts[config.TxStateFailed],
+			Uncertain: counts[config.TxStateUncertain],
+			Pending:   counts[config.TxStatePending] + counts[config.TxStateBroadcasting] + counts[config.TxStateConfirming],
+			ToRetry:   counts[config.TxStateFailed] + counts[config.TxStateUncertain],
+		}
+
+		slog.Info("resume summary generated",
+			"sweepID", sweepID,
+			"totalTxs", summary.TotalTxs,
+			"confirmed", summary.Confirmed,
+			"failed", summary.Failed,
+			"uncertain", summary.Uncertain,
+			"toRetry", summary.ToRetry,
+		)
+
+		writeJSON(w, http.StatusOK, models.APIResponse{Data: summary})
+	}
+}
+
+// ExecuteResume handles POST /api/send/resume.
+// Retries failed and uncertain transactions from a previous sweep.
+func ExecuteResume(deps *SendDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		var req models.ResumeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			slog.Warn("invalid resume request body", "error", err)
+			writeError(w, http.StatusBadRequest, config.ErrorInvalidAddress, "invalid request body")
+			return
+		}
+
+		slog.Info("resume execute requested",
+			"sweepID", req.SweepID,
+			"destination", req.Destination,
+		)
+
+		if req.SweepID == "" {
+			writeError(w, http.StatusBadRequest, config.ErrorSweepNotFound, "sweep ID is required")
+			return
+		}
+
+		// Get sweep metadata.
+		chain, token, origDest, err := deps.DB.GetSweepMeta(req.SweepID)
+		if err != nil {
+			slog.Error("failed to get sweep meta", "sweepID", req.SweepID, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch sweep metadata")
+			return
+		}
+		if chain == "" {
+			writeError(w, http.StatusNotFound, config.ErrorSweepNotFound, "sweep not found")
+			return
+		}
+
+		// Use original destination if not overridden.
+		dest := req.Destination
+		if dest == "" {
+			dest = origDest
+		}
+
+		chainModel := models.Chain(chain)
+		tokenModel := models.Token(token)
+
+		// Validate destination.
+		if err := validateDestination(chainModel, dest, deps.NetParams); err != nil {
+			writeError(w, http.StatusBadRequest, config.ErrorInvalidDestination, err.Error())
+			return
+		}
+
+		// Get retryable tx states.
+		retryable, err := deps.DB.GetRetryableTxStates(req.SweepID)
+		if err != nil {
+			slog.Error("failed to get retryable tx states", "sweepID", req.SweepID, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch retryable transactions")
+			return
+		}
+
+		if len(retryable) == 0 {
+			slog.Info("no retryable transactions found", "sweepID", req.SweepID)
+			writeJSON(w, http.StatusOK, models.APIResponse{
+				Data: &models.UnifiedSendResult{
+					Chain:      chainModel,
+					Token:      tokenModel,
+					TotalSwept: "0",
+				},
+			})
+			return
+		}
+
+		// Acquire per-chain lock.
+		mu := deps.ChainLocks[chainModel]
+		if mu == nil {
+			writeError(w, http.StatusInternalServerError, config.ErrorTxBroadcastFailed, "internal configuration error")
+			return
+		}
+		if !mu.TryLock() {
+			writeError(w, http.StatusConflict, config.ErrorSendBusy,
+				fmt.Sprintf("send operation already in progress for %s", chain))
+			return
+		}
+		defer mu.Unlock()
+
+		// Build AddressWithBalance slice from retryable states.
+		// Re-fetch current balances from DB.
+		funded, err := deps.DB.GetFundedAddressesJoined(chainModel, tokenModel)
+		if err != nil {
+			slog.Error("failed to fetch funded addresses for resume", "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch funded addresses")
+			return
+		}
+
+		// Filter funded to only include addresses that need retry.
+		retryIndices := make(map[int]bool, len(retryable))
+		for _, rs := range retryable {
+			retryIndices[rs.AddressIndex] = true
+		}
+
+		var retryFunded []models.AddressWithBalance
+		for _, f := range funded {
+			if retryIndices[f.AddressIndex] {
+				retryFunded = append(retryFunded, f)
+			}
+		}
+
+		slog.Info("resuming sweep",
+			"sweepID", req.SweepID,
+			"chain", chain,
+			"token", token,
+			"retryableCount", len(retryable),
+			"fundedRetryCount", len(retryFunded),
+			"destination", dest,
+		)
+
+		// Generate a new sweep ID for the retry batch.
+		retrySweepID := tx.GenerateSweepID()
+
+		// Build a SendRequest for dispatching.
+		sendReq := models.SendRequest{
+			Chain:       chainModel,
+			Token:       tokenModel,
+			Destination: dest,
+		}
+
+		result, err := executeSweep(r, deps, sendReq, retryFunded, retrySweepID)
+		if err != nil {
+			slog.Error("resume execute failed",
+				"sweepID", req.SweepID,
+				"retrySweepID", retrySweepID,
+				"error", err,
+				"duration", time.Since(start).Round(time.Millisecond),
+			)
+			writeError(w, http.StatusInternalServerError, config.ErrorTxBroadcastFailed, err.Error())
+			return
+		}
+
+		slog.Info("resume execute completed",
+			"sweepID", req.SweepID,
+			"retrySweepID", retrySweepID,
+			"successCount", result.SuccessCount,
+			"failCount", result.FailCount,
+			"totalSwept", result.TotalSwept,
+			"duration", time.Since(start).Round(time.Millisecond),
+		)
+
+		writeJSON(w, http.StatusOK, models.APIResponse{
+			Data: result,
 			Meta: &models.APIMeta{ExecutionTime: time.Since(start).Milliseconds()},
 		})
 	}

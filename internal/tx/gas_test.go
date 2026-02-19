@@ -149,3 +149,26 @@ func TestGasPreSeed_Execute_BroadcastFail(t *testing.T) {
 	// The tx was "sent" to the mock (appended to sentTxs) but returned an error.
 	// In real code, the nonce should NOT be incremented when broadcast fails.
 }
+
+func TestIsNonceTooLowError(t *testing.T) {
+	tests := []struct {
+		errStr string
+		want   bool
+	}{
+		{"broadcast: nonce too low", true},
+		{"Nonce Too Low", true},
+		{"nonce is too low", true},
+		{"already known", true},
+		{"replacement transaction underpriced", true},
+		{"broadcast: insufficient funds", false},
+		{"timeout", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		got := isNonceTooLowError(tt.errStr)
+		if got != tt.want {
+			t.Errorf("isNonceTooLowError(%q) = %v, want %v", tt.errStr, got, tt.want)
+		}
+	}
+}

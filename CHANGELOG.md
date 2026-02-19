@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### 2026-02-18 (V2 Phase 4) — TX Safety — Advanced
+
+#### Added
+- BTC UTXO re-validation at execute time (A6): `ValidateUTXOsAgainstPreview()` — rejects if UTXO count drops >20% or value drops >10%
+- BSC on-chain balance recheck (A7): `BalanceOfBEP20()` for BEP-20 token balance verification via `eth_call`
+- `bep20BalanceOfSelector` and `bscMinNativeSweepWei` package-level vars for BSC balance operations
+- Partial sweep resume endpoints (A8): `GET /api/send/resume/{sweepID}` (summary) and `POST /api/send/resume` (retry failed/uncertain)
+- `GetRetryableTxStates()`, `GetSweepMeta()`, `HasConfirmedTxForAddress()` DB methods in `tx_state.go`
+- Gas pre-seed idempotency (A9): filters already-confirmed targets via tx_state lookup before sending
+- `updateGasTxState()` non-blocking helper for gas pre-seed tx_state lifecycle tracking
+- SOL ATA visibility polling (A10): `waitForATAVisibility()` — polls `GetAccountInfo` after ATA creation (30s timeout, 2s poll)
+- BSC gas price spike detection (A11): `ValidateGasPriceAgainstPreview()` — rejects if current gas >2x preview price
+- Nonce gap handling (A12): `isNonceTooLowError()` detection covering common BSC error patterns
+- Single retry with fresh nonce re-fetch on nonce-too-low errors in gas pre-seed Execute loop
+- Constants: `BSCMinNativeSweepWei`, `BSCGasPriceMaxMultiplier`, `SOLATAConfirmationTimeout`, `SOLATAConfirmationPollInterval`
+- Sentinel errors: `ErrUTXOSetChanged`, `ErrBalanceChangedSignificantly`, `ErrGasPriceSpiked`
+- Error codes: `ErrorUTXOSetChanged`, `ErrorBalanceChanged`, `ErrorGasPriceSpiked`
+- 14 new tests: BSC balance recheck (5), gas price validation (4), UTXO validation (4), nonce detection (1 with 8 sub-cases)
+
+#### Changed
+- `BTCConsolidationService.Execute()` now validates UTXOs against preview expectations before building TX
+- `BSCConsolidationService.ExecuteNativeSweep/ExecuteTokenSweep` accept optional `expectedGasPrice` for spike detection
+- `sweepNativeAddress` re-fetches real-time balance, logs divergence from DB, checks minimum sweep threshold
+- `sweepTokenAddress` re-fetches on-chain token balance, uses conservative (lower) value
+- `GasPreSeedService.Execute()` accepts optional `sweepID` for idempotency tracking
+- `sendGasPreSeed()` creates tx_state rows and updates through full lifecycle
+- `EthClientWrapper` interface extended with `CallContract` method
+- Send handler passes `req.ExpectedGasPrice` to BSC sweep methods
+- Router adds resume routes under `/api/send/`
+
 ### 2026-02-18 (V2 Phase 3) — TX Safety — Core
 
 #### Added

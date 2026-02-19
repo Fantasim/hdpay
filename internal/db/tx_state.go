@@ -231,6 +231,68 @@ func (d *DB) GetAllPendingTxStates() ([]TxStateRow, error) {
 	return scanTxStateRows(rows)
 }
 
+// GetRetryableTxStates returns all failed and uncertain transaction states for a sweep.
+// These are the states that can be resumed/retried.
+func (d *DB) GetRetryableTxStates(sweepID string) ([]TxStateRow, error) {
+	slog.Debug("fetching retryable tx states", "sweepID", sweepID)
+
+	rows, err := d.conn.Query(
+		`SELECT id, sweep_id, chain, token, address_index, from_address, to_address, amount,
+		        COALESCE(tx_hash, '') as tx_hash, COALESCE(nonce, 0) as nonce, status, created_at, updated_at, COALESCE(error, '') as error
+		 FROM tx_state
+		 WHERE sweep_id = ? AND status IN ('failed', 'uncertain')
+		 ORDER BY address_index ASC`,
+		sweepID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query retryable tx states for sweep %s: %w", sweepID, err)
+	}
+	defer rows.Close()
+
+	return scanTxStateRows(rows)
+}
+
+// HasConfirmedTxForAddress checks if a confirmed tx_state exists for a specific
+// target address within a sweep. Used for gas pre-seed idempotency.
+func (d *DB) HasConfirmedTxForAddress(sweepID, toAddress string) (bool, error) {
+	slog.Debug("checking confirmed tx for address",
+		"sweepID", sweepID,
+		"toAddress", toAddress,
+	)
+
+	var count int
+	err := d.conn.QueryRow(
+		`SELECT COUNT(*) FROM tx_state
+		 WHERE sweep_id = ? AND to_address = ? AND status = 'confirmed'`,
+		sweepID, toAddress,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check confirmed tx for %s in sweep %s: %w", toAddress, sweepID, err)
+	}
+
+	return count > 0, nil
+}
+
+// GetSweepMeta returns the chain and token for a sweep ID by looking at the first row.
+// Returns empty strings if the sweep doesn't exist.
+func (d *DB) GetSweepMeta(sweepID string) (chain, token, toAddress string, err error) {
+	slog.Debug("fetching sweep metadata", "sweepID", sweepID)
+
+	row := d.conn.QueryRow(
+		`SELECT chain, token, to_address FROM tx_state WHERE sweep_id = ? LIMIT 1`,
+		sweepID,
+	)
+
+	err = row.Scan(&chain, &token, &toAddress)
+	if err == sql.ErrNoRows {
+		return "", "", "", nil
+	}
+	if err != nil {
+		return "", "", "", fmt.Errorf("get sweep meta for %s: %w", sweepID, err)
+	}
+	return chain, token, toAddress, nil
+}
+
 // scanTxStateRows scans multiple tx_state rows from a query result.
 func scanTxStateRows(rows *sql.Rows) ([]TxStateRow, error) {
 	var results []TxStateRow

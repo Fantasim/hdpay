@@ -238,6 +238,34 @@ const (
 	SOLBlockhashCacheTTL = 20 * time.Second // max age before fetching fresh blockhash
 )
 
+// SOL ATA Confirmation
+const (
+	SOLATAConfirmationTimeout      = 30 * time.Second // max wait for ATA to be visible after creation
+	SOLATAConfirmationPollInterval = 2 * time.Second  // poll interval for GetAccountInfo(destATA)
+)
+
+// BTC UTXO Re-Validation (preview→execute divergence thresholds)
+const (
+	BTCUTXOCountDivergenceThreshold = 0.20 // reject if UTXO count dropped >20%
+	BTCUTXOValueDivergenceThreshold = 0.10 // reject if total value dropped >10%
+)
+
+// BSC Balance Recheck
+const (
+	BSCMinNativeSweepWei   = "100000000000000" // 0.0001 BNB — below this, skip address
+	BEP20BalanceOfMethodID = "70a08231"         // keccak256("balanceOf(address)")[:4]
+)
+
+// BSC Gas Price Re-Estimation
+const (
+	BSCGasPriceMaxIncreaseMultiplier = 2 // reject if gas price more than 2x preview
+)
+
+// Gas Pre-Seed Token Identifier
+const (
+	TokenGasPreSeed = "GAS_PRESEED" // token field in tx_state for gas pre-seed rows
+)
+
 // SOL Confirmation
 const (
 	SOLMaxConfirmationRPCErrors = 3 // consecutive RPC errors before marking TX as uncertain

@@ -53,6 +53,12 @@ var (
 	ErrProviderTimeout    = errors.New("provider request timeout")
 	ErrPartialResults     = errors.New("partial results returned")
 	ErrAllProvidersFailed = errors.New("all providers failed")
+
+	// TX Safety — Advanced (V2 Phase 4)
+	ErrUTXODiverged     = errors.New("UTXO set diverged significantly since preview")
+	ErrGasPriceSpiked   = errors.New("gas price increased more than 2x since preview")
+	ErrSOLATANotVisible = errors.New("ATA not visible after creation confirmation")
+	ErrNonceConflict    = errors.New("nonce conflict detected")
 )
 
 // TransientError wraps an error that should be retried.
@@ -143,4 +149,9 @@ const (
 	ErrorPartialResults     = "ERROR_PARTIAL_RESULTS"
 	ErrorAllProvidersFailed = "ERROR_ALL_PROVIDERS_FAILED"
 	ErrorTokenScanFailed    = "ERROR_TOKEN_SCAN_FAILED"
+
+	// TX Safety — Advanced (V2 Phase 4)
+	ErrorUTXODiverged   = "ERROR_UTXO_DIVERGED"
+	ErrorGasPriceSpiked = "ERROR_GAS_PRICE_SPIKED"
+	ErrorSweepNotFound  = "ERROR_SWEEP_NOT_FOUND"
 )
