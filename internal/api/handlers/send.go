@@ -491,6 +491,7 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 			"chain", req.Chain,
 			"token", req.Token,
 			"destination", req.Destination,
+			"feePayerIndex", req.FeePayerIndex,
 		)
 
 		// Validate chain, token, destination.
@@ -745,7 +746,7 @@ func executeSOLNativeSweep(ctx context.Context, deps *SendDeps, req models.SendR
 func executeSOLTokenSweep(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	mint := getTokenContractAddress(req.Chain, req.Token, deps.Config.Network)
 
-	solResult, err := deps.SOLService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, mint, sweepID)
+	solResult, err := deps.SOLService.ExecuteTokenSweep(ctx, funded, req.Destination, req.Token, mint, sweepID, req.FeePayerIndex)
 	if err != nil {
 		return nil, fmt.Errorf("SOL token sweep failed: %w", err)
 	}

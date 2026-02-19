@@ -215,6 +215,8 @@ export interface SendRequest {
 	chain: Chain;
 	token: SendToken;
 	destination: string;
+	// SOL token sweeps: index of the address that pays all transaction fees.
+	feePayerIndex?: number;
 }
 
 // FundedAddressInfo is a row in the preview's funded address table.

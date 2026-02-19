@@ -18,6 +18,8 @@
 	);
 
 	let chainLabel = $derived(chain ? getChainLabel(chain) : '');
+	let nativeSymbol = $derived(chain ? CHAIN_NATIVE_SYMBOLS[chain] : 'gas');
+	let isSOLFeePayer = $derived(chain === 'SOL');
 
 	function handleBack(): void {
 		store.goBack();
@@ -77,15 +79,15 @@
 				<span class="summary-value">
 					{preview.txCount}
 					{#if preview.txCount > 1}
-						<span class="tx-count-hint">(one per funded address, each costs gas)</span>
+						<span class="tx-count-hint">(one per funded address{isSOLFeePayer ? ', fee payer covers all fees' : ', each costs gas'})</span>
 					{/if}
 				</span>
 
 				{#if preview.needsGasPreSeed}
-					<span class="summary-label">Gas pre-seed needed</span>
+					<span class="summary-label">{isSOLFeePayer ? 'Fee payer needed' : 'Gas pre-seed needed'}</span>
 					<span class="summary-value">
 						<span class="badge badge-warning">Yes</span>
-						<span class="text-muted">{preview.gasPreSeedCount} addresses need gas</span>
+						<span class="text-muted">{preview.gasPreSeedCount} addresses need {nativeSymbol}</span>
 					</span>
 				{/if}
 			</div>
@@ -97,7 +99,11 @@
 						<path d="M9 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 						<circle cx="9" cy="13" r="0.5" fill="currentColor"/>
 					</svg>
-					<span>{preview.gasPreSeedCount} addresses have tokens but no gas for transfer fees. Gas pre-seeding will be required before execution.</span>
+					{#if isSOLFeePayer}
+					<span>{preview.gasPreSeedCount} addresses have tokens but no {nativeSymbol} for transfer fees. You will select a fee payer address in the next step.</span>
+				{:else}
+					<span>{preview.gasPreSeedCount} addresses have tokens but no {nativeSymbol} for transfer fees. Gas pre-seeding will be required before execution.</span>
+				{/if}
 				</div>
 			{/if}
 		</div>
@@ -117,7 +123,7 @@
 							<th>#</th>
 							<th>Address</th>
 							<th class="text-right">Balance</th>
-							<th>Gas Status</th>
+							<th>{isSOLFeePayer ? `${nativeSymbol} Status` : 'Gas Status'}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -130,9 +136,9 @@
 								<td class="mono text-right">{formatRawBalance(addr.balance, chain as Chain, preview.token)} {tokenLabel}</td>
 								<td>
 									{#if addr.hasGas}
-										<span class="badge badge-success">Has Gas</span>
+										<span class="badge badge-success">Has {nativeSymbol}</span>
 									{:else}
-										<span class="badge badge-warning">Needs Gas</span>
+										<span class="badge badge-warning">Needs {nativeSymbol}</span>
 									{/if}
 								</td>
 							</tr>
@@ -159,7 +165,13 @@
 			Back
 		</button>
 		<button class="btn btn-primary" onclick={handleContinue}>
-			{preview.needsGasPreSeed ? 'Continue to Gas Pre-Seed' : 'Continue to Execute'}
+			{#if !preview.needsGasPreSeed}
+				Continue to Execute
+			{:else if isSOLFeePayer}
+				Continue to Fee Payer
+			{:else}
+				Continue to Gas Pre-Seed
+			{/if}
 			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M6 3l5 5-5 5"/>
 			</svg>

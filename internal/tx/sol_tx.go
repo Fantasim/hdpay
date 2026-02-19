@@ -865,6 +865,8 @@ func (s *SOLConsolidationService) PreviewTokenSweep(
 }
 
 // ExecuteTokenSweep performs sequential SPL token transfers from funded addresses.
+// When feePayerIndex is non-nil, that address pays all transaction fees instead of
+// each token holder paying their own (Solana's fee payer mechanism).
 func (s *SOLConsolidationService) ExecuteTokenSweep(
 	ctx context.Context,
 	addresses []models.AddressWithBalance,
@@ -872,12 +874,14 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 	token models.Token,
 	mint string,
 	sweepID string,
+	feePayerIndex *int,
 ) (*models.SOLSendResult, error) {
 	slog.Info("SOL token sweep execute",
 		"addressCount", len(addresses),
 		"destAddress", destAddress,
 		"token", token,
 		"mint", mint,
+		"feePayerIndex", feePayerIndex,
 	)
 	start := time.Now()
 
@@ -914,6 +918,49 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 
 	feePerTx := uint64(config.SOLBaseTransactionFee)
 
+	// Derive fee payer key if specified (Solana fee payer mechanism).
+	var feePayerPubKey *SolPublicKey
+	var feePayerPrivKey ed25519.PrivateKey
+	if feePayerIndex != nil {
+		slog.Info("SOL token sweep: using external fee payer",
+			"feePayerIndex", *feePayerIndex,
+		)
+
+		fpPrivKey, fpErr := s.keyService.DeriveSOLPrivateKey(ctx, uint32(*feePayerIndex))
+		if fpErr != nil {
+			return nil, fmt.Errorf("derive fee payer key at index %d: %w", *feePayerIndex, fpErr)
+		}
+		feePayerPrivKey = fpPrivKey
+
+		fpPubBytes := fpPrivKey.Public().(ed25519.PublicKey)
+		var fpPub SolPublicKey
+		copy(fpPub[:], fpPubBytes)
+		feePayerPubKey = &fpPub
+
+		// Verify fee payer has enough SOL for all fees.
+		fpAddr := base58.Encode(fpPubBytes)
+		fpBalance, fpErr := s.rpcClient.GetBalance(ctx, fpAddr)
+		if fpErr != nil {
+			return nil, fmt.Errorf("get fee payer balance: %w", fpErr)
+		}
+
+		// Estimate: fee per TX * address count + ATA rent if needed.
+		totalFeeEstimate := feePerTx * uint64(len(addresses))
+		if !destATAExists {
+			totalFeeEstimate += config.SOLATARentLamports
+		}
+
+		slog.Info("SOL token sweep: fee payer balance check",
+			"feePayerAddress", fpAddr,
+			"balance", fpBalance,
+			"estimatedTotalFee", totalFeeEstimate,
+		)
+
+		if fpBalance < totalFeeEstimate {
+			return nil, fmt.Errorf("fee payer has insufficient SOL: have %d lamports, need ~%d lamports", fpBalance, totalFeeEstimate)
+		}
+	}
+
 	result := &models.SOLSendResult{
 		Chain: models.ChainSOL,
 		Token: token,
@@ -931,28 +978,30 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 			continue
 		}
 
-		// Check that the address has enough SOL for the transaction fee.
-		nativeBal, parseErr := strconv.ParseUint(addr.NativeBalance, 10, 64)
-		if parseErr != nil || nativeBal < feePerTx {
-			slog.Warn("SOL token sweep: skipping address with insufficient SOL for fee",
-				"address", addr.Address,
-				"addressIndex", addr.AddressIndex,
-				"nativeBalance", addr.NativeBalance,
-				"requiredFee", feePerTx,
-				"tokenBalance", tokenBal,
-			)
-			result.TxResults = append(result.TxResults, models.SOLTxResult{
-				AddressIndex: addr.AddressIndex,
-				FromAddress:  addr.Address,
-				Amount:       strconv.FormatUint(tokenBal, 10),
-				Status:       "failed",
-				Error:        "insufficient SOL for transaction fee",
-			})
-			result.FailCount++
-			continue
+		// Check that the address has enough SOL for the transaction fee (only when no external fee payer).
+		if feePayerIndex == nil {
+			nativeBal, parseErr := strconv.ParseUint(addr.NativeBalance, 10, 64)
+			if parseErr != nil || nativeBal < feePerTx {
+				slog.Warn("SOL token sweep: skipping address with insufficient SOL for fee",
+					"address", addr.Address,
+					"addressIndex", addr.AddressIndex,
+					"nativeBalance", addr.NativeBalance,
+					"requiredFee", feePerTx,
+					"tokenBalance", tokenBal,
+				)
+				result.TxResults = append(result.TxResults, models.SOLTxResult{
+					AddressIndex: addr.AddressIndex,
+					FromAddress:  addr.Address,
+					Amount:       strconv.FormatUint(tokenBal, 10),
+					Status:       "failed",
+					Error:        "insufficient SOL for transaction fee",
+				})
+				result.FailCount++
+				continue
+			}
 		}
 
-		txResult := s.sweepTokenAddress(ctx, addr, destPubKey, destATAPubKey, mintPubKey, tokenBal, feePerTx, token, mint, !destATAExists, sweepID)
+		txResult := s.sweepTokenAddress(ctx, addr, destPubKey, destATAPubKey, mintPubKey, tokenBal, feePerTx, token, mint, !destATAExists, sweepID, feePayerPubKey, feePayerPrivKey)
 		result.TxResults = append(result.TxResults, txResult)
 
 		if txResult.Status == "success" || txResult.Status == "confirmed" {
@@ -989,6 +1038,7 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 }
 
 // sweepTokenAddress sends SPL tokens from a single address to the destination.
+// When feePayerPubKey is non-nil, it is used as the transaction fee payer instead of the token holder.
 func (s *SOLConsolidationService) sweepTokenAddress(
 	ctx context.Context,
 	addr models.AddressWithBalance,
@@ -1001,6 +1051,8 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	mint string,
 	needCreateATA bool,
 	sweepID string,
+	feePayerPubKey *SolPublicKey,
+	feePayerPrivKey ed25519.PrivateKey,
 ) models.SOLTxResult {
 	txResult := models.SOLTxResult{
 		AddressIndex: addr.AddressIndex,
@@ -1022,31 +1074,33 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	}
 	s.createTxState(txState)
 
-	// Check native SOL balance for fee.
-	nativeBal, err := s.rpcClient.GetBalance(ctx, addr.Address)
-	if err != nil {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("get balance: %s", err)
-		slog.Error("SOL token sweep: failed to get balance", "address", addr.Address, "error", err)
-		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
-		return txResult
-	}
+	// Check native SOL balance for fee (skip when external fee payer is used).
+	if feePayerPubKey == nil {
+		nativeBal, err := s.rpcClient.GetBalance(ctx, addr.Address)
+		if err != nil {
+			txResult.Status = "failed"
+			txResult.Error = fmt.Sprintf("get balance: %s", err)
+			slog.Error("SOL token sweep: failed to get balance", "address", addr.Address, "error", err)
+			s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
+			return txResult
+		}
 
-	minRequired := feePerTx
-	if needCreateATA {
-		minRequired += config.SOLATARentLamports
-	}
+		minRequired := feePerTx
+		if needCreateATA {
+			minRequired += config.SOLATARentLamports
+		}
 
-	if nativeBal < minRequired {
-		txResult.Status = "failed"
-		txResult.Error = fmt.Sprintf("insufficient SOL for fee: have %d, need %d", nativeBal, minRequired)
-		slog.Warn("SOL token sweep: insufficient SOL for fee",
-			"address", addr.Address,
-			"balance", nativeBal,
-			"required", minRequired,
-		)
-		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
-		return txResult
+		if nativeBal < minRequired {
+			txResult.Status = "failed"
+			txResult.Error = fmt.Sprintf("insufficient SOL for fee: have %d, need %d", nativeBal, minRequired)
+			slog.Warn("SOL token sweep: insufficient SOL for fee",
+				"address", addr.Address,
+				"balance", nativeBal,
+				"required", minRequired,
+			)
+			s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
+			return txResult
+		}
 	}
 
 	// Derive private key.
@@ -1102,14 +1156,21 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 		return txResult
 	}
 
+	// Determine the effective fee payer for this transaction.
+	effectiveFeePayer := fromPubKey
+	if feePayerPubKey != nil {
+		effectiveFeePayer = *feePayerPubKey
+	}
+
 	// Build instructions.
 	var instructions []SolInstruction
 
 	if needCreateATA {
-		createATAIx := BuildCreateATAInstruction(fromPubKey, destATAPubKey, destPubKey, mintPubKey)
+		// ATA creation payer: fee payer pays rent if available, otherwise token holder.
+		createATAIx := BuildCreateATAInstruction(effectiveFeePayer, destATAPubKey, destPubKey, mintPubKey)
 		instructions = append(instructions, createATAIx)
 		slog.Info("SOL token sweep: including CreateATA instruction",
-			"payer", addr.Address,
+			"payer", effectiveFeePayer.ToBase58(),
 			"destATA", destATAPubKey.ToBase58(),
 		)
 	}
@@ -1117,11 +1178,15 @@ func (s *SOLConsolidationService) sweepTokenAddress(
 	transferIx := BuildSPLTransferInstruction(sourceATAPubKey, destATAPubKey, fromPubKey, tokenAmount)
 	instructions = append(instructions, transferIx)
 
+	// Build signers map: always include token holder; add fee payer if external.
 	signers := map[SolPublicKey]ed25519.PrivateKey{
 		fromPubKey: privKey,
 	}
+	if feePayerPubKey != nil {
+		signers[*feePayerPubKey] = feePayerPrivKey
+	}
 
-	txBytes, txSig, err := BuildAndSerializeTransaction(fromPubKey, instructions, blockhash, signers)
+	txBytes, txSig, err := BuildAndSerializeTransaction(effectiveFeePayer, instructions, blockhash, signers)
 	if err != nil {
 		txResult.Status = "failed"
 		txResult.Error = fmt.Sprintf("build tx: %s", err)

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — SOL Token Sweep: Fee Payer Mechanism
+
+#### Added
+- **SOL fee payer support**: SOL token sweeps (USDC/USDT) now use Solana's native fee payer mechanism — a single address pays all transaction fees instead of each token holder paying their own. No gas pre-seeding required on SOL (`internal/tx/sol_tx.go`)
+- **`FeePayerIndex` field on `SendRequest`**: Backend and frontend support optional fee payer index for SOL token sweeps (`internal/models/types.go`, `web/src/lib/types.ts`)
+- **Chain-aware GasPreSeedStep**: Frontend shows "Fee Payer Selection" for SOL (just pick an index, no API call) vs "Gas Pre-Seed" for BSC (sends BNB to each address) (`web/src/lib/components/send/GasPreSeedStep.svelte`)
+- **Fee payer balance validation**: Backend checks fee payer has sufficient SOL for all estimated fees upfront before starting sweep
+
+#### Fixed
+- **SOL USDC send broken**: Gas pre-seed step rejected SOL addresses with "invalid BSC address" because the entire gas pre-seed system was BSC-only. SOL now bypasses gas pre-seeding entirely via fee payer mechanism
+
 ### 2026-02-19 — Security Audit: Scanning, Fund Movement & UX Safety
 
 #### Security (Critical)

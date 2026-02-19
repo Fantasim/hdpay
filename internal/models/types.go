@@ -250,6 +250,10 @@ type SendRequest struct {
 	Token       Token  `json:"token"`
 	Destination string `json:"destination"`
 
+	// SOL token sweeps: index of the address that pays all transaction fees.
+	// When set, this address pays fees instead of each token holder paying their own.
+	FeePayerIndex *int `json:"feePayerIndex,omitempty"`
+
 	// Preview→Execute validation (optional, set by frontend from preview response)
 	ExpectedInputCount int    `json:"expectedInputCount,omitempty"` // BTC: UTXO count from preview
 	ExpectedTotalSats  int64  `json:"expectedTotalSats,omitempty"`  // BTC: total input sats from preview

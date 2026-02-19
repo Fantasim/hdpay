@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { sendStore } from '$lib/stores/send.svelte';
 	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
+	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
 	import type { Chain } from '$lib/types';
 
 	const store = sendStore;
@@ -11,10 +12,14 @@
 	let loading = $derived(store.state.loading);
 	let error = $derived(store.state.error);
 
-	// Source index: default to 0 (first BNB-funded address).
+	// Whether this is a SOL fee payer flow (no gas pre-seed API call needed).
+	let isSOLFeePayer = $derived(chain === 'SOL');
+	let nativeSymbol = $derived(chain ? CHAIN_NATIVE_SYMBOLS[chain] : 'gas');
+
+	// Source index: default to 0 (first funded address).
 	let sourceIndex = $state(0);
 
-	// Skip warning modal state.
+	// Skip warning modal state (BSC only).
 	let showSkipWarning = $state(false);
 
 	let addressesNeedingGas = $derived(
@@ -27,6 +32,10 @@
 
 	async function handleExecutePreSeed(): Promise<void> {
 		await store.executeGasPreSeed(sourceIndex);
+	}
+
+	function handleConfirmFeePayer(): void {
+		store.confirmFeePayerIndex(sourceIndex);
 	}
 
 	function handleSkipClick(): void {
@@ -45,18 +54,25 @@
 
 <div class="card mb-6">
 	<div class="card-header">
-		<div class="card-title">Step 3: Gas Pre-Seed</div>
-		<span class="badge badge-warning">{addressesNeedingGas.length} addresses need gas</span>
+		<div class="card-title">Step 3: {isSOLFeePayer ? 'Fee Payer Selection' : 'Gas Pre-Seed'}</div>
+		<span class="badge badge-warning">{addressesNeedingGas.length} addresses need {nativeSymbol}</span>
 	</div>
 	<div class="card-body">
-		<p class="description">
-			These addresses hold tokens but have no native gas for transfer fees.
-			Gas pre-seeding will send a small amount of BNB from a source address to each.
-		</p>
+		{#if isSOLFeePayer}
+			<p class="description">
+				These addresses hold tokens but have no SOL for transaction fees.
+				Select a fee payer address — it will pay all transaction fees on their behalf.
+			</p>
+		{:else}
+			<p class="description">
+				These addresses hold tokens but have no native gas for transfer fees.
+				Gas pre-seeding will send a small amount of {nativeSymbol} from a source address to each.
+			</p>
+		{/if}
 
 		<!-- Source Index Input -->
 		<div class="form-group">
-			<label class="form-label" for="gas-source">Source Address Index</label>
+			<label class="form-label" for="gas-source">{isSOLFeePayer ? 'Fee Payer Address Index' : 'Source Address Index'}</label>
 			<input
 				id="gas-source"
 				type="number"
@@ -65,7 +81,7 @@
 				min="0"
 				placeholder="0"
 			/>
-			<div class="form-hint">Address index that holds BNB to fund gas</div>
+			<div class="form-hint">Address index that holds {nativeSymbol} to {isSOLFeePayer ? 'pay transaction fees' : 'fund gas'}</div>
 		</div>
 
 		<!-- Addresses needing gas -->
@@ -99,7 +115,7 @@
 					{#if gasResult.failCount > 0}
 						<span class="badge badge-error">{gasResult.failCount} failed</span>
 					{/if}
-					<span class="text-muted">Total sent: {formatRawBalance(gasResult.totalSent, chain as Chain, 'NATIVE')} BNB</span>
+					<span class="text-muted">Total sent: {formatRawBalance(gasResult.totalSent, chain as Chain, 'NATIVE')} {nativeSymbol}</span>
 				</div>
 				<div class="table-wrapper">
 					<table class="table">
@@ -146,24 +162,35 @@
 				Back
 			</button>
 			<div class="action-right">
-				<button class="btn btn-ghost" onclick={handleSkipClick}>
-					Skip
-				</button>
-				{#if gasResult}
-					<button class="btn btn-primary" onclick={() => store.goToStep('execute')}>
+				{#if isSOLFeePayer}
+					<!-- SOL: fee payer just needs to be selected, then continue to execute -->
+					<button class="btn btn-primary" onclick={handleConfirmFeePayer}>
 						Continue to Execute
 						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M6 3l5 5-5 5"/>
 						</svg>
 					</button>
 				{:else}
-					<button
-						class="btn btn-primary"
-						onclick={handleExecutePreSeed}
-						disabled={loading}
-					>
-						{loading ? 'Sending Gas...' : 'Execute Gas Pre-Seed'}
+					<!-- BSC: gas pre-seed requires sending BNB to each address -->
+					<button class="btn btn-ghost" onclick={handleSkipClick}>
+						Skip
 					</button>
+					{#if gasResult}
+						<button class="btn btn-primary" onclick={() => store.goToStep('execute')}>
+							Continue to Execute
+							<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M6 3l5 5-5 5"/>
+							</svg>
+						</button>
+					{:else}
+						<button
+							class="btn btn-primary"
+							onclick={handleExecutePreSeed}
+							disabled={loading}
+						>
+							{loading ? 'Sending Gas...' : 'Execute Gas Pre-Seed'}
+						</button>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -181,7 +208,7 @@
 			</div>
 			<div class="modal-body">
 				<p class="modal-warning-text">
-					<strong>{addressesNeedingGas.length} addresses</strong> have tokens but no native gas (BNB) for transfer fees.
+					<strong>{addressesNeedingGas.length} addresses</strong> have tokens but no native gas ({nativeSymbol}) for transfer fees.
 				</p>
 				<p class="modal-warning-text">
 					If you skip gas pre-seeding, these addresses <strong>will fail</strong> during the token sweep because they cannot pay transaction fees.

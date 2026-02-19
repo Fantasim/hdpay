@@ -299,6 +299,7 @@ func TestSOLTokenSweep_WithExistingATA(t *testing.T) {
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
 		"test-sweep",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)
@@ -349,6 +350,7 @@ func TestSOLTokenSweep_WithATACreation(t *testing.T) {
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
 		"test-sweep",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)
@@ -391,6 +393,7 @@ func TestSOLTokenSweep_InsufficientSOLForFee(t *testing.T) {
 		models.TokenUSDC,
 		config.SOLDevnetUSDCMint,
 		"test-sweep",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ExecuteTokenSweep error = %v", err)

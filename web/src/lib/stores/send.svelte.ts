@@ -27,6 +27,7 @@ interface SendStoreState {
 	destinationError: string | null;
 	preview: UnifiedSendPreview | null;
 	gasPreSeedResult: GasPreSeedResult | null;
+	feePayerIndex: number | null;
 	executeResult: UnifiedSendResult | null;
 	txProgress: TxResult[];
 	loading: boolean;
@@ -42,6 +43,7 @@ const INITIAL_STATE: SendStoreState = {
 	destinationError: null,
 	preview: null,
 	gasPreSeedResult: null,
+	feePayerIndex: null,
 	executeResult: null,
 	txProgress: [],
 	loading: false,
@@ -87,11 +89,15 @@ function createSendStore() {
 		if (!state.chain || !state.token || !state.destination.trim()) {
 			return null;
 		}
-		return {
+		const req: SendRequest = {
 			chain: state.chain,
 			token: state.token,
 			destination: state.destination.trim()
 		};
+		if (state.feePayerIndex !== null) {
+			req.feePayerIndex = state.feePayerIndex;
+		}
+		return req;
 	}
 
 	// Validate the current selection and fetch preview.
@@ -198,6 +204,7 @@ function createSendStore() {
 				break;
 			case 'gas-preseed':
 				state.step = 'preview';
+				state.feePayerIndex = null;
 				break;
 			case 'execute':
 				// If gas pre-seed was used, go back to it; otherwise go to preview.
@@ -222,6 +229,15 @@ function createSendStore() {
 
 	// Skip gas pre-seed and go directly to execute.
 	function skipGasPreSeed(): void {
+		state.step = 'execute';
+		state.error = null;
+	}
+
+	// Confirm SOL fee payer index and advance to execute step.
+	// Unlike BSC gas pre-seed, this requires no API call — the fee payer
+	// index is passed to the execute request instead.
+	function confirmFeePayerIndex(index: number): void {
+		state.feePayerIndex = index;
 		state.step = 'execute';
 		state.error = null;
 	}
@@ -355,6 +371,7 @@ function createSendStore() {
 		goBack,
 		advanceFromPreview,
 		skipGasPreSeed,
+		confirmFeePayerIndex,
 		reset
 	};
 }
