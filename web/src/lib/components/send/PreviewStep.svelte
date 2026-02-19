@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { sendStore } from '$lib/stores/send.svelte';
 	import { getChainLabel } from '$lib/utils/chains';
-	import { truncateAddress, formatBalance } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
 	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
+	import type { Chain } from '$lib/types';
 
 	const store = sendStore;
 
@@ -48,10 +49,10 @@
 				<span class="summary-value">{preview.fundedCount}</span>
 
 				<span class="summary-label">Total amount</span>
-				<span class="summary-value summary-value-lg">{formatBalance(preview.totalAmount)} {tokenLabel}</span>
+				<span class="summary-value summary-value-lg">{formatRawBalance(preview.totalAmount, chain as Chain, preview.token)} {tokenLabel}</span>
 
 				<span class="summary-label">Net amount</span>
-				<span class="summary-value">{formatBalance(preview.netAmount)} {tokenLabel}</span>
+				<span class="summary-value">{formatRawBalance(preview.netAmount, chain as Chain, preview.token)} {tokenLabel}</span>
 
 				<span class="summary-label">Destination</span>
 				<span class="summary-value summary-value-mono">{preview.destination}</span>
@@ -68,7 +69,7 @@
 			<div class="fee-grid">
 				<span class="summary-label">Estimated fee</span>
 				<span class="summary-value">
-					<span class="font-mono">{formatBalance(preview.feeEstimate)}</span>
+					<span class="font-mono">{formatRawBalance(preview.feeEstimate, chain as Chain, 'NATIVE')}</span>
 					{chain ? CHAIN_NATIVE_SYMBOLS[chain] : ''}
 				</span>
 
@@ -121,7 +122,7 @@
 								<td>
 									<span class="mono">{truncateAddress(addr.address)}</span>
 								</td>
-								<td class="mono text-right">{formatBalance(addr.balance)} {tokenLabel}</td>
+								<td class="mono text-right">{formatRawBalance(addr.balance, chain as Chain, preview.token)} {tokenLabel}</td>
 								<td>
 									{#if addr.hasGas}
 										<span class="badge badge-success">Has Gas</span>

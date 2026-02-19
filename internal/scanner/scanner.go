@@ -12,41 +12,61 @@ import (
 	"github.com/Fantasim/hdpay/internal/models"
 )
 
-// tokenConfig maps chain -> list of (token, contract/mint) pairs to scan.
-var tokenConfig = map[models.Chain][]struct {
+// tokenConfigEntry describes a token to scan for a chain.
+type tokenConfigEntry struct {
 	Token    models.Token
 	Contract string
-}{
-	models.ChainBTC: {}, // no tokens
-	models.ChainBSC: {
-		{Token: models.TokenUSDC, Contract: config.BSCUSDCContract},
-		{Token: models.TokenUSDT, Contract: config.BSCUSDTContract},
-	},
-	models.ChainSOL: {
-		{Token: models.TokenUSDC, Contract: config.SOLUSDCMint},
-		{Token: models.TokenUSDT, Contract: config.SOLUSDTMint},
-	},
+}
+
+// buildTokenConfig returns the token contract map based on network.
+func buildTokenConfig(network string) map[models.Chain][]tokenConfigEntry {
+	if network == string(models.NetworkTestnet) {
+		return map[models.Chain][]tokenConfigEntry{
+			models.ChainBTC: {},
+			models.ChainBSC: {
+				{Token: models.TokenUSDC, Contract: config.BSCTestnetUSDCContract},
+				{Token: models.TokenUSDT, Contract: config.BSCTestnetUSDTContract},
+			},
+			models.ChainSOL: {
+				{Token: models.TokenUSDC, Contract: config.SOLDevnetUSDCMint},
+				{Token: models.TokenUSDT, Contract: config.SOLDevnetUSDTMint},
+			},
+		}
+	}
+	return map[models.Chain][]tokenConfigEntry{
+		models.ChainBTC: {},
+		models.ChainBSC: {
+			{Token: models.TokenUSDC, Contract: config.BSCUSDCContract},
+			{Token: models.TokenUSDT, Contract: config.BSCUSDTContract},
+		},
+		models.ChainSOL: {
+			{Token: models.TokenUSDC, Contract: config.SOLUSDCMint},
+			{Token: models.TokenUSDT, Contract: config.SOLUSDTMint},
+		},
+	}
 }
 
 // Scanner orchestrates balance scanning across chains.
 type Scanner struct {
-	db      *db.DB
-	pools   map[models.Chain]*Pool
-	hub     *SSEHub
-	cfg     *config.Config
-	cancels map[models.Chain]context.CancelFunc
-	mu      sync.Mutex
+	db          *db.DB
+	pools       map[models.Chain]*Pool
+	hub         *SSEHub
+	cfg         *config.Config
+	cancels     map[models.Chain]context.CancelFunc
+	tokenConfig map[models.Chain][]tokenConfigEntry
+	mu          sync.Mutex
 }
 
 // New creates a new scanner orchestrator.
 func New(database *db.DB, cfg *config.Config, hub *SSEHub) *Scanner {
 	slog.Info("scanner orchestrator created")
 	return &Scanner{
-		db:      database,
-		pools:   make(map[models.Chain]*Pool),
-		hub:     hub,
-		cfg:     cfg,
-		cancels: make(map[models.Chain]context.CancelFunc),
+		db:          database,
+		pools:       make(map[models.Chain]*Pool),
+		hub:         hub,
+		cfg:         cfg,
+		cancels:     make(map[models.Chain]context.CancelFunc),
+		tokenConfig: buildTokenConfig(cfg.Network),
 	}
 }
 
@@ -71,7 +91,9 @@ func (s *Scanner) StartScan(ctx context.Context, chain models.Chain, maxID int) 
 		return fmt.Errorf("no provider pool registered for %s", chain)
 	}
 
-	scanCtx, cancel := context.WithCancel(ctx)
+	// Use background context — NOT the HTTP request context, which is
+	// cancelled as soon as the handler returns a response.
+	scanCtx, cancel := context.WithCancel(context.Background())
 	s.cancels[chain] = cancel
 	s.mu.Unlock()
 
@@ -296,7 +318,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 
 		// --- Fetch token balances (B8: decoupled from native) ---
 		var allTokenBalances []models.Balance
-		for _, tc := range tokenConfig[chain] {
+		for _, tc := range s.tokenConfig[chain] {
 			if tc.Contract == "" {
 				continue
 			}

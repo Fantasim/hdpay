@@ -181,6 +181,7 @@ const (
 	ServerMaxHeaderBytes = 1 << 20 // 1MB
 	APITimeout           = 30 * time.Second
 	SSEKeepAliveInterval = 15 * time.Second
+	HealthCheckTimeout   = 10 * time.Second
 )
 
 // Logging

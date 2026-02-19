@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import AddressTable from '$lib/components/address/AddressTable.svelte';
-	import { addressStore } from '$lib/stores/addresses';
+	import { addressStore } from '$lib/stores/addresses.svelte';
 	import { exportAddresses } from '$lib/utils/api';
 	import { formatNumber } from '$lib/utils/formatting';
 	import { SUPPORTED_CHAINS, CHAIN_COLORS } from '$lib/constants';

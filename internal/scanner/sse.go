@@ -55,6 +55,7 @@ type ScanStateSnapshotData struct {
 	MaxScanID        int    `json:"maxScanId"`
 	Status           string `json:"status"`
 	IsRunning        bool   `json:"isRunning"`
+	FundedCount      int    `json:"fundedCount"`
 }
 
 // SSEHub manages fan-out broadcasting of events to connected SSE clients.

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ChainPortfolio, Chain } from '$lib/types';
 	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
-	import { formatBalance, formatUsd, formatNumber } from '$lib/utils/formatting';
+	import { formatRawBalance, formatUsd, formatNumber } from '$lib/utils/formatting';
 
 	interface Props {
 		chains: ChainPortfolio[];
@@ -12,7 +12,8 @@
 	// Flatten chain tokens into table rows.
 	interface BalanceRow {
 		chain: Chain;
-		token: string;
+		displayToken: string;
+		rawToken: string;
 		balance: string;
 		usd: number;
 		fundedCount: number;
@@ -29,7 +30,8 @@
 
 				result.push({
 					chain: chainData.chain,
-					token: displayToken,
+					displayToken,
+					rawToken: token.symbol,
 					balance: token.balance,
 					usd: token.usd,
 					fundedCount: token.fundedCount
@@ -64,11 +66,11 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each rows() as row (row.chain + row.token)}
+					{#each rows() as row (row.chain + row.rawToken)}
 						<tr>
 							<td><span class={badgeClass(row.chain)}>{row.chain}</span></td>
-							<td>{row.token}</td>
-							<td class="mono text-right">{formatBalance(row.balance, 8)}</td>
+							<td>{row.displayToken}</td>
+							<td class="mono text-right">{formatRawBalance(row.balance, row.chain, row.rawToken)}</td>
 							<td class="mono text-right">{formatUsd(row.usd)}</td>
 							<td class="text-right">{formatNumber(row.fundedCount)}</td>
 						</tr>

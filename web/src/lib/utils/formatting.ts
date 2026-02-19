@@ -1,4 +1,5 @@
-import { ADDRESS_TRUNCATE_LENGTH, BALANCE_DECIMAL_PLACES } from '$lib/constants';
+import { ADDRESS_TRUNCATE_LENGTH, BALANCE_DECIMAL_PLACES, TOKEN_DECIMALS } from '$lib/constants';
+import type { Chain } from '$lib/types';
 
 /**
  * Truncate an address to show start...end
@@ -16,6 +17,19 @@ export function formatBalance(balance: string, decimals: number = BALANCE_DECIMA
 	if (isNaN(num)) return '0';
 	if (num === 0) return '0';
 	return num.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
+/**
+ * Convert a raw balance (satoshis/wei/lamports) to human-readable units
+ * based on the chain and token, then format for display.
+ */
+export function formatRawBalance(rawBalance: string, chain: Chain, token: string): string {
+	const decimals = TOKEN_DECIMALS[chain]?.[token] ?? 0;
+	const raw = parseFloat(rawBalance);
+	if (isNaN(raw) || raw === 0) return '0';
+	const human = raw / Math.pow(10, decimals);
+	// Show up to 8 decimal places for crypto, trim trailing zeros
+	return human.toFixed(Math.min(decimals, 8)).replace(/\.?0+$/, '');
 }
 
 /**

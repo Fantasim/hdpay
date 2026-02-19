@@ -13,13 +13,18 @@ import (
 )
 
 // bscScanMultiBalanceResponse represents BscScan balancemulti response.
+// Note: on error, BscScan returns result as a string instead of an array,
+// so we use json.RawMessage and decode conditionally.
 type bscScanMultiBalanceResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-	Result  []struct {
-		Account string `json:"account"`
-		Balance string `json:"balance"`
-	} `json:"result"`
+	Status  string          `json:"status"`
+	Message string          `json:"message"`
+	Result  json.RawMessage `json:"result"`
+}
+
+// bscScanBalanceItem is a single item in the balancemulti result array.
+type bscScanBalanceItem struct {
+	Account string `json:"account"`
+	Balance string `json:"balance"`
 }
 
 // bscScanTokenBalanceResponse represents BscScan tokenbalance response.
@@ -116,15 +121,29 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 	}
 
 	if data.Status != "1" {
+		// Try to extract error message from result (BscScan puts errors there as a string).
+		var resultMsg string
+		_ = json.Unmarshal(data.Result, &resultMsg)
 		slog.Warn("bscscan error response",
 			"status", data.Status,
 			"message", data.Message,
+			"result", resultMsg,
 		)
 		// BscScan returns status "0" for rate limits with specific messages.
 		if strings.Contains(data.Message, "rate limit") || strings.Contains(strings.ToLower(data.Message), "max rate") {
 			return nil, config.NewTransientError(config.ErrProviderRateLimit)
 		}
 		return nil, config.NewTransientError(fmt.Errorf("%w: %s", config.ErrProviderUnavailable, data.Message))
+	}
+
+	// Decode the result array.
+	var balanceItems []bscScanBalanceItem
+	if err := json.Unmarshal(data.Result, &balanceItems); err != nil {
+		slog.Error("bscscan failed to decode result array",
+			"error", err,
+			"rawResult", string(data.Result),
+		)
+		return nil, fmt.Errorf("decode result array: %w", err)
 	}
 
 	// Build address→index lookup and track which addresses were returned.
@@ -135,9 +154,9 @@ func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []m
 		addrMap[strings.ToLower(a.Address)] = a
 	}
 
-	returned := make(map[string]bool, len(data.Result))
+	returned := make(map[string]bool, len(balanceItems))
 	results := make([]BalanceResult, 0, len(addresses))
-	for _, item := range data.Result {
+	for _, item := range balanceItems {
 		lowerAddr := strings.ToLower(item.Account)
 		addrIndex, ok := indexMap[lowerAddr]
 		if !ok {

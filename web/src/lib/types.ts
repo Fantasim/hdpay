@@ -90,11 +90,13 @@ export interface ScanStateSnapshot {
 	maxScanId: number;
 	status: string;
 	isRunning: boolean;
+	fundedCount: number;
 }
 
 // ScanStateWithRunning augments ScanState with live running flag from backend.
 export interface ScanStateWithRunning extends ScanState {
 	isRunning: boolean;
+	fundedCount: number;
 }
 
 // Transaction represents a recorded transaction.

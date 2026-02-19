@@ -1,5 +1,19 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { API_BASE } from '$lib/constants';
+
+	let network: string = $state('');
+
+	onMount(async () => {
+		try {
+			const resp = await fetch(`${API_BASE}/health`);
+			const data = await resp.json();
+			network = data.network || 'mainnet';
+		} catch {
+			network = 'unknown';
+		}
+	});
 
 	interface NavItem {
 		label: string;
@@ -95,9 +109,9 @@
 	</div>
 
 	<div class="sidebar-footer">
-		<span class="network-badge">
+		<span class="network-badge" class:testnet={network === 'testnet'}>
 			<span class="network-dot"></span>
-			Mainnet
+			{network === 'testnet' ? 'Testnet' : network === 'mainnet' ? 'Mainnet' : network}
 		</span>
 	</div>
 </nav>
@@ -222,5 +236,14 @@
 		height: 6px;
 		border-radius: 50%;
 		background: var(--color-success);
+	}
+
+	.network-badge.testnet {
+		background: var(--color-warning-muted, rgba(234, 179, 8, 0.15));
+		color: var(--color-warning, #eab308);
+	}
+
+	.network-badge.testnet .network-dot {
+		background: var(--color-warning, #eab308);
 	}
 </style>

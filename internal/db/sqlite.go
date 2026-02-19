@@ -56,9 +56,16 @@ func New(path string) (*DB, error) {
 
 	slog.Debug("database WAL mode", "mode", mode)
 
-	// Configure connection pool limits.
-	conn.SetMaxOpenConns(config.DBMaxOpenConns)
-	conn.SetMaxIdleConns(config.DBMaxIdleConns)
+	// Set busy timeout via PRAGMA (more reliable than DSN parameter with modernc.org/sqlite).
+	if _, err := conn.Exec(fmt.Sprintf("PRAGMA busy_timeout=%d", config.DBBusyTimeout)); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
+	// SQLite only supports one writer at a time. Using MaxOpenConns=1 ensures
+	// all writes are serialized through a single connection, preventing SQLITE_BUSY.
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
 	conn.SetConnMaxLifetime(config.DBConnMaxLifetime)
 
 	slog.Info("database connection pool configured",

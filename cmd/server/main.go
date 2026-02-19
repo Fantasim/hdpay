@@ -117,6 +117,9 @@ func runServe() error {
 
 	slog.Info("scanner engine initialized")
 
+	// Run startup health checks (non-blocking, logs warnings for failing providers).
+	go scanner.RunStartupHealthChecks(cfg)
+
 	// Setup price service.
 	ps := price.NewPriceService()
 

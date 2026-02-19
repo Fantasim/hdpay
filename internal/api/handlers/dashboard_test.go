@@ -44,24 +44,31 @@ func setupDashboardTestDB(t *testing.T, withBalances bool) *db.DB {
 	}
 
 	if withBalances {
-		// BTC: 2 funded addresses with native balance.
-		if err := database.UpsertBalance(models.ChainBTC, 0, models.TokenNative, "0.5"); err != nil {
+		// Balances are stored in raw blockchain units (satoshis, wei, lamports).
+
+		// BTC: 2 funded addresses with native balance (satoshis, 10^8).
+		// 0.5 BTC = 50,000,000 sats
+		if err := database.UpsertBalance(models.ChainBTC, 0, models.TokenNative, "50000000"); err != nil {
 			t.Fatalf("UpsertBalance error = %v", err)
 		}
-		if err := database.UpsertBalance(models.ChainBTC, 1, models.TokenNative, "1.0"); err != nil {
+		// 1.0 BTC = 100,000,000 sats
+		if err := database.UpsertBalance(models.ChainBTC, 1, models.TokenNative, "100000000"); err != nil {
 			t.Fatalf("UpsertBalance error = %v", err)
 		}
 
-		// BSC: 1 BNB + 1 USDC.
-		if err := database.UpsertBalance(models.ChainBSC, 0, models.TokenNative, "10"); err != nil {
+		// BSC: 1 BNB + 1 USDC (wei, 10^18).
+		// 10 BNB = 10 * 10^18 wei
+		if err := database.UpsertBalance(models.ChainBSC, 0, models.TokenNative, "10000000000000000000"); err != nil {
 			t.Fatalf("UpsertBalance error = %v", err)
 		}
-		if err := database.UpsertBalance(models.ChainBSC, 2, models.TokenUSDC, "5000"); err != nil {
+		// 5000 USDC = 5000 * 10^18 wei (BSC USDC uses 18 decimals)
+		if err := database.UpsertBalance(models.ChainBSC, 2, models.TokenUSDC, "5000000000000000000000"); err != nil {
 			t.Fatalf("UpsertBalance error = %v", err)
 		}
 
-		// SOL: 1 funded.
-		if err := database.UpsertBalance(models.ChainSOL, 0, models.TokenNative, "100"); err != nil {
+		// SOL: 1 funded (lamports, 10^9).
+		// 100 SOL = 100 * 10^9 lamports
+		if err := database.UpsertBalance(models.ChainSOL, 0, models.TokenNative, "100000000000"); err != nil {
 			t.Fatalf("UpsertBalance error = %v", err)
 		}
 

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import { getTransactions } from '$lib/utils/api';
-	import { truncateAddress, formatBalance, copyToClipboard } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance, copyToClipboard } from '$lib/utils/formatting';
 	import { getExplorerTxUrl } from '$lib/utils/chains';
 	import { SUPPORTED_CHAINS, DEFAULT_TX_PAGE_SIZE } from '$lib/constants';
 	import type { Chain, Transaction, TransactionDirection, TransactionStatus, TransactionListParams } from '$lib/types';
@@ -222,7 +222,7 @@
 							</div>
 						</td>
 						<td>{getTokenDisplay(tx)}</td>
-						<td class="mono text-right">{formatBalance(tx.amount, 8)}</td>
+						<td class="mono text-right">{formatRawBalance(tx.amount, tx.chain as Chain, tx.token)}</td>
 						<td class="mono text-sm">
 							{#if tx.direction === 'out'}
 								{truncateAddress(tx.toAddress)}

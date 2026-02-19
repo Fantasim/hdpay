@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { sendStore } from '$lib/stores/send.svelte';
 	import { getChainLabel, getExplorerTxUrl } from '$lib/utils/chains';
-	import { truncateAddress, formatBalance } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
 	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
-	import type { TxResult } from '$lib/types';
+	import type { Chain, TxResult } from '$lib/types';
 
 	const store = sendStore;
 
@@ -56,7 +56,7 @@
 		<div class="card-body">
 			{#if preview && chain}
 				<div class="confirm-message">
-					This will send <strong>{formatBalance(preview.netAmount)} {tokenLabel}</strong>
+					This will send <strong>{formatRawBalance(preview.netAmount, chain as Chain, preview.token)} {tokenLabel}</strong>
 					from <strong>{preview.fundedCount} addresses</strong>
 					to <strong class="mono">{truncateAddress(preview.destination, 10)}</strong>
 					on <strong>{getChainLabel(chain)}</strong>.
@@ -90,7 +90,7 @@
 								<tr>
 									<td class="text-muted">{tx.addressIndex}</td>
 									<td><span class="mono">{truncateAddress(tx.fromAddress)}</span></td>
-									<td class="mono text-right">{formatBalance(tx.amount)} {tokenLabel}</td>
+									<td class="mono text-right">{formatRawBalance(tx.amount, chain as Chain, preview?.token ?? 'NATIVE')} {tokenLabel}</td>
 									<td>
 										{#if tx.txHash}
 											<a href={getExplorerLink(tx.txHash)} target="_blank" rel="noopener" class="tx-link mono">
@@ -167,7 +167,7 @@
 					<span class="summary-value">{tokenLabel}</span>
 
 					<span class="summary-label">Total swept</span>
-					<span class="summary-value summary-value-lg">{formatBalance(executeResult.totalSwept)} {tokenLabel}</span>
+					<span class="summary-value summary-value-lg">{formatRawBalance(executeResult.totalSwept, chain as Chain, preview?.token ?? 'NATIVE')} {tokenLabel}</span>
 
 					<span class="summary-label">Transactions</span>
 					<span class="summary-value">{executeResult.txResults.length}</span>
@@ -190,7 +190,7 @@
 								<tr>
 									<td class="text-muted">{tx.addressIndex}</td>
 									<td><span class="mono">{truncateAddress(tx.fromAddress)}</span></td>
-									<td class="mono text-right">{formatBalance(tx.amount)} {tokenLabel}</td>
+									<td class="mono text-right">{formatRawBalance(tx.amount, chain as Chain, preview?.token ?? 'NATIVE')} {tokenLabel}</td>
 									<td>
 										{#if tx.txHash}
 											<a href={getExplorerLink(tx.txHash)} target="_blank" rel="noopener" class="tx-link mono">

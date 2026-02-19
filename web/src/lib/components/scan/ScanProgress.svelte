@@ -64,7 +64,7 @@
 	}
 
 	let fundedCount = $derived(
-		progress?.found ?? lastComplete?.found ?? 0
+		progress?.found ?? lastComplete?.found ?? status?.fundedCount ?? 0
 	);
 </script>
 

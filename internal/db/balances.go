@@ -359,6 +359,39 @@ func (d *DB) GetBalanceAggregates() ([]BalanceAggregate, error) {
 	return results, nil
 }
 
+// GetFundedCountByChain returns the number of unique funded addresses per chain.
+func (d *DB) GetFundedCountByChain() (map[models.Chain]int, error) {
+	slog.Debug("fetching funded count by chain")
+
+	rows, err := d.conn.Query(
+		`SELECT chain, COUNT(DISTINCT address_index)
+		 FROM balances
+		 WHERE balance != '0'
+		 GROUP BY chain`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query funded count by chain: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[models.Chain]int)
+	for rows.Next() {
+		var chain models.Chain
+		var count int
+		if err := rows.Scan(&chain, &count); err != nil {
+			return nil, fmt.Errorf("scan funded count row: %w", err)
+		}
+		result[chain] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate funded count rows: %w", err)
+	}
+
+	slog.Debug("funded count by chain fetched", "chains", len(result))
+	return result, nil
+}
+
 // GetLatestScanTime returns the most recent scan update time across all chains.
 // Returns empty string if no scans have been performed.
 func (d *DB) GetLatestScanTime() (string, error) {

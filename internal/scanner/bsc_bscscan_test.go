@@ -13,16 +13,15 @@ import (
 
 func TestBscScanProvider_FetchNativeBalances(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		items := []bscScanBalanceItem{
+			{Account: "0xAddr1", Balance: "1000000000000000000"},
+			{Account: "0xAddr2", Balance: "0"},
+		}
+		raw, _ := json.Marshal(items)
 		resp := bscScanMultiBalanceResponse{
 			Status:  "1",
 			Message: "OK",
-			Result: []struct {
-				Account string `json:"account"`
-				Balance string `json:"balance"`
-			}{
-				{Account: "0xAddr1", Balance: "1000000000000000000"},
-				{Account: "0xAddr2", Balance: "0"},
-			},
+			Result:  raw,
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -91,17 +90,16 @@ func TestBscScanProvider_FetchNativeBalances_Error(t *testing.T) {
 func TestBscScanProvider_FetchNativeBalances_MissingAddress(t *testing.T) {
 	// BscScan returns only 2 of 3 requested addresses.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		items := []bscScanBalanceItem{
+			{Account: "0xAddr1", Balance: "1000"},
+			{Account: "0xAddr3", Balance: "3000"},
+			// 0xAddr2 is missing from response
+		}
+		raw, _ := json.Marshal(items)
 		resp := bscScanMultiBalanceResponse{
 			Status:  "1",
 			Message: "OK",
-			Result: []struct {
-				Account string `json:"account"`
-				Balance string `json:"balance"`
-			}{
-				{Account: "0xAddr1", Balance: "1000"},
-				{Account: "0xAddr3", Balance: "3000"},
-				// 0xAddr2 is missing from response
-			},
+			Result:  raw,
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))

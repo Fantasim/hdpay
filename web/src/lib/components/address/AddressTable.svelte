@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { AddressWithBalance } from '$lib/types';
-	import { truncateAddress, formatBalance, formatRelativeTime, copyToClipboard } from '$lib/utils/formatting';
+	import type { AddressWithBalance, Chain } from '$lib/types';
+	import { truncateAddress, formatRawBalance, formatRelativeTime, copyToClipboard } from '$lib/utils/formatting';
 	import { CHAIN_COLORS } from '$lib/constants';
 
 	interface Props {
@@ -83,7 +83,7 @@
 						</td>
 						<td class="text-right">
 							<span class="mono" class:balance-zero={isZeroBalance(addr.nativeBalance)}>
-								{formatBalance(addr.nativeBalance, 8)}
+								{formatRawBalance(addr.nativeBalance, addr.chain as Chain, 'NATIVE')}
 							</span>
 						</td>
 						<td>
@@ -92,7 +92,7 @@
 									{#each addr.tokenBalances as tb}
 										<div class="token-balance-row">
 											<span class="token-label">{tb.symbol}</span>
-											<span class="token-amount mono">{formatBalance(tb.balance, 2)}</span>
+											<span class="token-amount mono">{formatRawBalance(tb.balance, addr.chain as Chain, tb.symbol)}</span>
 										</div>
 									{/each}
 								</div>

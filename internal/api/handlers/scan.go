@@ -35,6 +35,7 @@ type scanStatusResponse struct {
 	StartedAt        string       `json:"startedAt,omitempty"`
 	UpdatedAt        string       `json:"updatedAt,omitempty"`
 	IsRunning        bool         `json:"isRunning"`
+	FundedCount      int          `json:"fundedCount"`
 }
 
 // StartScan handles POST /api/scan/start.
@@ -166,6 +167,13 @@ func GetScanStatus(sc *scanner.Scanner, database *db.DB) http.HandlerFunc {
 			"remoteAddr", r.RemoteAddr,
 		)
 
+		// Fetch funded counts from DB to include in scan status.
+		fundedCounts, err := database.GetFundedCountByChain()
+		if err != nil {
+			slog.Warn("failed to fetch funded counts for scan status", "error", err)
+			fundedCounts = make(map[models.Chain]int)
+		}
+
 		if chainParam != "" {
 			// Single chain status.
 			chain := models.Chain(chainParam)
@@ -174,7 +182,7 @@ func GetScanStatus(sc *scanner.Scanner, database *db.DB) http.HandlerFunc {
 				return
 			}
 
-			status := buildScanStatus(sc, chain)
+			status := buildScanStatus(sc, chain, fundedCounts[chain])
 			elapsed := time.Since(start).Milliseconds()
 
 			slog.Debug("single chain scan status returned",
@@ -194,7 +202,7 @@ func GetScanStatus(sc *scanner.Scanner, database *db.DB) http.HandlerFunc {
 		// All chains status.
 		result := make(map[string]*scanStatusResponse, len(models.AllChains))
 		for _, chain := range models.AllChains {
-			result[string(chain)] = buildScanStatus(sc, chain)
+			result[string(chain)] = buildScanStatus(sc, chain, fundedCounts[chain])
 		}
 
 		elapsed := time.Since(start).Milliseconds()
@@ -211,15 +219,16 @@ func GetScanStatus(sc *scanner.Scanner, database *db.DB) http.HandlerFunc {
 }
 
 // buildScanStatus builds a scanStatusResponse for a chain.
-func buildScanStatus(sc *scanner.Scanner, chain models.Chain) *scanStatusResponse {
+func buildScanStatus(sc *scanner.Scanner, chain models.Chain, fundedCount int) *scanStatusResponse {
 	state := sc.Status(chain)
 	isRunning := sc.IsRunning(chain)
 
 	if state == nil {
 		return &scanStatusResponse{
-			Chain:     chain,
-			Status:    "idle",
-			IsRunning: isRunning,
+			Chain:       chain,
+			Status:      "idle",
+			IsRunning:   isRunning,
+			FundedCount: fundedCount,
 		}
 	}
 
@@ -231,6 +240,7 @@ func buildScanStatus(sc *scanner.Scanner, chain models.Chain) *scanStatusRespons
 		StartedAt:        state.StartedAt,
 		UpdatedAt:        state.UpdatedAt,
 		IsRunning:        isRunning,
+		FundedCount:      fundedCount,
 	}
 }
 
@@ -271,14 +281,22 @@ func ScanSSE(hub *scanner.SSEHub, sc *scanner.Scanner, database *db.DB) http.Han
 			"totalClients", hub.ClientCount(),
 		)
 
+		// Fetch funded counts for SSE snapshots.
+		fundedCounts, err := database.GetFundedCountByChain()
+		if err != nil {
+			slog.Warn("failed to fetch funded counts for SSE snapshot", "error", err)
+			fundedCounts = make(map[models.Chain]int)
+		}
+
 		// Send scan_state snapshots for all chains on connect (B10 resync).
 		for _, chain := range models.AllChains {
 			state := sc.Status(chain)
 			isRunning := sc.IsRunning(chain)
 
 			snapshot := scanner.ScanStateSnapshotData{
-				Chain:     string(chain),
-				IsRunning: isRunning,
+				Chain:       string(chain),
+				IsRunning:   isRunning,
+				FundedCount: fundedCounts[chain],
 			}
 			if state != nil {
 				snapshot.LastScannedIndex = state.LastScannedIndex

@@ -22,6 +22,14 @@ export const CHAIN_TOKENS = {
 	BTC: []
 } as const;
 
+// Token Decimals — raw balance units to human-readable conversion
+// Mirrors Go config/constants.go Token Decimals section
+export const TOKEN_DECIMALS: Record<string, Record<string, number>> = {
+	BTC: { NATIVE: 8 },
+	BSC: { NATIVE: 18, USDC: 18, USDT: 18 },
+	SOL: { NATIVE: 9, USDC: 6, USDT: 6 }
+} as const;
+
 // Dashboard Refresh
 export const PRICE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 export const PORTFOLIO_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute

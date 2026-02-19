@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -88,6 +89,33 @@ func tokenToSymbol(chain models.Chain, token models.Token) string {
 	return string(token)
 }
 
+// tokenDecimals returns the number of decimals for a chain/token pair.
+// Balances are stored in smallest units (satoshis, wei, lamports) and must
+// be divided by 10^decimals to get the human-readable amount for USD calc.
+func tokenDecimals(chain models.Chain, token models.Token) int {
+	if token == models.TokenNative {
+		switch chain {
+		case models.ChainBTC:
+			return config.BTCDecimals
+		case models.ChainBSC:
+			return config.BNBDecimals
+		case models.ChainSOL:
+			return config.SOLDecimals
+		}
+	}
+	switch {
+	case chain == models.ChainBSC && token == models.TokenUSDC:
+		return config.BSCUSDCDecimals
+	case chain == models.ChainBSC && token == models.TokenUSDT:
+		return config.BSCUSDTDecimals
+	case chain == models.ChainSOL && token == models.TokenUSDC:
+		return config.SOLUSDCDecimals
+	case chain == models.ChainSOL && token == models.TokenUSDT:
+		return config.SOLUSDTDecimals
+	}
+	return 0
+}
+
 // GetPortfolio handles GET /api/dashboard/portfolio.
 func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +174,7 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 			symbol := tokenToSymbol(agg.Chain, agg.Token)
 			priceUSD := prices[symbol]
 
-			balance, err := strconv.ParseFloat(agg.TotalBalance, 64)
+			rawBalance, err := strconv.ParseFloat(agg.TotalBalance, 64)
 			if err != nil {
 				slog.Warn("failed to parse aggregate balance",
 					"chain", agg.Chain,
@@ -156,6 +184,10 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 				)
 				continue
 			}
+
+			// Convert from smallest unit (satoshis/wei/lamports) to main unit (BTC/BNB/SOL).
+			decimals := tokenDecimals(agg.Chain, agg.Token)
+			balance := rawBalance / math.Pow10(decimals)
 
 			usdValue := balance * priceUSD
 			totalUSD += usdValue

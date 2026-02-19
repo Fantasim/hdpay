@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { sendStore } from '$lib/stores/send.svelte';
-	import { truncateAddress, formatBalance } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
+	import type { Chain } from '$lib/types';
 
 	const store = sendStore;
 
 	let preview = $derived(store.state.preview);
+	let chain = $derived(store.state.chain);
 	let gasResult = $derived(store.state.gasPreSeedResult);
 	let loading = $derived(store.state.loading);
 	let error = $derived(store.state.error);
@@ -69,7 +71,7 @@
 						<tr>
 							<td class="text-muted">{addr.addressIndex.toLocaleString()}</td>
 							<td><span class="mono">{truncateAddress(addr.address)}</span></td>
-							<td class="mono text-right">{formatBalance(addr.balance)}</td>
+							<td class="mono text-right">{formatRawBalance(addr.balance, chain as Chain, preview?.token ?? 'NATIVE')}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -85,7 +87,7 @@
 					{#if gasResult.failCount > 0}
 						<span class="badge badge-error">{gasResult.failCount} failed</span>
 					{/if}
-					<span class="text-muted">Total sent: {formatBalance(gasResult.totalSent)} BNB</span>
+					<span class="text-muted">Total sent: {formatRawBalance(gasResult.totalSent, chain as Chain, 'NATIVE')} BNB</span>
 				</div>
 				<div class="table-wrapper">
 					<table class="table">

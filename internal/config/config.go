@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -22,8 +25,22 @@ type Config struct {
 	BSCGasPreSeedWei string `envconfig:"HDPAY_BSC_GAS_PRESEED_WEI" default:"5000000000000000"`
 }
 
-// Load reads configuration from environment variables prefixed with HDPAY_.
+// Load reads configuration from .env file (if present) then from environment variables.
+// Environment variables override .env values.
 func Load() (*Config, error) {
+	// Load .env file if it exists. godotenv does NOT override already-set env vars,
+	// so real environment variables take precedence over .env values.
+	envFiles := []string{".env"}
+	for _, f := range envFiles {
+		if _, err := os.Stat(f); err == nil {
+			if err := godotenv.Load(f); err != nil {
+				slog.Warn("failed to load .env file", "file", f, "error", err)
+			} else {
+				slog.Info("loaded .env file", "file", f)
+			}
+		}
+	}
+
 	var cfg Config
 	if err := envconfig.Process("", &cfg); err != nil {
 		return nil, fmt.Errorf("failed to process env config: %w", err)

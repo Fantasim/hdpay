@@ -177,7 +177,8 @@ function createScanStore() {
 						status: data.status as ScanStateWithRunning['status'],
 						startedAt: null,
 						updatedAt: null,
-						isRunning: data.isRunning
+						isRunning: data.isRunning,
+						fundedCount: data.fundedCount ?? 0
 					}
 				};
 			} catch {
