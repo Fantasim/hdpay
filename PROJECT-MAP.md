@@ -25,10 +25,16 @@ hdpay/
 |   |   |   |-- scan_test.go         # Scan handler tests (11 tests)
 |   |   |   |-- send.go              # POST preview/execute/gas-preseed, GET SSE
 |   |   |   |-- send_test.go         # Send handler tests (24 tests)
-|   |   |   └-- settings.go          # Settings endpoints (stub)
+|   |   |   |-- settings.go          # GET/PUT settings, reset-balances, reset-all
+|   |   |   |-- settings_test.go     # Settings handler tests (9 tests)
+|   |   |   |-- spa.go               # Embedded SPA handler with immutable cache
+|   |   |   |-- spa_test.go          # SPA handler tests (5 tests)
+|   |   |   |-- transactions.go      # GET /api/transactions (filtered, paginated)
+|   |   |   └-- transactions_test.go # Transaction handler tests (13 tests)
 |   |   |-- middleware/
 |   |   |   |-- logging.go           # Request/response logging
-|   |   |   └-- security.go          # CORS, CSRF, localhost-only
+|   |   |   |-- security.go          # CORS, CSRF, localhost-only
+|   |   |   └-- security_test.go     # Security middleware tests (21 tests)
 |   |   └-- router.go                # Chi router setup
 |   |-- config/
 |   |   |-- config.go                # Config struct (envconfig)
@@ -60,27 +66,32 @@ hdpay/
 |   |-- models/
 |   |   └-- types.go                 # Domain types: Chain, Address, ScanState, Token, Send types
 |   |-- price/
-|   |   |-- coingecko.go             # CoinGecko price service with 5-min cache
-|   |   └-- coingecko_test.go        # Price service tests (6 tests)
+|   |   |-- coingecko.go             # CoinGecko price service with 5-min cache + stale-but-serve
+|   |   └-- coingecko_test.go        # Price service tests (9 tests)
 |   |-- scanner/
 |   |   |-- btc_blockstream.go       # Blockstream Esplora provider
 |   |   |-- btc_blockstream_test.go
 |   |   |-- btc_mempool.go           # Mempool.space provider
+|   |   |-- btc_mempool_test.go      # Mempool provider tests (9 tests)
 |   |   |-- bsc_bscscan.go           # BscScan REST API provider
 |   |   |-- bsc_bscscan_test.go
 |   |   |-- bsc_rpc.go               # BSC ethclient JSON-RPC provider
+|   |   |-- bsc_rpc_test.go          # BSC RPC provider tests (8 tests)
 |   |   |-- circuit_breaker.go       # V2: Circuit breaker state machine (closed/open/half-open)
 |   |   |-- circuit_breaker_test.go  # Circuit breaker tests (8 tests)
 |   |   |-- pool.go                  # Provider pool: round-robin + failover
 |   |   |-- pool_test.go
 |   |   |-- provider.go              # Provider interface + BalanceResult (with Error+Source fields)
 |   |   |-- ratelimiter.go           # Per-provider rate limiter (x/time/rate)
+|   |   |-- retry_after.go           # Retry-After header parser (seconds + HTTP-date)
+|   |   |-- retry_after_test.go      # Retry-After tests (9 tests)
 |   |   |-- scanner.go               # Scanner orchestrator: multi-chain, resume, token scan
 |   |   |-- scanner_test.go
 |   |   |-- setup.go                 # Scanner factory + test helpers
 |   |   |-- sol_ata.go               # Manual Solana ATA derivation via PDA
 |   |   |-- sol_ata_test.go
 |   |   |-- sol_rpc.go               # Solana JSON-RPC provider (batch 100)
+|   |   |-- sol_rpc_test.go          # Solana RPC provider tests (9 tests)
 |   |   |-- sse.go                   # SSE hub: subscribe/unsubscribe/broadcast (scan events)
 |   |   └-- sse_test.go
 |   |-- tx/
@@ -105,6 +116,7 @@ hdpay/
 |   |   |-- sol_tx.go                # SOL native + SPL token consolidation + ATA visibility polling
 |   |   |-- sol_tx_test.go           # SOL TX tests
 |   |   |-- sse.go                   # TX SSE hub: subscribe/unsubscribe/broadcast (tx events)
+|   |   |-- sse_test.go              # TX SSE hub tests (8 tests)
 |   |   └-- sweep.go                 # V2: Sweep ID generator (crypto/rand)
 |   └-- wallet/
 |       |-- bsc.go                   # BSC/EVM BIP-44 address derivation
@@ -266,7 +278,11 @@ hdpay/
 | GET | `/api/send/resume/{sweepID}` | Implemented | `handlers/send.go` |
 | POST | `/api/send/resume` | Implemented | `handlers/send.go` |
 | GET | `/api/health/providers` | Implemented | `handlers/provider_health.go` |
-| GET | `/api/settings` | Stub | `handlers/settings.go` |
+| GET | `/api/transactions` | Implemented | `handlers/transactions.go` |
+| GET | `/api/settings` | Implemented | `handlers/settings.go` |
+| PUT | `/api/settings` | Implemented | `handlers/settings.go` |
+| POST | `/api/settings/reset-balances` | Implemented | `handlers/settings.go` |
+| POST | `/api/settings/reset-all` | Implemented | `handlers/settings.go` |
 
 ## Database Schema
 
