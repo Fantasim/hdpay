@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Post-V2 Bug Fixes & End-to-End Testing
+
+#### Added
+- Startup provider health checks: parallel probe of all configured endpoints at boot (`internal/scanner/healthcheck.go`)
+  - BTC: Blockstream, Mempool (block tip height GET)
+  - BSC: BscScan (eth_blockNumber), RPC (eth_blockNumber JSON-RPC)
+  - SOL: Solana RPC (getHealth JSON-RPC), optional Helius
+  - CoinGecko: /ping
+  - Non-blocking — runs as goroutine, logs OK/WARN per provider with latency
+- `HealthCheckTimeout = 10 * time.Second` constant (`internal/config/constants.go`)
+- Logging middleware test suite: Flusher interface, Unwrap method, status/size capture (`internal/api/middleware/logging_test.go`)
+
+#### Fixed
+- **`.env` file loading**: Added godotenv autoload so environment variables are actually read at startup
+- **Scan context cancellation**: `StopScan()` now properly cancels the running scan context instead of being a no-op
+- **Portfolio USD calculation**: `GetPortfolio` handler now converts raw blockchain units (satoshis/wei/lamports) to human-readable before USD multiplication — was showing ~0.001 USD instead of ~181,000 USD
+- **SQLite BUSY errors**: Increased `DBBusyTimeout` from 5s to 30s to handle concurrent scan writes
+- **BscScan API V1 deprecation**: Migrated from `api.bscscan.com/api` to `api.bscscan.com/v2/api` with `chainid=56` parameter
+- **Network-aware token contracts**: Scanner now uses testnet/mainnet contract addresses based on config instead of always using mainnet
+- **Svelte 5 rune file extensions**: Renamed `.ts` store files to `.svelte.ts` for `$state`/`$derived` rune support
+- **SSE Flusher passthrough**: Logging middleware `responseWriter` now implements `http.Flusher` via delegation to underlying writer — SSE streaming was silently broken
+- **Addresses table raw balance display**: Changed from `formatBalance()` (no conversion) to `formatRawBalance()` (divides by 10^decimals) — was showing "100000000000" instead of "100 SOL"
+- **Scan funded count**: SSE `scan_complete` event now sends actual funded count instead of hardcoded 0
+- **Send preview balance display**: All 4 `formatBalance` calls in `PreviewStep.svelte` replaced with `formatRawBalance` — fee, net amount, total, and per-address amounts
+- **Gas pre-seed balance display**: 2 `formatBalance` calls in `GasPreSeedStep.svelte` replaced with `formatRawBalance` — address balance and total sent
+- **Execute step balance display**: 4 `formatBalance` calls in `ExecuteStep.svelte` replaced with `formatRawBalance` — confirmation amount, tx amounts, and total swept
+- **Transaction history display**: `formatBalance(tx.amount, 8)` in transactions page replaced with `formatRawBalance(tx.amount, tx.chain, tx.token)` — was showing raw units
+- **Dashboard test data**: Updated `TestGetPortfolio_WithBalances` to use raw blockchain units (satoshis/wei/lamports) matching production storage format
+- **BscScan test compatibility**: Fixed `TestBscScanProvider_FetchNativeBalances` and `_MissingAddress` tests for `json.RawMessage` Result field (V2 Phase 2 change)
+
+#### Changed
+- `cmd/server/main.go`: Startup health checks run as background goroutine after scanner setup
+- All send wizard components (`PreviewStep`, `GasPreSeedStep`, `ExecuteStep`) import `formatRawBalance` instead of `formatBalance`
+- Transactions page imports `formatRawBalance` instead of `formatBalance`
+
 ### 2026-02-19 (V2 Phase 6) — Security Tests & Infrastructure — V2 COMPLETE
 
 #### Added
