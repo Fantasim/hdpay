@@ -53,13 +53,19 @@ func GetPrices(ps *price.PriceService) http.HandlerFunc {
 			return
 		}
 
+		stale := ps.IsStale()
+
 		slog.Info("prices response sent",
 			"coins", len(prices),
+			"stale", stale,
 			"elapsed", time.Since(start).Round(time.Millisecond),
 		)
 
 		writeJSON(w, http.StatusOK, models.APIResponse{
-			Data: prices,
+			Data: map[string]interface{}{
+				"prices": prices,
+				"stale":  stale,
+			},
 			Meta: &models.APIMeta{
 				ExecutionTime: time.Since(start).Milliseconds(),
 			},

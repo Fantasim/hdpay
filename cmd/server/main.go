@@ -140,11 +140,20 @@ func runServe() error {
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      router,
-		ReadTimeout:  config.ServerReadTimeout,
-		WriteTimeout: config.ServerWriteTimeout,
+		Addr:           addr,
+		Handler:        router,
+		ReadTimeout:    config.ServerReadTimeout,
+		WriteTimeout:   config.ServerWriteTimeout,
+		IdleTimeout:    config.ServerIdleTimeout,
+		MaxHeaderBytes: config.ServerMaxHeaderBytes,
 	}
+
+	slog.Info("server configured",
+		"readTimeout", config.ServerReadTimeout,
+		"writeTimeout", config.ServerWriteTimeout,
+		"idleTimeout", config.ServerIdleTimeout,
+		"maxHeaderBytes", config.ServerMaxHeaderBytes,
+	)
 
 	// Graceful shutdown
 	done := make(chan os.Signal, 1)
@@ -159,9 +168,16 @@ func runServe() error {
 	}()
 
 	<-done
-	slog.Info("shutdown signal received, draining connections...")
+	slog.Info("initiating graceful shutdown",
+		"timeout", config.ShutdownTimeout,
+	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 1. Cancel scanner/SSE hub context — stops scans and drains SSE clients.
+	hubCancel()
+	slog.Info("scanner and SSE contexts cancelled")
+
+	// 2. Shut down HTTP server with generous timeout for in-flight sends.
+	ctx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

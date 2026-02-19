@@ -176,3 +176,100 @@ func TestGetPrices_PartialResponse(t *testing.T) {
 		t.Error("expected SOL to be missing from partial response")
 	}
 }
+
+func TestGetPrices_StaleCacheOnError(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// First call succeeds.
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(mockCoinGeckoResponse())
+			return
+		}
+		// Subsequent calls fail.
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	ps := NewPriceServiceWithURL(srv.URL)
+
+	// First call — populates cache.
+	prices, err := ps.GetPrices(context.Background())
+	if err != nil {
+		t.Fatalf("first GetPrices() error = %v", err)
+	}
+	if ps.IsStale() {
+		t.Error("expected not stale after successful fetch")
+	}
+
+	// Expire the cache (but still within stale tolerance).
+	ps.mu.Lock()
+	ps.cachedAt = time.Now().Add(-config.PriceCacheDuration - time.Second)
+	ps.mu.Unlock()
+
+	// Second call — fetch fails, should return stale cache.
+	stalePrices, err := ps.GetPrices(context.Background())
+	if err != nil {
+		t.Fatalf("expected stale cache on error, got error: %v", err)
+	}
+	if !ps.IsStale() {
+		t.Error("expected IsStale() to be true after stale cache return")
+	}
+
+	// Verify stale prices match original.
+	if stalePrices["BTC"] != prices["BTC"] {
+		t.Errorf("stale BTC = %f, want %f", stalePrices["BTC"], prices["BTC"])
+	}
+	if stalePrices["SOL"] != prices["SOL"] {
+		t.Errorf("stale SOL = %f, want %f", stalePrices["SOL"], prices["SOL"])
+	}
+}
+
+func TestGetPrices_NoCacheErrorReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	ps := NewPriceServiceWithURL(srv.URL)
+
+	// No cache exists — error should be returned.
+	_, err := ps.GetPrices(context.Background())
+	if err == nil {
+		t.Fatal("expected error when no cache and fetch fails")
+	}
+}
+
+func TestGetPrices_StaleExpiredReturnsError(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(mockCoinGeckoResponse())
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	ps := NewPriceServiceWithURL(srv.URL)
+
+	// Populate cache.
+	_, err := ps.GetPrices(context.Background())
+	if err != nil {
+		t.Fatalf("first GetPrices() error = %v", err)
+	}
+
+	// Expire cache beyond stale tolerance.
+	ps.mu.Lock()
+	ps.cachedAt = time.Now().Add(-config.PriceStaleTolerance - time.Second)
+	ps.mu.Unlock()
+
+	// Second call — stale cache is too old, should return error.
+	_, err = ps.GetPrices(context.Background())
+	if err == nil {
+		t.Fatal("expected error when stale cache is beyond tolerance")
+	}
+}

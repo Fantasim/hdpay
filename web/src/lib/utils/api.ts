@@ -2,7 +2,7 @@ import { API_BASE } from '$lib/constants';
 import type {
 	AddressWithBalance, APIErrorResponse, APIResponse, Chain,
 	GasPreSeedRequest, GasPreSeedResult,
-	PortfolioResponse, PriceData, ProviderHealthMap, ScanStateWithRunning,
+	PortfolioResponse, PriceResponse, ProviderHealthMap, ScanStateWithRunning,
 	SendRequest, Settings, Transaction, TransactionListParams,
 	UnifiedSendPreview, UnifiedSendResult
 } from '$lib/types';
@@ -158,8 +158,8 @@ export function getScanStatusForChain(chain: Chain): Promise<APIResponse<ScanSta
 
 // Dashboard API
 
-export function getPrices(): Promise<APIResponse<PriceData>> {
-	return api.get<PriceData>('/dashboard/prices');
+export function getPrices(): Promise<APIResponse<PriceResponse>> {
+	return api.get<PriceResponse>('/dashboard/prices');
 }
 
 export function getPortfolio(): Promise<APIResponse<PortfolioResponse>> {

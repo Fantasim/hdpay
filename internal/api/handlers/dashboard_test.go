@@ -136,9 +136,22 @@ func TestGetPrices_Handler(t *testing.T) {
 		t.Fatalf("data is not a map: %T", resp.Data)
 	}
 
-	btcPrice, ok := data["BTC"].(float64)
+	prices, ok := data["prices"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("prices not found or not a map: %T", data["prices"])
+	}
+
+	btcPrice, ok := prices["BTC"].(float64)
 	if !ok || btcPrice != 100000 {
-		t.Errorf("BTC price = %v, want 100000", data["BTC"])
+		t.Errorf("BTC price = %v, want 100000", prices["BTC"])
+	}
+
+	stale, ok := data["stale"].(bool)
+	if !ok {
+		t.Fatalf("stale not found or not a bool: %T", data["stale"])
+	}
+	if stale {
+		t.Error("expected stale=false for fresh prices")
 	}
 }
 

@@ -1,17 +1,18 @@
 # Project State: HDPay
 
-> A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation — all via a localhost Svelte dashboard.
+> A self-hosted cryptocurrency payment tool that derives HD wallet addresses (BTC, BSC, SOL), scans balances via free-tier APIs, tracks transactions locally, and enables batch fund consolidation -- all via a localhost Svelte dashboard.
 
 ## Current Position
-- **Version:** V2
-- **Phase:** Building (Phase 5 of 6 complete)
-- **Status:** V2 Build Phase 5 complete — Provider health & broadcast fallback
-- **Last session:** 2026-02-19 — Built V2 Phase 5: Provider Health & Broadcast Fallback
+- **Version:** V2 COMPLETE
+- **Phase:** All 6 build phases completed
+- **Status:** V2 robustness hardening fully implemented
+- **Last session:** 2026-02-19 -- Built V2 Phase 6: Security Tests & Infrastructure (final phase)
 
 ## Version History
 | Version | Completed | Summary |
 |---------|-----------|---------|
 | V1 | 2026-02-18 | 11 phases, 22MB binary, full scan->send pipeline BTC/BSC/SOL, USDC/USDT, dashboard, history, settings |
+| V2 | 2026-02-19 | 6 phases, robustness hardening: TX safety, scanner resilience, provider health, security tests, infrastructure |
 
 ## V2 Build Progress
 | Phase | Name | Status |
@@ -21,7 +22,7 @@
 | 3 | TX Safety -- Core | **Completed** |
 | 4 | TX Safety -- Advanced | **Completed** |
 | 5 | Provider Health & Broadcast Fallback | **Completed** |
-| 6 | Security Tests & Infrastructure | Pending |
+| 6 | Security Tests & Infrastructure | **Completed** |
 
 ## Key Decisions
 - **V2 scope**: Robustness only -- no new features, no tech stack changes
@@ -43,14 +44,17 @@
 - **Provider health DB**: Scanner pool records health success/failure to provider_health table (non-blocking)
 - **BSC broadcast fallback**: FallbackEthClient wrapper tries primary then Ankr RPC
 - **SOL broadcast fallback**: doRPCAllURLs tries all configured URLs before failing
+- **Stale-but-serve prices**: 30-min tolerance for serving cached prices when live fetch fails
+- **DB connection pool**: 25 max open / 5 idle / 5 min lifetime from centralized constants
+- **Graceful shutdown**: 10-min timeout matching longest sweep operation, ordered drain
 - All V1 decisions carry forward unchanged
 
 ## Tech Stack
 No changes from V1.
 
 ## Next Actions
-- Start V2 Build Phase 6: Security Tests & Infrastructure
-- Key files to read: `.project/v2/04-build-plan/phases/phase-06/PLAN.md`
+- Run `/cf-save` to save final session state
+- Run `/cf-new-version` to start planning V3
 
 ## Files Reference
 | File | Purpose |
@@ -65,10 +69,12 @@ No changes from V1.
 | `.project/v2/04-build-plan/phases/phase-03/PLAN.md` | Phase 3 plan (completed) |
 | `.project/v2/04-build-plan/phases/phase-04/PLAN.md` | Phase 4 plan (completed) |
 | `.project/v2/04-build-plan/phases/phase-05/PLAN.md` | Phase 5 plan (completed) |
+| `.project/v2/04-build-plan/phases/phase-06/PLAN.md` | Phase 6 plan (completed) |
 
 ## Session History
 | # | Date | Phase | Summary |
 |---|------|-------|---------|
+| 18 | 2026-02-19 | building | V2 Build Phase 6 (FINAL): Security Tests & Infrastructure -- 55 new tests, server hardening, DB pool, stale-but-serve prices, graceful shutdown. ALL V2 COMPLETE. |
 | 17 | 2026-02-19 | building | V2 Build Phase 5: Provider Health & Broadcast Fallback -- DB health recording, health API, BSC FallbackEthClient, SOL doRPCAllURLs, frontend health indicators. 5 new tests. |
 | 16 | 2026-02-18 | building | V2 Build Phase 4: TX Safety Advanced -- UTXO re-validation (A6), BSC balance recheck (A7), partial sweep resume (A8), gas pre-seed idempotency (A9), SOL ATA confirmation (A10), BSC gas re-estimation (A11), nonce gap handling (A12). 14 new tests. |
 | 15 | 2026-02-18 | building | V2 Build Phase 3: TX Safety Core -- concurrent send mutex (A1), BTC confirmation polling (A2), SOL confirmation uncertainty (A3), in-flight TX persistence all chains (A4), SOL blockhash cache (A5). |

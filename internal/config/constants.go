@@ -174,10 +174,12 @@ const (
 
 // Server
 const (
-	ServerPort         = 8080
-	ServerReadTimeout  = 30 * time.Second
-	ServerWriteTimeout = 60 * time.Second
-	APITimeout         = 30 * time.Second
+	ServerPort           = 8080
+	ServerReadTimeout    = 30 * time.Second
+	ServerWriteTimeout   = 60 * time.Second
+	ServerIdleTimeout    = 5 * time.Minute
+	ServerMaxHeaderBytes = 1 << 20 // 1MB
+	APITimeout           = 30 * time.Second
 	SSEKeepAliveInterval = 15 * time.Second
 )
 
@@ -190,16 +192,29 @@ const (
 
 // Database
 const (
-	DBPath        = "./data/hdpay.sqlite"
-	DBTestPath    = "./data/hdpay_test.sqlite"
-	DBWALMode     = true
-	DBBusyTimeout = 5000 // milliseconds
+	DBPath            = "./data/hdpay.sqlite"
+	DBTestPath        = "./data/hdpay_test.sqlite"
+	DBWALMode         = true
+	DBBusyTimeout     = 5000 // milliseconds
+	DBMaxOpenConns    = 25
+	DBMaxIdleConns    = 5
+	DBConnMaxLifetime = 5 * time.Minute
 )
 
 // Send / Execute
 const (
 	SendExecuteTimeout = 10 * time.Minute // max time for a full sweep execution
 	TxSSEHubBuffer     = 64               // channel buffer for TX SSE events
+)
+
+// Graceful Shutdown
+const (
+	ShutdownTimeout = SendExecuteTimeout // match longest operation (10 min)
+)
+
+// Price Staleness
+const (
+	PriceStaleTolerance = 30 * time.Minute // max age for stale-but-serve
 )
 
 // Explorer URLs

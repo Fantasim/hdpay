@@ -153,6 +153,12 @@ export interface PriceData {
 	USDT: number;
 }
 
+// PriceResponse represents the GET /api/dashboard/prices response data.
+export interface PriceResponse {
+	prices: PriceData;
+	stale: boolean;
+}
+
 // PortfolioResponse represents the GET /api/dashboard/portfolio response data.
 export interface PortfolioResponse {
 	totalUsd: number;

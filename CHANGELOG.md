@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 2026-02-19 (V2 Phase 6) — Security Tests & Infrastructure — V2 COMPLETE
+
+#### Added
+- Security middleware test suite: 21 tests covering HostCheck (7), CORS (7), CSRF (7) (`internal/api/middleware/security_test.go`)
+- Mempool provider test suite: 9 tests — success, rate limit, server error, malformed JSON, partial failure, all fail, context cancellation, token not supported, metadata (`internal/scanner/btc_mempool_test.go`)
+- BSC RPC provider test suite: 8 tests — native balance, zero balance, all fail, partial failure, token balance, null token, context cancellation, metadata (`internal/scanner/bsc_rpc_test.go`)
+- Solana RPC provider test suite: 9 tests — native balance, null account, partial results, RPC error, nil result, rate limited, token balance, null ATA, metadata (`internal/scanner/sol_rpc_test.go`)
+- TX SSE hub test suite: 8 tests — subscribe/unsubscribe, broadcast, slow client drop, concurrent race safety, Run cancellation (`internal/tx/sse_test.go`)
+- Price stale-but-serve: `GetPrices()` returns stale cache when live fetch fails (30-min tolerance), `IsStale()` method
+- 3 price staleness tests: stale cache on error, no cache returns error, expired cache returns error
+- Constants: `ServerIdleTimeout`, `ServerMaxHeaderBytes`, `DBMaxOpenConns`, `DBMaxIdleConns`, `DBConnMaxLifetime`, `ShutdownTimeout`, `PriceStaleTolerance`
+
+#### Changed
+- HTTP server: added `IdleTimeout` (5 min) and `MaxHeaderBytes` (1 MB) for hardening
+- SQLite connection pool: `SetMaxOpenConns(25)`, `SetMaxIdleConns(5)`, `SetConnMaxLifetime(5 min)` from centralized config
+- Graceful shutdown: timeout now uses `config.ShutdownTimeout` (10 min), ordered drain (cancel hub -> HTTP shutdown -> DB close)
+- Dashboard prices response: now returns `{ prices: {...}, stale: bool }` instead of flat price map
+- Frontend `getPrices()` return type updated to `PriceResponse` with stale field
+
 ### 2026-02-19 (V2 Phase 5) — Provider Health & Broadcast Fallback
 
 #### Added

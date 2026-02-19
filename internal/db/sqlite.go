@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Fantasim/hdpay/internal/config"
 	_ "modernc.org/sqlite"
 )
 
@@ -54,6 +55,17 @@ func New(path string) (*DB, error) {
 	}
 
 	slog.Debug("database WAL mode", "mode", mode)
+
+	// Configure connection pool limits.
+	conn.SetMaxOpenConns(config.DBMaxOpenConns)
+	conn.SetMaxIdleConns(config.DBMaxIdleConns)
+	conn.SetConnMaxLifetime(config.DBConnMaxLifetime)
+
+	slog.Info("database connection pool configured",
+		"maxOpenConns", config.DBMaxOpenConns,
+		"maxIdleConns", config.DBMaxIdleConns,
+		"connMaxLifetime", config.DBConnMaxLifetime,
+	)
 
 	return &DB{conn: conn, path: path}, nil
 }

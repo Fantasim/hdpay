@@ -27,6 +27,7 @@ type PriceService struct {
 	baseURL  string
 	cache    map[string]float64
 	cachedAt time.Time
+	stale    bool // true when returning stale cache after fetch failure
 	mu       sync.RWMutex
 }
 
@@ -59,6 +60,8 @@ func NewPriceServiceWithURL(baseURL string) *PriceService {
 
 // GetPrices returns current USD prices for all supported coins.
 // Returns cached prices if the cache is still valid, otherwise fetches fresh.
+// If fetch fails but a stale cache exists (within PriceStaleTolerance), returns
+// the stale cache instead of an error. Check IsStale() to detect this.
 // Prices are keyed by symbol (BTC, BNB, SOL, USDC, USDT).
 func (ps *PriceService) GetPrices(ctx context.Context) (map[string]float64, error) {
 	ps.mu.RLock()
@@ -80,15 +83,43 @@ func (ps *PriceService) GetPrices(ctx context.Context) (map[string]float64, erro
 
 	prices, err := ps.fetchPrices(ctx)
 	if err != nil {
+		// Stale-but-serve: if we have a cached result within tolerance, return it.
+		ps.mu.Lock()
+		if len(ps.cache) > 0 && time.Since(ps.cachedAt) < config.PriceStaleTolerance {
+			stalePrices := make(map[string]float64, len(ps.cache))
+			for k, v := range ps.cache {
+				stalePrices[k] = v
+			}
+			ps.stale = true
+			ps.mu.Unlock()
+
+			slog.Warn("returning stale prices after fetch failure",
+				"cacheAge", time.Since(ps.cachedAt).Round(time.Second),
+				"fetchError", err,
+			)
+
+			return stalePrices, nil
+		}
+		ps.mu.Unlock()
+
 		return nil, err
 	}
 
 	ps.mu.Lock()
 	ps.cache = prices
 	ps.cachedAt = time.Now()
+	ps.stale = false
 	ps.mu.Unlock()
 
 	return prices, nil
+}
+
+// IsStale returns true if the last GetPrices call returned stale cached data
+// because the CoinGecko fetch failed.
+func (ps *PriceService) IsStale() bool {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	return ps.stale
 }
 
 // coinGeckoResponse represents the CoinGecko /simple/price response.
