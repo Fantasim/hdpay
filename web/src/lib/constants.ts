@@ -53,6 +53,9 @@ export const TX_STATUSES = ['pending', 'confirmed', 'failed'] as const;
 export const RESUME_THRESHOLD_OPTIONS = [1, 6, 12, 24, 48] as const;
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
+// Send polling fallback
+export const SEND_POLL_INTERVAL_MS = 3000;
+
 // Error Codes (mirror backend)
 export const ERROR_INVALID_MNEMONIC = 'ERROR_INVALID_MNEMONIC';
 export const ERROR_ADDRESS_GENERATION = 'ERROR_ADDRESS_GENERATION';

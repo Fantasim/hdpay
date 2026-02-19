@@ -386,7 +386,11 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	feeEstimator := tx.NewBTCFeeEstimator(httpClient, mempoolURL)
 	broadcaster := tx.NewBTCBroadcaster(httpClient, btcProviderURLs)
 
-	btcService := tx.NewBTCConsolidationService(keyService, utxoFetcher, feeEstimator, broadcaster, database, netParams, httpClient, btcProviderURLs)
+	// TX SSE Hub — created early so it can be passed to consolidation services.
+	txHub := tx.NewTxSSEHub()
+	go txHub.Run(hubCtx)
+
+	btcService := tx.NewBTCConsolidationService(keyService, utxoFetcher, feeEstimator, broadcaster, database, netParams, httpClient, btcProviderURLs, txHub)
 
 	// BSC services.
 	var bscRPCURL string
@@ -420,7 +424,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	}
 
 	bscChainID := tx.BSCChainID(cfg.Network)
-	bscService := tx.NewBSCConsolidationService(keyService, bscClient, database, bscChainID)
+	bscService := tx.NewBSCConsolidationService(keyService, bscClient, database, bscChainID, txHub)
 	gasPreSeedService := tx.NewGasPreSeedService(keyService, bscClient, database, bscChainID)
 
 	slog.Info("BSC services initialized", "rpcURL", bscRPCURL, "chainID", bscChainID)
@@ -437,13 +441,9 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	}
 
 	solRPCClient := tx.NewDefaultSOLRPCClient(httpClient, solRPCURLs)
-	solService := tx.NewSOLConsolidationService(keyService, solRPCClient, database, cfg.Network)
+	solService := tx.NewSOLConsolidationService(keyService, solRPCClient, database, cfg.Network, txHub)
 
 	slog.Info("SOL services initialized", "rpcURLs", solRPCURLs)
-
-	// TX SSE Hub.
-	txHub := tx.NewTxSSEHub()
-	go txHub.Run(hubCtx)
 
 	return &handlers.SendDeps{
 		DB:         database,

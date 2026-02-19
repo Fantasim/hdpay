@@ -69,6 +69,7 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 			r.Post("/gas-preseed", handlers.GasPreSeedHandler(sendDeps))
 			r.Get("/sse", handlers.SendSSE(sendDeps.TxHub))
 			r.Get("/pending", handlers.GetPendingTxStates(sendDeps))
+			r.Get("/sweep/{sweepID}", handlers.GetSweepStatus(sendDeps))
 			r.Post("/dismiss/{id}", handlers.DismissTxState(sendDeps))
 			r.Get("/resume/{sweepID}", handlers.GetResumeSummary(sendDeps))
 			r.Post("/resume", handlers.ExecuteResume(sendDeps))

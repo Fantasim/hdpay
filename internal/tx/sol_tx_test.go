@@ -82,7 +82,7 @@ func TestSOLNativeSweep_SingleAddress(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		Chain:         models.ChainSOL,
@@ -130,7 +130,7 @@ func TestSOLNativeSweep_MultipleAddresses(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{
 		{AddressIndex: 0, Address: "3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx", NativeBalance: "500000000"},
@@ -162,7 +162,7 @@ func TestSOLNativeSweep_InsufficientBalance(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -200,7 +200,7 @@ func TestSOLNativeSweep_ConfirmationTimeout(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -240,7 +240,7 @@ func TestSOLNativeSweep_ConfirmationFailed(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -280,7 +280,7 @@ func TestSOLTokenSweep_WithExistingATA(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -331,7 +331,7 @@ func TestSOLTokenSweep_WithATACreation(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -374,7 +374,7 @@ func TestSOLTokenSweep_InsufficientSOLForFee(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,
@@ -452,7 +452,7 @@ func TestSOLNativeSweep_Preview(t *testing.T) {
 	ks := NewKeyService(mnemonicPath, "testnet")
 	mock := &mockSOLRPCClient{}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{
 		{AddressIndex: 0, Address: "addr1", NativeBalance: "1000000000"},  // 1 SOL
@@ -490,7 +490,7 @@ func TestSOLTokenSweep_Preview_WithATACreation(t *testing.T) {
 		},
 	}
 
-	svc := NewSOLConsolidationService(ks, mock, nil, "testnet")
+	svc := NewSOLConsolidationService(ks, mock, nil, "testnet", nil)
 
 	addresses := []models.AddressWithBalance{{
 		AddressIndex:  0,

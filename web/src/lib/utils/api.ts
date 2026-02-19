@@ -3,8 +3,8 @@ import type {
 	AddressWithBalance, APIErrorResponse, APIResponse, Chain,
 	GasPreSeedRequest, GasPreSeedResult,
 	PortfolioResponse, PriceResponse, ProviderHealthMap, ScanStateWithRunning,
-	SendRequest, Settings, Transaction, TransactionListParams,
-	UnifiedSendPreview, UnifiedSendResult
+	SendRequest, Settings, SweepStarted, Transaction, TransactionListParams, TxResult,
+	UnifiedSendPreview
 } from '$lib/types';
 
 let csrfToken: string | null = null;
@@ -172,8 +172,12 @@ export function previewSend(req: SendRequest): Promise<APIResponse<UnifiedSendPr
 	return api.post<UnifiedSendPreview>('/send/preview', req);
 }
 
-export function executeSend(req: SendRequest): Promise<APIResponse<UnifiedSendResult>> {
-	return api.post<UnifiedSendResult>('/send/execute', req);
+export function executeSend(req: SendRequest): Promise<APIResponse<SweepStarted>> {
+	return api.post<SweepStarted>('/send/execute', req);
+}
+
+export function getSweepStatus(sweepID: string): Promise<APIResponse<TxResult[]>> {
+	return api.get<TxResult[]>(`/send/sweep/${sweepID}`);
 }
 
 export function gasPreSeed(req: GasPreSeedRequest): Promise<APIResponse<GasPreSeedResult>> {

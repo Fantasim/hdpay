@@ -262,6 +262,7 @@ type BTCConsolidationService struct {
 	netParams        *chaincfg.Params
 	httpClient       *http.Client
 	confirmationURLs []string // Esplora-compatible base URLs for TX status polling
+	txHub            *TxSSEHub
 }
 
 // NewBTCConsolidationService creates the consolidation orchestrator.
@@ -274,6 +275,7 @@ func NewBTCConsolidationService(
 	netParams *chaincfg.Params,
 	httpClient *http.Client,
 	confirmationURLs []string,
+	txHub *TxSSEHub,
 ) *BTCConsolidationService {
 	slog.Info("BTC consolidation service created",
 		"network", netParams.Name,
@@ -288,6 +290,7 @@ func NewBTCConsolidationService(
 		netParams:        netParams,
 		httpClient:       httpClient,
 		confirmationURLs: confirmationURLs,
+		txHub:            txHub,
 	}
 }
 
@@ -476,6 +479,24 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 		"txHash", txHash,
 		"duration", time.Since(start).Round(time.Millisecond),
 	)
+
+	// Broadcast per-TX progress via SSE (BTC is a single multi-input TX).
+	if s.txHub != nil {
+		s.txHub.Broadcast(TxEvent{
+			Type: "tx_status",
+			Data: TxStatusData{
+				Chain:        string(models.ChainBTC),
+				Token:        string(models.TokenNative),
+				AddressIndex: 0,
+				FromAddress:  "consolidated",
+				TxHash:       txHash,
+				Status:       "success",
+				Amount:       strconv.FormatInt(built.OutputSats, 10),
+				Current:      1,
+				Total:        1,
+			},
+		})
+	}
 
 	// 9. Update to confirming with txHash.
 	s.updateTxState(txStateID, config.TxStateConfirming, txHash, "")

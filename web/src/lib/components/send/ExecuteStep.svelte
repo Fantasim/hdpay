@@ -235,6 +235,13 @@
 				</div>
 			{/if}
 
+			<!-- Progress counter during execution -->
+			{#if loading && txProgress.length > 0}
+				<div class="progress-info">
+					{txProgress.length} of {preview?.fundedCount ?? '?'} transactions processed
+				</div>
+			{/if}
+
 			<!-- TX Progress during execution -->
 			{#if txProgress.length > 0}
 				<div class="table-wrapper">
@@ -298,19 +305,26 @@
 					</svg>
 					Back
 				</button>
-				<button
-					class="btn btn-danger"
-					onclick={openConfirmModal}
-					disabled={loading}
-					style={loading ? 'pointer-events: none;' : ''}
-				>
+				<div class="action-bar-right">
 					{#if loading}
-						<span class="spinner"></span>
-						Executing...
-					{:else}
-						Execute Sweep
+						<a class="btn btn-ghost btn-sm" href="/transactions">
+							Check Transactions page
+						</a>
 					{/if}
-				</button>
+					<button
+						class="btn btn-danger"
+						onclick={openConfirmModal}
+						disabled={loading}
+						style={loading ? 'pointer-events: none;' : ''}
+					>
+						{#if loading}
+							<span class="spinner"></span>
+							Executing...
+						{:else}
+							Execute Sweep
+						{/if}
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -653,6 +667,13 @@
 		flex-shrink: 0;
 	}
 
+	.progress-info {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		padding: 0.5rem 0;
+		font-weight: 500;
+	}
+
 	.action-bar {
 		display: flex;
 		align-items: center;
@@ -660,6 +681,17 @@
 		padding-top: 1.5rem;
 		margin-top: 1.5rem;
 		border-top: 1px solid var(--color-border-subtle);
+	}
+
+	.action-bar-right {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.btn-sm {
+		padding: 0.375rem 0.75rem;
+		font-size: 0.75rem;
 	}
 
 	.btn {

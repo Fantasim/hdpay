@@ -19,20 +19,23 @@ type TxStatusData struct {
 	Chain        string `json:"chain"`
 	Token        string `json:"token"`
 	AddressIndex int    `json:"addressIndex"`
+	FromAddress  string `json:"fromAddress"`
 	TxHash       string `json:"txHash"`
-	Status       string `json:"status"` // "pending", "confirmed", "failed"
+	Status       string `json:"status"` // "pending", "broadcasting", "success", "confirmed", "failed"
 	Amount       string `json:"amount"`
+	Error        string `json:"error,omitempty"`
 	Current      int    `json:"current"` // 1-based index of current TX
 	Total        int    `json:"total"`   // total TXs in sweep
 }
 
 // TxCompleteData is the payload for tx_complete events (sweep finished).
 type TxCompleteData struct {
-	Chain        string `json:"chain"`
-	Token        string `json:"token"`
-	SuccessCount int    `json:"successCount"`
-	FailCount    int    `json:"failCount"`
-	TotalSwept   string `json:"totalSwept"`
+	Chain        string         `json:"chain"`
+	Token        string         `json:"token"`
+	SuccessCount int            `json:"successCount"`
+	FailCount    int            `json:"failCount"`
+	TotalSwept   string         `json:"totalSwept"`
+	TxResults    []TxStatusData `json:"txResults"` // full per-TX results for completion view
 }
 
 // TxErrorData is the payload for tx_error events.

@@ -1,9 +1,16 @@
 import { browser } from '$app/environment';
-import { API_BASE, SSE_RECONNECT_DELAY_MS, SSE_MAX_RECONNECT_DELAY_MS, SSE_BACKOFF_MULTIPLIER } from '$lib/constants';
+import {
+	API_BASE,
+	SSE_RECONNECT_DELAY_MS,
+	SSE_MAX_RECONNECT_DELAY_MS,
+	SSE_BACKOFF_MULTIPLIER,
+	SEND_POLL_INTERVAL_MS
+} from '$lib/constants';
 import {
 	previewSend as apiPreviewSend,
 	executeSend as apiExecuteSend,
-	gasPreSeed as apiGasPreSeed
+	gasPreSeed as apiGasPreSeed,
+	getSweepStatus as apiGetSweepStatus
 } from '$lib/utils/api';
 import { validateAddress } from '$lib/utils/validation';
 import type {
@@ -28,6 +35,7 @@ interface SendStoreState {
 	preview: UnifiedSendPreview | null;
 	gasPreSeedResult: GasPreSeedResult | null;
 	feePayerIndex: number | null;
+	sweepID: string | null;
 	executeResult: UnifiedSendResult | null;
 	txProgress: TxResult[];
 	loading: boolean;
@@ -44,6 +52,7 @@ const INITIAL_STATE: SendStoreState = {
 	preview: null,
 	gasPreSeedResult: null,
 	feePayerIndex: null,
+	sweepID: null,
 	executeResult: null,
 	txProgress: [],
 	loading: false,
@@ -57,6 +66,7 @@ function createSendStore() {
 	let eventSource: EventSource | null = null;
 	let retryCount = 0;
 	let retryTimer: ReturnType<typeof setTimeout> | null = null;
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 	// Set the selected chain.
 	function setChain(chain: Chain): void {
@@ -163,6 +173,8 @@ function createSendStore() {
 	}
 
 	// Execute the sweep transaction(s).
+	// Returns 202 immediately — progress is driven by SSE events (tx_status, tx_complete, tx_error).
+	// If SSE drops, falls back to polling GET /api/send/sweep/{sweepID}.
 	async function executeSweep(): Promise<void> {
 		const req = buildRequest();
 		if (!req) {
@@ -174,19 +186,21 @@ function createSendStore() {
 		state.error = null;
 		state.executeResult = null;
 		state.txProgress = [];
+		state.sweepID = null;
 
-		// Connect SSE before execution for real-time updates.
+		// Connect SSE before POST so we catch events immediately.
 		connectSSE();
 
 		try {
 			const response = await apiExecuteSend(req);
-			state.executeResult = response.data;
-			state.step = 'complete';
+			// 202 Accepted — sweep is running in background.
+			state.sweepID = response.data.sweepID;
+			// Do NOT set loading=false — SSE events drive completion.
 		} catch (err) {
-			state.error = err instanceof Error ? err.message : 'Send execution failed';
-		} finally {
 			state.loading = false;
+			state.error = err instanceof Error ? err.message : 'Send execution failed';
 			disconnectSSE();
+			stopPollingFallback();
 		}
 	}
 
@@ -245,10 +259,12 @@ function createSendStore() {
 	// Reset the store to initial state.
 	function reset(): void {
 		disconnectSSE();
+		stopPollingFallback();
 		Object.assign(state, { ...INITIAL_STATE });
 	}
 
-	// SSE for real-time TX status updates.
+	// --- SSE for real-time TX status updates ---
+
 	function connectSSE(): void {
 		if (!browser) return;
 		if (eventSource) return;
@@ -273,6 +289,8 @@ function createSendStore() {
 		es.onopen = () => {
 			state.sseStatus = 'connected';
 			retryCount = 0;
+			// SSE is connected — stop polling fallback if active.
+			stopPollingFallback();
 		};
 
 		es.addEventListener('tx_status', (e: MessageEvent<string>) => {
@@ -298,9 +316,26 @@ function createSendStore() {
 
 		es.addEventListener('tx_complete', (e: MessageEvent<string>) => {
 			try {
-				const data = JSON.parse(e.data) as UnifiedSendResult;
-				state.executeResult = data;
+				const data = JSON.parse(e.data) as {
+					chain: Chain;
+					token: string;
+					successCount: number;
+					failCount: number;
+					totalSwept: string;
+					txResults?: TxResult[];
+				};
+				state.executeResult = {
+					chain: data.chain,
+					token: (data.token as SendToken) ?? state.token ?? 'NATIVE',
+					txResults: data.txResults ?? [...state.txProgress],
+					successCount: data.successCount,
+					failCount: data.failCount,
+					totalSwept: data.totalSwept
+				};
 				state.step = 'complete';
+				state.loading = false;
+				disconnectSSE();
+				stopPollingFallback();
 			} catch {
 				// Malformed payload — ignore.
 			}
@@ -310,6 +345,9 @@ function createSendStore() {
 			try {
 				const data = JSON.parse(e.data) as { error: string; message: string };
 				state.error = data.message || data.error;
+				state.loading = false;
+				disconnectSSE();
+				stopPollingFallback();
 			} catch {
 				// Malformed payload — ignore.
 			}
@@ -320,6 +358,10 @@ function createSendStore() {
 				state.sseStatus = 'error';
 				closeEventSource();
 				scheduleReconnect();
+				// If we're actively waiting for a sweep, start polling fallback.
+				if (state.loading && state.sweepID) {
+					startPollingFallback();
+				}
 			}
 		};
 	}
@@ -354,6 +396,68 @@ function createSendStore() {
 			eventSource.onerror = null;
 			eventSource.close();
 			eventSource = null;
+		}
+	}
+
+	// --- Polling fallback when SSE disconnects during active sweep ---
+
+	function startPollingFallback(): void {
+		if (pollTimer || !state.sweepID) return;
+
+		pollTimer = setInterval(async () => {
+			if (!state.sweepID || state.step === 'complete') {
+				stopPollingFallback();
+				return;
+			}
+
+			try {
+				const res = await apiGetSweepStatus(state.sweepID);
+				const txStates = res.data;
+
+				// Update txProgress from DB state.
+				state.txProgress = txStates.map((s) => ({
+					addressIndex: s.addressIndex,
+					fromAddress: s.fromAddress,
+					txHash: s.txHash,
+					amount: s.amount,
+					status: s.status,
+					error: s.error
+				}));
+
+				// Check if all are terminal -> build executeResult, set complete.
+				const terminalStatuses = ['confirmed', 'failed', 'uncertain', 'success'];
+				const allTerminal =
+					txStates.length > 0 &&
+					txStates.every((s) => terminalStatuses.includes(s.status));
+
+				if (allTerminal) {
+					const successCount = txStates.filter(
+						(s) => s.status === 'success' || s.status === 'confirmed'
+					).length;
+
+					state.executeResult = {
+						chain: state.chain ?? 'BTC',
+						token: state.token ?? 'NATIVE',
+						txResults: state.txProgress,
+						successCount,
+						failCount: txStates.length - successCount,
+						totalSwept: ''
+					};
+					state.step = 'complete';
+					state.loading = false;
+					stopPollingFallback();
+					disconnectSSE();
+				}
+			} catch {
+				// Polling error — ignore, will retry next interval.
+			}
+		}, SEND_POLL_INTERVAL_MS);
+	}
+
+	function stopPollingFallback(): void {
+		if (pollTimer) {
+			clearInterval(pollTimer);
+			pollTimer = null;
 		}
 	}
 

@@ -279,6 +279,14 @@ type ResumeSummary struct {
 	ToRetry   int    `json:"toRetry"`
 }
 
+// SweepStarted is the response for async sweep execution (202 Accepted).
+type SweepStarted struct {
+	SweepID      string `json:"sweepID"`
+	Chain        Chain  `json:"chain"`
+	Token        Token  `json:"token"`
+	AddressCount int    `json:"addressCount"`
+}
+
 // GasPreSeedRequest is the request body for gas pre-seeding.
 type GasPreSeedRequest struct {
 	SourceIndex     int      `json:"sourceIndex"`

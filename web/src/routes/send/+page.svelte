@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import Header from '$lib/components/layout/Header.svelte';
 	import SelectStep from '$lib/components/send/SelectStep.svelte';
 	import PreviewStep from '$lib/components/send/PreviewStep.svelte';
@@ -54,9 +55,30 @@
 			: `${chain} / ${tok}`;
 	});
 
+	// Navigation guard — warn user if sweep is in progress.
+	beforeNavigate(({ cancel }) => {
+		if (store.state.loading) {
+			if (
+				!confirm(
+					'Sweep in progress. It continues in the background, but you will lose the progress display. Leave?'
+				)
+			) {
+				cancel();
+			}
+		}
+	});
+
 	onMount(() => {
+		// Browser tab close / refresh guard.
+		const handler = (e: BeforeUnloadEvent): void => {
+			if (store.state.loading) {
+				e.preventDefault();
+			}
+		};
+		window.addEventListener('beforeunload', handler);
+
 		return () => {
-			// Don't reset on unmount — user might navigate back.
+			window.removeEventListener('beforeunload', handler);
 		};
 	});
 </script>

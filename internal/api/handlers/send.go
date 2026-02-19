@@ -473,10 +473,12 @@ func buildSOLTokenPreview(ctx context.Context, deps *SendDeps, req models.SendRe
 }
 
 // ExecuteSend handles POST /api/send/execute.
+// Returns 202 Accepted immediately with a sweepID. The actual sweep runs in a
+// background goroutine; per-TX progress is streamed via SSE (tx_status events),
+// and the final result is broadcast as tx_complete. Clients can also poll
+// GET /api/send/sweep/{sweepID} as a fallback.
 func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
 		var req models.SendRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Warn("invalid send execute request body", "error", err)
@@ -522,6 +524,7 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 		}
 
 		// Acquire per-chain mutex to prevent concurrent sweeps.
+		// NOTE: Do NOT defer mu.Unlock() — the goroutine below unlocks it when done.
 		mu := deps.ChainLocks[req.Chain]
 		if mu == nil {
 			slog.Error("no chain lock configured", "chain", req.Chain)
@@ -534,12 +537,11 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 				fmt.Sprintf("send operation already in progress for %s", req.Chain))
 			return
 		}
-		defer mu.Unlock()
 
 		// Generate sweep ID for grouping all TX states in this sweep.
 		sweepID := tx.GenerateSweepID()
 
-		slog.Info("executing send sweep",
+		slog.Info("send sweep accepted (async)",
 			"chain", req.Chain,
 			"token", req.Token,
 			"fundedCount", len(funded),
@@ -547,53 +549,102 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 			"sweepID", sweepID,
 		)
 
-		// Dispatch to chain-specific execute.
-		result, err := executeSweep(r, deps, req, funded, sweepID)
-		if err != nil {
-			slog.Error("send execute failed",
+		// Return 202 Accepted immediately — client tracks progress via SSE or polling.
+		writeJSON(w, http.StatusAccepted, models.APIResponse{
+			Data: models.SweepStarted{
+				SweepID:      sweepID,
+				Chain:        req.Chain,
+				Token:        req.Token,
+				AddressCount: len(funded),
+			},
+		})
+
+		// Run sweep in background goroutine.
+		// Uses context.Background() because the HTTP request context is dead after return.
+		go func() {
+			defer mu.Unlock()
+
+			start := time.Now()
+			bgCtx := context.Background()
+
+			slog.Info("background sweep goroutine started",
+				"sweepID", sweepID,
 				"chain", req.Chain,
 				"token", req.Token,
-				"error", err,
+			)
+
+			result, err := executeSweepBg(bgCtx, deps, req, funded, sweepID)
+			if err != nil {
+				slog.Error("background sweep failed",
+					"sweepID", sweepID,
+					"chain", req.Chain,
+					"token", req.Token,
+					"error", err,
+					"duration", time.Since(start).Round(time.Millisecond),
+				)
+
+				// Broadcast error via SSE so frontend can show it.
+				if deps.TxHub != nil {
+					deps.TxHub.Broadcast(tx.TxEvent{
+						Type: "tx_error",
+						Data: tx.TxErrorData{
+							Chain:   string(req.Chain),
+							Error:   config.ErrorTxBroadcastFailed,
+							Message: err.Error(),
+						},
+					})
+				}
+				return
+			}
+
+			slog.Info("background sweep completed",
+				"sweepID", sweepID,
+				"chain", req.Chain,
+				"token", req.Token,
+				"successCount", result.SuccessCount,
+				"failCount", result.FailCount,
+				"totalSwept", result.TotalSwept,
 				"duration", time.Since(start).Round(time.Millisecond),
 			)
-			writeError(w, http.StatusInternalServerError, config.ErrorTxBroadcastFailed, err.Error())
-			return
-		}
 
-		slog.Info("send execute completed",
-			"chain", req.Chain,
-			"token", req.Token,
-			"successCount", result.SuccessCount,
-			"failCount", result.FailCount,
-			"totalSwept", result.TotalSwept,
-			"duration", time.Since(start).Round(time.Millisecond),
-		)
+			// Broadcast completion event via SSE with full results.
+			if deps.TxHub != nil {
+				// Build TxStatusData slice from UnifiedSendResult for the completion payload.
+				txResults := make([]tx.TxStatusData, len(result.TxResults))
+				for i, r := range result.TxResults {
+					txResults[i] = tx.TxStatusData{
+						Chain:        string(req.Chain),
+						Token:        string(req.Token),
+						AddressIndex: r.AddressIndex,
+						FromAddress:  r.FromAddress,
+						TxHash:       r.TxHash,
+						Status:       r.Status,
+						Amount:       r.Amount,
+						Error:        r.Error,
+						Current:      i + 1,
+						Total:        len(result.TxResults),
+					}
+				}
 
-		// Broadcast completion event via SSE.
-		if deps.TxHub != nil {
-			deps.TxHub.Broadcast(tx.TxEvent{
-				Type: "tx_complete",
-				Data: tx.TxCompleteData{
-					Chain:        string(req.Chain),
-					Token:        string(req.Token),
-					SuccessCount: result.SuccessCount,
-					FailCount:    result.FailCount,
-					TotalSwept:   result.TotalSwept,
-				},
-			})
-		}
-
-		writeJSON(w, http.StatusOK, models.APIResponse{
-			Data: result,
-			Meta: &models.APIMeta{ExecutionTime: time.Since(start).Milliseconds()},
-		})
+				deps.TxHub.Broadcast(tx.TxEvent{
+					Type: "tx_complete",
+					Data: tx.TxCompleteData{
+						Chain:        string(req.Chain),
+						Token:        string(req.Token),
+						SuccessCount: result.SuccessCount,
+						FailCount:    result.FailCount,
+						TotalSwept:   result.TotalSwept,
+						TxResults:    txResults,
+					},
+				})
+			}
+		}()
 	}
 }
 
-// executeSweep dispatches to chain-specific execute logic and returns a unified result.
-func executeSweep(r *http.Request, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
-	ctx := r.Context()
-
+// executeSweepBg dispatches to chain-specific execute logic and returns a unified result.
+// Called from a background goroutine with context.Background().
+func executeSweepBg(ctx context.Context, deps *SendDeps, req models.SendRequest, funded []models.AddressWithBalance, sweepID string) (*models.UnifiedSendResult, error) {
 	switch req.Chain {
 	case models.ChainBTC:
 		return executeBTCSweep(ctx, deps, req, funded, sweepID)
@@ -948,6 +999,45 @@ func GetPendingTxStates(deps *SendDeps) http.HandlerFunc {
 	}
 }
 
+// GetSweepStatus handles GET /api/send/sweep/{sweepID}.
+// Returns all TX states for a sweep, formatted as TxResult[] for frontend compatibility.
+// Used as a polling fallback when SSE is unavailable.
+func GetSweepStatus(deps *SendDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sweepID := chi.URLParam(r, "sweepID")
+		if sweepID == "" {
+			writeError(w, http.StatusBadRequest, config.ErrorSweepNotFound, "sweep ID is required")
+			return
+		}
+
+		slog.Debug("sweep status requested", "sweepID", sweepID)
+
+		txStates, err := deps.DB.GetTxStatesBySweepID(sweepID)
+		if err != nil {
+			slog.Error("failed to fetch sweep TX states", "sweepID", sweepID, "error", err)
+			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to fetch sweep status")
+			return
+		}
+
+		// Convert to TxResult format for frontend compatibility.
+		results := make([]models.TxResult, len(txStates))
+		for i, s := range txStates {
+			results[i] = models.TxResult{
+				AddressIndex: s.AddressIndex,
+				FromAddress:  s.FromAddress,
+				TxHash:       s.TxHash,
+				Amount:       s.Amount,
+				Status:       s.Status,
+				Error:        s.Error,
+			}
+		}
+
+		writeJSON(w, http.StatusOK, models.APIResponse{
+			Data: results,
+		})
+	}
+}
+
 // GetResumeSummary handles GET /api/send/resume/{sweepID}.
 // Returns the state of a sweep for the resume UI.
 func GetResumeSummary(deps *SendDeps) http.HandlerFunc {
@@ -1135,7 +1225,7 @@ func ExecuteResume(deps *SendDeps) http.HandlerFunc {
 			Destination: dest,
 		}
 
-		result, err := executeSweep(r, deps, sendReq, retryFunded, retrySweepID)
+		result, err := executeSweepBg(r.Context(), deps, sendReq, retryFunded, retrySweepID)
 		if err != nil {
 			slog.Error("resume execute failed",
 				"sweepID", req.SweepID,

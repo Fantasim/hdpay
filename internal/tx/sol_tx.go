@@ -400,6 +400,7 @@ type SOLConsolidationService struct {
 	rpcClient  SOLRPCClient
 	database   *db.DB
 	network    string
+	txHub      *TxSSEHub
 
 	// Blockhash cache — avoids fetching a new blockhash for every single TX in a sweep.
 	blockhashCache             [32]byte
@@ -414,6 +415,7 @@ func NewSOLConsolidationService(
 	rpcClient SOLRPCClient,
 	database *db.DB,
 	network string,
+	txHub *TxSSEHub,
 ) *SOLConsolidationService {
 	slog.Info("SOL consolidation service created", "network", network)
 	return &SOLConsolidationService{
@@ -421,6 +423,7 @@ func NewSOLConsolidationService(
 		rpcClient:  rpcClient,
 		database:   database,
 		network:    network,
+		txHub:      txHub,
 	}
 }
 
@@ -573,7 +576,7 @@ func (s *SOLConsolidationService) ExecuteNativeSweep(
 	}
 	var totalSwept uint64
 
-	for _, addr := range addresses {
+	for i, addr := range addresses {
 		if err := ctx.Err(); err != nil {
 			slog.Warn("SOL native sweep cancelled", "error", err)
 			break
@@ -588,6 +591,25 @@ func (s *SOLConsolidationService) ExecuteNativeSweep(
 			totalSwept += amount
 		} else {
 			result.FailCount++
+		}
+
+		// Broadcast per-TX progress via SSE.
+		if s.txHub != nil {
+			s.txHub.Broadcast(TxEvent{
+				Type: "tx_status",
+				Data: TxStatusData{
+					Chain:        string(models.ChainSOL),
+					Token:        string(models.TokenNative),
+					AddressIndex: txResult.AddressIndex,
+					FromAddress:  txResult.FromAddress,
+					TxHash:       txResult.TxSignature,
+					Status:       txResult.Status,
+					Amount:       txResult.Amount,
+					Error:        txResult.Error,
+					Current:      i + 1,
+					Total:        len(addresses),
+				},
+			})
 		}
 	}
 
@@ -966,6 +988,7 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 		Token: token,
 	}
 	var totalSwept uint64
+	txIdx := 1 // 1-based TX counter (skips zero-balance addresses)
 
 	for _, addr := range addresses {
 		if err := ctx.Err(); err != nil {
@@ -1022,6 +1045,26 @@ func (s *SOLConsolidationService) ExecuteTokenSweep(
 		} else {
 			result.FailCount++
 		}
+
+		// Broadcast per-TX progress via SSE.
+		if s.txHub != nil {
+			s.txHub.Broadcast(TxEvent{
+				Type: "tx_status",
+				Data: TxStatusData{
+					Chain:        string(models.ChainSOL),
+					Token:        string(token),
+					AddressIndex: txResult.AddressIndex,
+					FromAddress:  txResult.FromAddress,
+					TxHash:       txResult.TxSignature,
+					Status:       txResult.Status,
+					Amount:       txResult.Amount,
+					Error:        txResult.Error,
+					Current:      txIdx,
+					Total:        len(addresses),
+				},
+			})
+		}
+		txIdx++
 	}
 
 	result.TotalSwept = strconv.FormatUint(totalSwept, 10)

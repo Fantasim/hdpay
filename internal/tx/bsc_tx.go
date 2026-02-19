@@ -219,6 +219,7 @@ type BSCConsolidationService struct {
 	ethClient  EthClientWrapper
 	database   *db.DB
 	chainID    *big.Int
+	txHub      *TxSSEHub
 }
 
 // NewBSCConsolidationService creates the BSC consolidation orchestrator.
@@ -227,6 +228,7 @@ func NewBSCConsolidationService(
 	ethClient EthClientWrapper,
 	database *db.DB,
 	chainID *big.Int,
+	txHub *TxSSEHub,
 ) *BSCConsolidationService {
 	slog.Info("BSC consolidation service created", "chainID", chainID)
 	return &BSCConsolidationService{
@@ -234,6 +236,7 @@ func NewBSCConsolidationService(
 		ethClient:  ethClient,
 		database:   database,
 		chainID:    chainID,
+		txHub:      txHub,
 	}
 }
 
@@ -370,7 +373,7 @@ func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addres
 	}
 	totalSwept := new(big.Int)
 
-	for _, addr := range addresses {
+	for i, addr := range addresses {
 		if err := ctx.Err(); err != nil {
 			slog.Warn("BSC native sweep cancelled", "error", err)
 			break
@@ -387,6 +390,25 @@ func (s *BSCConsolidationService) ExecuteNativeSweep(ctx context.Context, addres
 			}
 		} else {
 			result.FailCount++
+		}
+
+		// Broadcast per-TX progress via SSE.
+		if s.txHub != nil {
+			s.txHub.Broadcast(TxEvent{
+				Type: "tx_status",
+				Data: TxStatusData{
+					Chain:        string(models.ChainBSC),
+					Token:        string(models.TokenNative),
+					AddressIndex: txResult.AddressIndex,
+					FromAddress:  txResult.FromAddress,
+					TxHash:       txResult.TxHash,
+					Status:       txResult.Status,
+					Amount:       txResult.Amount,
+					Error:        txResult.Error,
+					Current:      i + 1,
+					Total:        len(addresses),
+				},
+			})
 		}
 	}
 
@@ -642,7 +664,7 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 	}
 	totalSwept := new(big.Int)
 
-	for _, addr := range addresses {
+	for i, addr := range addresses {
 		if err := ctx.Err(); err != nil {
 			slog.Warn("BSC token sweep cancelled", "error", err)
 			break
@@ -659,6 +681,25 @@ func (s *BSCConsolidationService) ExecuteTokenSweep(
 			}
 		} else {
 			result.FailCount++
+		}
+
+		// Broadcast per-TX progress via SSE.
+		if s.txHub != nil {
+			s.txHub.Broadcast(TxEvent{
+				Type: "tx_status",
+				Data: TxStatusData{
+					Chain:        string(models.ChainBSC),
+					Token:        string(token),
+					AddressIndex: txResult.AddressIndex,
+					FromAddress:  txResult.FromAddress,
+					TxHash:       txResult.TxHash,
+					Status:       txResult.Status,
+					Amount:       txResult.Amount,
+					Error:        txResult.Error,
+					Current:      i + 1,
+					Total:        len(addresses),
+				},
+			})
 		}
 	}
 

@@ -262,6 +262,14 @@ export interface UnifiedSendResult {
 	totalSwept: string;
 }
 
+// SweepStarted is the response for async sweep execution (202 Accepted).
+export interface SweepStarted {
+	sweepID: string;
+	chain: Chain;
+	token: string;
+	addressCount: number;
+}
+
 // GasPreSeedRequest is the request body for gas pre-seeding.
 export interface GasPreSeedRequest {
 	sourceIndex: number;
