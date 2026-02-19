@@ -192,6 +192,7 @@ export interface Settings {
 	btc_fee_rate: string;
 	bsc_gas_preseed_bnb: string;
 	log_level: string;
+	network: string;
 }
 
 // TransactionListParams for the transactions API.

@@ -67,10 +67,20 @@ func (ks *KeyService) DeriveBTCPrivateKey(ctx context.Context, index uint32) (*b
 	return privKey, nil
 }
 
+// ZeroECDSAKey overwrites the ECDSA private key scalar with zeros.
+// Not perfect (GC may have copied the big.Int), but reduces the exposure window.
+// The caller should defer this immediately after obtaining the key.
+func ZeroECDSAKey(key *ecdsa.PrivateKey) {
+	if key == nil || key.D == nil {
+		return
+	}
+	key.D.SetInt64(0)
+}
+
 // DeriveBSCPrivateKey derives a BSC (EVM) ECDSA private key at the given address index.
 // Path: m/44'/60'/0'/0/N (same coin type for mainnet and testnet).
 // Returns the private key and the corresponding address.
-// The caller MUST let the returned private key go out of scope after use (no zeroing needed for stdlib ecdsa).
+// The caller MUST call ZeroECDSAKey(privKey) via defer after use.
 func (ks *KeyService) DeriveBSCPrivateKey(ctx context.Context, index uint32) (*ecdsa.PrivateKey, common.Address, error) {
 	if ks.mnemonicFilePath == "" {
 		return nil, common.Address{}, config.ErrMnemonicFileNotSet

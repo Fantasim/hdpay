@@ -34,7 +34,7 @@
 		// Parse elapsed string (e.g., "2m30s" or "5s" or "1h2m").
 		const remaining = progress.total - progress.scanned;
 		const elapsedMs = parseElapsedToMs(progress.elapsed);
-		if (elapsedMs === 0) return '';
+		if (elapsedMs <= 0) return '';
 		const ratePerMs = progress.scanned / elapsedMs;
 		if (ratePerMs === 0) return '';
 		const etaMs = remaining / ratePerMs;

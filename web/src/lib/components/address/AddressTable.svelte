@@ -11,13 +11,16 @@
 	let { addresses, loading }: Props = $props();
 
 	let copiedIndex: number | null = $state(null);
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	async function handleCopy(address: string, index: number): Promise<void> {
 		const ok = await copyToClipboard(address);
 		if (ok) {
+			if (copyTimer !== null) clearTimeout(copyTimer);
 			copiedIndex = index;
-			setTimeout(() => {
+			copyTimer = setTimeout(() => {
 				copiedIndex = null;
+				copyTimer = null;
 			}, 1500);
 		}
 	}

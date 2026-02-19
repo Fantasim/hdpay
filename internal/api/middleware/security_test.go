@@ -374,7 +374,10 @@ func TestCSRF_PostMismatchedToken(t *testing.T) {
 }
 
 func TestCSRF_TokenFormat(t *testing.T) {
-	token := generateCSRFToken()
+	token, err := generateCSRFToken()
+	if err != nil {
+		t.Fatalf("generateCSRFToken() error = %v", err)
+	}
 
 	if len(token) != 64 {
 		t.Errorf("expected 64-char hex string, got %d chars: %q", len(token), token)
@@ -389,7 +392,10 @@ func TestCSRF_TokenFormat(t *testing.T) {
 	}
 
 	// Verify two calls produce different tokens.
-	token2 := generateCSRFToken()
+	token2, err := generateCSRFToken()
+	if err != nil {
+		t.Fatalf("generateCSRFToken() error = %v", err)
+	}
 	if token == token2 {
 		t.Error("expected different tokens from two calls to generateCSRFToken()")
 	}

@@ -45,5 +45,21 @@ func Load() (*Config, error) {
 	if err := envconfig.Process("", &cfg); err != nil {
 		return nil, fmt.Errorf("failed to process env config: %w", err)
 	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
+}
+
+// Validate checks configuration values for correctness.
+func (c *Config) Validate() error {
+	if c.Network != "mainnet" && c.Network != "testnet" {
+		return fmt.Errorf("%w: network must be \"mainnet\" or \"testnet\", got %q", ErrInvalidConfig, c.Network)
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("%w: port must be 1-65535, got %d", ErrInvalidConfig, c.Port)
+	}
+	return nil
 }

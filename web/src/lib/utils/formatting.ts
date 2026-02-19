@@ -22,14 +22,30 @@ export function formatBalance(balance: string, decimals: number = BALANCE_DECIMA
 /**
  * Convert a raw balance (satoshis/wei/lamports) to human-readable units
  * based on the chain and token, then format for display.
+ * Uses string-based decimal placement to avoid float precision loss
+ * for large integer strings (>2^53).
  */
 export function formatRawBalance(rawBalance: string, chain: Chain, token: string): string {
 	const decimals = TOKEN_DECIMALS[chain]?.[token] ?? 0;
-	const raw = parseFloat(rawBalance);
-	if (isNaN(raw) || raw === 0) return '0';
-	const human = raw / Math.pow(10, decimals);
-	// Show up to 8 decimal places for crypto, trim trailing zeros
-	return human.toFixed(Math.min(decimals, 8)).replace(/\.?0+$/, '');
+
+	// Strip leading zeros but keep at least one digit.
+	let raw = rawBalance.replace(/^0+/, '') || '0';
+	if (raw === '0') return '0';
+
+	if (decimals === 0) return raw;
+
+	// Pad with leading zeros if the raw string is shorter than decimals.
+	while (raw.length <= decimals) {
+		raw = '0' + raw;
+	}
+
+	const intPart = raw.slice(0, raw.length - decimals);
+	const fracPart = raw.slice(raw.length - decimals);
+
+	// Trim trailing zeros from the fractional part, keep up to 8 digits.
+	const trimmedFrac = fracPart.slice(0, Math.min(decimals, 8)).replace(/0+$/, '');
+	if (!trimmedFrac) return intPart;
+	return `${intPart}.${trimmedFrac}`;
 }
 
 /**
@@ -48,9 +64,12 @@ export function formatNumber(n: number): string {
 
 /**
  * Format a date string to locale display.
+ * Returns 'N/A' for invalid or missing date strings.
  */
 export function formatDate(dateStr: string): string {
+	if (!dateStr) return 'N/A';
 	const date = new Date(dateStr);
+	if (isNaN(date.getTime())) return 'N/A';
 	return date.toLocaleDateString('en-US', {
 		month: 'short',
 		day: 'numeric',

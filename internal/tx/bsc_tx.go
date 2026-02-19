@@ -488,6 +488,7 @@ func (s *BSCConsolidationService) sweepNativeAddress(
 		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
+	defer ZeroECDSAKey(privKey)
 
 	// Verify derived address matches.
 	if derivedAddr != fromAddr {
@@ -795,6 +796,7 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 		s.updateTxState(txStateID, config.TxStateFailed, "", txResult.Error)
 		return txResult
 	}
+	defer ZeroECDSAKey(privKey)
 
 	if derivedAddr != fromAddr {
 		txResult.Status = "failed"

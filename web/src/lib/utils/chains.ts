@@ -7,14 +7,6 @@ const CHAIN_LABELS: Record<Chain, string> = {
 	SOL: 'Solana'
 };
 
-const TOKEN_DECIMALS: Record<string, number> = {
-	BTC: 8,
-	BNB: 18,
-	SOL: 9,
-	USDC: 6,
-	USDT: 6
-};
-
 const EXPLORER_URLS: Record<string, Record<string, string>> = {
 	mainnet: {
 		BTC: 'https://mempool.space',
@@ -34,10 +26,6 @@ export function getChainColor(chain: Chain): string {
 
 export function getChainLabel(chain: Chain): string {
 	return CHAIN_LABELS[chain];
-}
-
-export function getTokenDecimals(token: string): number {
-	return TOKEN_DECIMALS[token] ?? 18;
 }
 
 export function getExplorerUrl(

@@ -6,15 +6,22 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/models"
 )
 
 // BTCFeeEstimator fetches dynamic fee rates from mempool.space.
+// Results are cached with a short TTL to avoid hammering the API on repeated previews.
 type BTCFeeEstimator struct {
 	client     *http.Client
 	mempoolURL string // Base URL, e.g. "https://mempool.space/api"
+
+	mu          sync.RWMutex
+	cached      *models.FeeEstimate
+	cachedAt    time.Time
 }
 
 // NewBTCFeeEstimator creates a fee estimator using mempool.space API.
@@ -27,8 +34,19 @@ func NewBTCFeeEstimator(client *http.Client, mempoolURL string) *BTCFeeEstimator
 }
 
 // EstimateFee fetches all fee tiers from mempool.space.
+// Returns a cached result if available and within the TTL.
 // Falls back to default constant values if the API is unreachable.
 func (fe *BTCFeeEstimator) EstimateFee(ctx context.Context) (*models.FeeEstimate, error) {
+	// Check cache first.
+	fe.mu.RLock()
+	if fe.cached != nil && time.Since(fe.cachedAt) < config.FeeCacheTTL {
+		cached := *fe.cached // Copy to avoid races.
+		fe.mu.RUnlock()
+		slog.Debug("returning cached fee estimate", "age", time.Since(fe.cachedAt).Round(time.Second))
+		return &cached, nil
+	}
+	fe.mu.RUnlock()
+
 	estimate, err := fe.fetchFromAPI(ctx)
 	if err != nil {
 		slog.Warn("fee estimation API failed, using default",
@@ -40,6 +58,12 @@ func (fe *BTCFeeEstimator) EstimateFee(ctx context.Context) (*models.FeeEstimate
 
 	// Enforce minimum fee rate on all tiers.
 	fe.enforceMinimum(estimate)
+
+	// Cache the result.
+	fe.mu.Lock()
+	fe.cached = estimate
+	fe.cachedAt = time.Now()
+	fe.mu.Unlock()
 
 	slog.Info("fee estimate fetched",
 		"fastestFee", estimate.FastestFee,

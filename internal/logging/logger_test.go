@@ -11,9 +11,11 @@ import (
 func TestSetup(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	if err := Setup("info", tmpDir); err != nil {
+	closer, err := Setup("info", tmpDir)
+	if err != nil {
 		t.Fatalf("Setup() error = %v", err)
 	}
+	defer closer.Close()
 
 	expectedFile := filepath.Join(tmpDir, "hdpay-"+time.Now().Format("2006-01-02")+".log")
 	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
@@ -24,9 +26,11 @@ func TestSetup(t *testing.T) {
 func TestSetupDebugLevel(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	if err := Setup("debug", tmpDir); err != nil {
+	closer, err := Setup("debug", tmpDir)
+	if err != nil {
 		t.Fatalf("Setup() error = %v", err)
 	}
+	defer closer.Close()
 
 	slog.Debug("test debug message")
 }
@@ -34,7 +38,10 @@ func TestSetupDebugLevel(t *testing.T) {
 func TestSetupInvalidLevel(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	err := Setup("invalid", tmpDir)
+	closer, err := Setup("invalid", tmpDir)
+	if closer != nil {
+		defer closer.Close()
+	}
 	if err == nil {
 		t.Fatal("expected error for invalid log level")
 	}

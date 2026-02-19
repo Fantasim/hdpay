@@ -170,6 +170,7 @@ const (
 const (
 	MempoolFeeEstimatePath = "/v1/fees/recommended"
 	FeeEstimateTimeout     = 5 * time.Second
+	FeeCacheTTL            = 2 * time.Minute
 )
 
 // Server

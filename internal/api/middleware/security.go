@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -69,7 +70,12 @@ func CSRF(next http.Handler) http.Handler {
 			// Set or refresh CSRF token cookie
 			cookie, err := r.Cookie("csrf_token")
 			if err != nil || cookie.Value == "" {
-				token := generateCSRFToken()
+				token, genErr := generateCSRFToken()
+				if genErr != nil {
+					slog.Error("failed to generate CSRF token, rejecting request", "error", genErr)
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
 				http.SetCookie(w, &http.Cookie{
 					Name:     "csrf_token",
 					Value:    token,
@@ -109,11 +115,10 @@ func CSRF(next http.Handler) http.Handler {
 	})
 }
 
-func generateCSRFToken() string {
+func generateCSRFToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		slog.Error("failed to generate CSRF token", "error", err)
-		return ""
+		return "", fmt.Errorf("crypto/rand.Read failed: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }

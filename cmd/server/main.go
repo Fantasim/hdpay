@@ -78,9 +78,11 @@ func runServe() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := logging.Setup(cfg.LogLevel, cfg.LogDir); err != nil {
+	logCloser, err := logging.Setup(cfg.LogLevel, cfg.LogDir)
+	if err != nil {
 		return fmt.Errorf("failed to setup logging: %w", err)
 	}
+	defer logCloser.Close()
 
 	slog.Info("starting hdpay",
 		"version", version,
@@ -204,9 +206,11 @@ func runInit() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := logging.Setup(cfg.LogLevel, cfg.LogDir); err != nil {
+	logCloser, err := logging.Setup(cfg.LogLevel, cfg.LogDir)
+	if err != nil {
 		return fmt.Errorf("failed to setup logging: %w", err)
 	}
+	defer logCloser.Close()
 
 	// Override config with flags if provided.
 	if *mnemonicFile != "" {
@@ -470,9 +474,11 @@ func runExport() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := logging.Setup(cfg.LogLevel, cfg.LogDir); err != nil {
+	logCloser, err := logging.Setup(cfg.LogLevel, cfg.LogDir)
+	if err != nil {
 		return fmt.Errorf("failed to setup logging: %w", err)
 	}
+	defer logCloser.Close()
 
 	if *dbPath != "" {
 		cfg.DBPath = *dbPath

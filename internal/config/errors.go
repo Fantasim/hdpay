@@ -59,6 +59,9 @@ var (
 	ErrGasPriceSpiked   = errors.New("gas price increased more than 2x since preview")
 	ErrSOLATANotVisible = errors.New("ATA not visible after creation confirmation")
 	ErrNonceConflict    = errors.New("nonce conflict detected")
+
+	// Config validation
+	ErrInvalidConfig = errors.New("invalid configuration")
 )
 
 // TransientError wraps an error that should be retried.

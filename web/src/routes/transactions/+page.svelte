@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/layout/Header.svelte';
-	import { getTransactions } from '$lib/utils/api';
+	import { getTransactions, getSettings } from '$lib/utils/api';
 	import { truncateAddress, formatRawBalance, copyToClipboard } from '$lib/utils/formatting';
 	import { getExplorerTxUrl } from '$lib/utils/chains';
 	import { SUPPORTED_CHAINS, DEFAULT_TX_PAGE_SIZE } from '$lib/constants';
@@ -19,6 +19,7 @@
 	let page = $state(1);
 	let total = $state(0);
 	let copiedHash: string | null = $state(null);
+	let network: string = $state('mainnet');
 
 	async function fetchTransactions(): Promise<void> {
 		loading = true;
@@ -68,11 +69,14 @@
 		fetchTransactions();
 	}
 
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
 	async function handleCopy(hash: string): Promise<void> {
 		const ok = await copyToClipboard(hash);
 		if (ok) {
+			if (copyTimer !== null) clearTimeout(copyTimer);
 			copiedHash = hash;
-			setTimeout(() => { copiedHash = null; }, 1500);
+			copyTimer = setTimeout(() => { copiedHash = null; copyTimer = null; }, 1500);
 		}
 	}
 
@@ -124,8 +128,16 @@
 		return pages;
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		fetchTransactions();
+		try {
+			const res = await getSettings();
+			if (res.data?.network) {
+				network = res.data.network;
+			}
+		} catch {
+			// Fall back to mainnet default.
+		}
 	});
 </script>
 
@@ -233,7 +245,7 @@
 						<td>
 							<div class="tx-hash-cell">
 								{#if tx.txHash}
-									<a href={getExplorerTxUrl(tx.chain, tx.txHash, 'testnet')} target="_blank" rel="noopener" class="mono text-sm tx-hash-link">
+									<a href={getExplorerTxUrl(tx.chain, tx.txHash, network)} target="_blank" rel="noopener" class="mono text-sm tx-hash-link">
 										{truncateAddress(tx.txHash)}
 									</a>
 									<button class="copy-btn" title={copiedHash === tx.txHash ? 'Copied!' : 'Copy tx hash'} onclick={() => handleCopy(tx.txHash)}>

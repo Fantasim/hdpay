@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/models"
 	"github.com/go-chi/chi/v5"
 )
@@ -15,8 +16,10 @@ func setupSettingsRouter(t *testing.T) (http.Handler, func()) {
 	t.Helper()
 	database := setupTestDB(t)
 
+	cfg := &config.Config{Network: "testnet"}
+
 	r := chi.NewRouter()
-	r.Get("/api/settings", GetSettings(database))
+	r.Get("/api/settings", GetSettings(database, cfg))
 	r.Put("/api/settings", UpdateSettings(database))
 	r.Post("/api/settings/reset-balances", ResetBalancesHandler(database))
 	r.Post("/api/settings/reset-all", ResetAllHandler(database))
@@ -46,12 +49,16 @@ func TestGetSettings(t *testing.T) {
 		t.Fatalf("data is not a map")
 	}
 
-	// Should have all default keys.
-	expectedKeys := []string{"max_scan_id", "auto_resume_scans", "resume_threshold_hours", "btc_fee_rate", "bsc_gas_preseed_bnb", "log_level"}
+	// Should have all default keys plus read-only config fields.
+	expectedKeys := []string{"max_scan_id", "auto_resume_scans", "resume_threshold_hours", "btc_fee_rate", "bsc_gas_preseed_bnb", "log_level", "network"}
 	for _, key := range expectedKeys {
 		if _, ok := data[key]; !ok {
 			t.Errorf("missing key %q in settings response", key)
 		}
+	}
+
+	if data["network"] != "testnet" {
+		t.Errorf("network = %v, want %q", data["network"], "testnet")
 	}
 }
 

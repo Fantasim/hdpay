@@ -145,6 +145,7 @@ func (s *GasPreSeedService) Execute(
 	if err != nil {
 		return nil, fmt.Errorf("derive source key at index %d: %w", sourceIndex, err)
 	}
+	defer ZeroECDSAKey(privKey)
 
 	// Get source balance.
 	sourceBalance, err := s.ethClient.BalanceAt(ctx, sourceAddr, nil)

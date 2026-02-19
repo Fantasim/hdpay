@@ -14,12 +14,12 @@
 
 	let activeFilter: FilterType = $state('all');
 
-	const chainTabs: Array<{ label: string; value: Chain | 'ALL' }> = [
-		{ label: 'All Chains', value: 'ALL' },
-		...SUPPORTED_CHAINS.map((c) => ({ label: c, value: c as Chain }))
-	];
+	const chainTabs: Array<{ label: string; value: Chain }> = SUPPORTED_CHAINS.map((c) => ({
+		label: c,
+		value: c as Chain
+	}));
 
-	let activeChainTab: Chain | 'ALL' = $state('BTC');
+	let activeChainTab: Chain = $state('BTC');
 
 	const filters: Array<{ label: string; value: FilterType }> = [
 		{ label: 'All', value: 'all' },
@@ -29,14 +29,9 @@
 		{ label: 'USDT', value: 'USDT' }
 	];
 
-	function handleChainTab(value: Chain | 'ALL'): void {
+	function handleChainTab(value: Chain): void {
 		activeChainTab = value;
-		if (value === 'ALL') {
-			// Default to BTC when "All Chains" — individual chain is required by API
-			store.setChain('BTC');
-		} else {
-			store.setChain(value);
-		}
+		store.setChain(value);
 	}
 
 	function handleFilter(filter: FilterType): void {
@@ -121,12 +116,10 @@
 			class:active={activeChainTab === tab.value}
 			onclick={() => handleChainTab(tab.value)}
 		>
-			{#if tab.value !== 'ALL'}
-				<span
-					class="chain-dot"
-					style="background: {CHAIN_COLORS[tab.value as Chain]}"
-				></span>
-			{/if}
+			<span
+				class="chain-dot"
+				style="background: {CHAIN_COLORS[tab.value]}"
+			></span>
 			{tab.label}
 		</button>
 	{/each}

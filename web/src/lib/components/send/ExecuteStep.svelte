@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { sendStore } from '$lib/stores/send.svelte';
 	import { getChainLabel, getExplorerTxUrl } from '$lib/utils/chains';
 	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
+	import { getSettings } from '$lib/utils/api';
 	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
 	import type { Chain, TxResult } from '$lib/types';
 
@@ -28,6 +30,20 @@
 		executeResult?.txResults ?? txProgress
 	);
 
+	// Network mode from server config (fetched once on mount).
+	let network: string = $state('mainnet');
+
+	onMount(async () => {
+		try {
+			const res = await getSettings();
+			if (res.data?.network) {
+				network = res.data.network;
+			}
+		} catch {
+			// Fall back to mainnet if settings fetch fails.
+		}
+	});
+
 	function handleBack(): void {
 		store.goBack();
 	}
@@ -42,8 +58,7 @@
 
 	function getExplorerLink(txHash: string): string {
 		if (!chain || !txHash) return '';
-		// Use testnet for now — will be configurable.
-		return getExplorerTxUrl(chain, txHash, 'testnet');
+		return getExplorerTxUrl(chain, txHash, network);
 	}
 </script>
 

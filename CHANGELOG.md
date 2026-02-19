@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Post-V2 Comprehensive Audit Fixes
+
+#### Security
+- **CSRF empty token bypass**: `generateCSRFToken()` now returns error on `crypto/rand.Read` failure instead of empty string; middleware returns HTTP 500 (`internal/api/middleware/security.go`)
+- **BSC private key zeroing**: Added `ZeroECDSAKey()` helper; all 3 BSC signing callsites now `defer ZeroECDSAKey(privKey)` (`internal/tx/key_service.go`, `bsc_tx.go`, `gas.go`)
+
+#### Fixed
+- **Hard-coded testnet explorer links**: `ExecuteStep.svelte` and transactions page now read network from `GET /api/settings` instead of hard-coding `'testnet'`
+- **`formatRawBalance` precision loss**: Rewrote to use string-based decimal placement instead of `parseFloat()` — fixes incorrect display for values > 2^53 (`web/src/lib/utils/formatting.ts`)
+- **`formatDate` invalid input**: Added `isNaN(date.getTime())` guard, returns `'N/A'` for invalid dates (`web/src/lib/utils/formatting.ts`)
+- **Log rotation**: `Setup()` now returns `io.Closer` for graceful shutdown; added `CleanOldLogs()` that deletes hdpay-*.log files older than `LogMaxAgeDays` on startup (`internal/logging/logger.go`)
+- **Config validation**: Added `Validate()` method checking Network is "mainnet"|"testnet" and Port is 1-65535 (`internal/config/config.go`)
+- **ScanProgress ETA div-zero**: Guarded `elapsedMs <= 0` case (`web/src/lib/components/scan/ScanProgress.svelte`)
+- **Copy timeout cleanup**: Stored timeout ID and clear on new copy in AddressTable and transactions page
+
+#### Changed
+- Removed misleading "All Chains" tab from addresses page — was silently defaulting to BTC (`web/src/routes/addresses/+page.svelte`)
+- Added BTC fee estimation TTL cache (2-minute expiry) to avoid hammering mempool.space on repeated previews (`internal/tx/btc_fee.go`)
+- Removed duplicate `TOKEN_DECIMALS` and unused `getTokenDecimals()` from `chains.ts` — canonical version in `constants.ts` is unchanged
+- Settings API now includes `network` field for frontend to read server config (`internal/api/handlers/settings.go`)
+- Added `ErrInvalidConfig` error and `FeeCacheTTL` constant (`internal/config/errors.go`, `constants.go`)
+
 ### 2026-02-19 — Post-V2 Bug Fixes & End-to-End Testing
 
 #### Added
