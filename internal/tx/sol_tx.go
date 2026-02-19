@@ -91,10 +91,13 @@ func (c *DefaultSOLRPCClient) nextURL() string {
 	return url
 }
 
-// doRPC sends a JSON-RPC request and returns the raw result.
+// doRPC sends a JSON-RPC request to the next URL in round-robin order.
 func (c *DefaultSOLRPCClient) doRPC(ctx context.Context, method string, params []interface{}) (json.RawMessage, error) {
-	url := c.nextURL()
+	return c.doRPCToURL(ctx, c.nextURL(), method, params)
+}
 
+// doRPCToURL sends a JSON-RPC request to a specific URL.
+func (c *DefaultSOLRPCClient) doRPCToURL(ctx context.Context, url string, method string, params []interface{}) (json.RawMessage, error) {
 	reqBody := solRPCRequest{
 		JSONRPC: "2.0",
 		ID:      1,
@@ -140,6 +143,42 @@ func (c *DefaultSOLRPCClient) doRPC(ctx context.Context, method string, params [
 	return rpcResp.Result, nil
 }
 
+// doRPCAllURLs tries the RPC call against all configured URLs, returning on first success.
+// If all URLs fail, returns the first error encountered.
+func (c *DefaultSOLRPCClient) doRPCAllURLs(ctx context.Context, method string, params []interface{}) (json.RawMessage, error) {
+	c.mu.Lock()
+	urlCount := len(c.rpcURLs)
+	startIdx := c.currentIdx
+	c.currentIdx++ // advance for next round-robin call
+	c.mu.Unlock()
+
+	var firstErr error
+	for i := range urlCount {
+		url := c.rpcURLs[(startIdx+i)%urlCount]
+
+		result, err := c.doRPCToURL(ctx, url, method, params)
+		if err == nil {
+			return result, nil
+		}
+
+		if firstErr == nil {
+			firstErr = err
+		}
+
+		if i < urlCount-1 {
+			slog.Warn("SOL RPC call failed, trying next URL",
+				"method", method,
+				"failedURL", url,
+				"error", err,
+				"attempt", i+1,
+				"totalURLs", urlCount,
+			)
+		}
+	}
+
+	return nil, firstErr
+}
+
 // GetLatestBlockhash fetches a recent blockhash for transaction building.
 func (c *DefaultSOLRPCClient) GetLatestBlockhash(ctx context.Context) ([32]byte, uint64, error) {
 	result, err := c.doRPC(ctx, "getLatestBlockhash", []interface{}{
@@ -179,8 +218,9 @@ func (c *DefaultSOLRPCClient) GetLatestBlockhash(ctx context.Context) ([32]byte,
 }
 
 // SendTransaction broadcasts a base64-encoded signed transaction.
+// Uses fallback: tries all configured RPC URLs before reporting failure.
 func (c *DefaultSOLRPCClient) SendTransaction(ctx context.Context, txBase64 string) (string, error) {
-	result, err := c.doRPC(ctx, "sendTransaction", []interface{}{
+	result, err := c.doRPCAllURLs(ctx, "sendTransaction", []interface{}{
 		txBase64,
 		map[string]interface{}{
 			"encoding":            "base64",

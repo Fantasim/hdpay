@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### 2026-02-19 (V2 Phase 5) — Provider Health & Broadcast Fallback
+
+#### Added
+- DB-backed provider health recording in scanner Pool: `SetDB()` method with initial health row upsert, `recordHealthSuccess()` / `recordHealthFailure()` helpers called after circuit breaker state changes
+- `UpdateProviderCircuitState()` DB method deriving status from circuit state (closed→healthy, half_open→degraded, open→down)
+- `GET /api/health/providers` endpoint returning all provider health rows grouped by chain (`internal/api/handlers/provider_health.go`)
+- `FallbackEthClient` BSC broadcast wrapper: tries primary RPC, falls back to Ankr on `SendTransaction` failure (`internal/tx/bsc_fallback.go`)
+- SOL broadcast fallback: `doRPCAllURLs()` tries all configured RPC URLs before returning first error
+- Live provider health frontend component with color-coded status dots (green=healthy, yellow=degraded, red=down), loading/error states
+- Frontend types: `ProviderHealthStatus`, `CircuitState`, `ProviderHealth`, `ProviderHealthMap`
+- `getProviderHealth()` API client function
+- 5 new tests: BSC FallbackEthClient (primary success, fallback success, both fail, nil fallback, delegation)
+
+#### Changed
+- Scanner `Pool` now accepts optional DB via `SetDB()` for non-blocking health persistence
+- `pool.go` records health success/failure after every circuit breaker state change
+- `setup.go` injects DB into BTC, BSC, SOL pools after creation
+- `cmd/server/main.go` creates BSC fallback client (Ankr) for mainnet deployments
+- SOL `SendTransaction` uses `doRPCAllURLs` instead of `doRPC` for broadcast redundancy
+- `ProviderStatus.svelte` rewritten from static hardcoded data to live API-driven component
+
 ### 2026-02-18 (V2 Phase 4) — TX Safety — Advanced
 
 #### Added

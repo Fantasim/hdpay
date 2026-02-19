@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Fantasim/hdpay/internal/config"
+	"github.com/Fantasim/hdpay/internal/db"
 	"github.com/Fantasim/hdpay/internal/models"
 )
 
@@ -19,6 +20,7 @@ type Pool struct {
 	breakers  []*CircuitBreaker // one per provider, same index
 	current   atomic.Int32
 	chain     models.Chain
+	database  *db.DB // optional — for persisting provider health
 }
 
 // NewPool creates a provider pool for round-robin load balancing with per-provider circuit breakers.
@@ -43,6 +45,69 @@ func NewPool(chain models.Chain, providers ...Provider) *Pool {
 		providers: providers,
 		breakers:  breakers,
 		chain:     chain,
+	}
+}
+
+// SetDB sets the database reference for persisting provider health.
+// When set, the pool will upsert initial provider_health rows and
+// record success/failure on every provider call.
+func (p *Pool) SetDB(database *db.DB) {
+	p.database = database
+
+	// Upsert initial provider_health rows for all providers.
+	for _, provider := range p.providers {
+		row := db.ProviderHealthRow{
+			ProviderName: provider.Name(),
+			Chain:        string(p.chain),
+			ProviderType: config.ProviderTypeScan,
+			Status:       config.ProviderStatusHealthy,
+			CircuitState: config.CircuitClosed,
+		}
+		if err := database.UpsertProviderHealth(row); err != nil {
+			slog.Error("failed to upsert initial provider health",
+				"provider", provider.Name(),
+				"chain", p.chain,
+				"error", err,
+			)
+		}
+	}
+
+	slog.Info("provider pool DB wired",
+		"chain", p.chain,
+		"providerCount", len(p.providers),
+	)
+}
+
+// recordHealthSuccess records a provider success in the DB (non-blocking).
+func (p *Pool) recordHealthSuccess(providerName string) {
+	if p.database == nil {
+		return
+	}
+	if err := p.database.RecordProviderSuccess(providerName); err != nil {
+		slog.Error("failed to record provider success in DB",
+			"provider", providerName,
+			"error", err,
+		)
+	}
+}
+
+// recordHealthFailure records a provider failure in the DB (non-blocking).
+func (p *Pool) recordHealthFailure(providerName string, cbState string, errMsg string) {
+	if p.database == nil {
+		return
+	}
+	if err := p.database.RecordProviderFailure(providerName, errMsg); err != nil {
+		slog.Error("failed to record provider failure in DB",
+			"provider", providerName,
+			"error", err,
+		)
+	}
+	if err := p.database.UpdateProviderCircuitState(providerName, cbState); err != nil {
+		slog.Error("failed to update provider circuit state in DB",
+			"provider", providerName,
+			"state", cbState,
+			"error", err,
+		)
 	}
 }
 
@@ -100,11 +165,13 @@ func (p *Pool) FetchNativeBalances(ctx context.Context, addresses []models.Addre
 		results, err := provider.FetchNativeBalances(ctx, addresses)
 		if err == nil {
 			cb.RecordSuccess()
+			p.recordHealthSuccess(provider.Name())
 			return results, nil
 		}
 
 		// Record failure in circuit breaker.
 		cb.RecordFailure()
+		p.recordHealthFailure(provider.Name(), cb.State(), err.Error())
 		allErrors = append(allErrors, fmt.Errorf("%s: %w", provider.Name(), err))
 
 		if errors.Is(err, config.ErrProviderRateLimit) ||
@@ -151,6 +218,7 @@ func (p *Pool) FetchTokenBalances(ctx context.Context, addresses []models.Addres
 		results, err := provider.FetchTokenBalances(ctx, addresses, token, contractOrMint)
 		if err == nil {
 			cb.RecordSuccess()
+			p.recordHealthSuccess(provider.Name())
 			return results, nil
 		}
 
@@ -161,6 +229,7 @@ func (p *Pool) FetchTokenBalances(ctx context.Context, addresses []models.Addres
 
 		// Record failure in circuit breaker.
 		cb.RecordFailure()
+		p.recordHealthFailure(provider.Name(), cb.State(), err.Error())
 		allErrors = append(allErrors, fmt.Errorf("%s: %w", provider.Name(), err))
 
 		if errors.Is(err, config.ErrProviderRateLimit) ||

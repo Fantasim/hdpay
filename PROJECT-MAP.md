@@ -20,6 +20,7 @@ hdpay/
 |   |   |   |-- dashboard.go         # GET /api/dashboard/prices, GET .../portfolio
 |   |   |   |-- dashboard_test.go    # Dashboard handler tests (3 tests)
 |   |   |   |-- health.go            # GET /api/health
+|   |   |   |-- provider_health.go   # GET /api/health/providers
 |   |   |   |-- scan.go              # POST start/stop, GET status, GET SSE
 |   |   |   |-- scan_test.go         # Scan handler tests (11 tests)
 |   |   |   |-- send.go              # POST preview/execute/gas-preseed, GET SSE
@@ -85,6 +86,8 @@ hdpay/
 |   |-- tx/
 |   |   |-- broadcaster.go           # Shared Broadcaster interface + BTC implementation
 |   |   |-- broadcaster_test.go      # Broadcaster tests (4 tests)
+|   |   |-- bsc_fallback.go          # V2: FallbackEthClient wrapper (primary + secondary RPC)
+|   |   |-- bsc_fallback_test.go     # BSC fallback tests (5 tests)
 |   |   |-- bsc_tx.go                # BSC native BNB + BEP-20 TX building, signing, consolidation + balance recheck + gas price validation
 |   |   |-- bsc_tx_test.go           # BSC TX tests (27 tests: 18 + 5 balance recheck + 4 gas price)
 |   |   |-- btc_fee.go               # Dynamic fee estimation from mempool.space
@@ -181,6 +184,7 @@ hdpay/
 | `internal/api/handlers/address.go` | Address list + export handlers with validation/logging |
 | `internal/api/handlers/scan.go` | Scan start/stop/status handlers + SSE streaming |
 | `internal/api/handlers/dashboard.go` | Prices + portfolio API handlers |
+| `internal/api/handlers/provider_health.go` | V2: Provider health endpoint — GET /api/health/providers |
 | `internal/api/handlers/send.go` | Send preview/execute/gas-preseed/resume handlers + SSE + chain dispatch + concurrent mutex + pending/dismiss |
 | `internal/scanner/scanner.go` | Scanner orchestrator: multi-chain, resume, token scanning |
 | `internal/scanner/pool.go` | Provider pool with round-robin rotation + failover |
@@ -199,7 +203,8 @@ hdpay/
 | `internal/tx/broadcaster.go` | Shared Broadcaster interface + BTC broadcast with provider fallback |
 | `internal/tx/bsc_tx.go` | BSC native BNB + BEP-20 TX building, EIP-155 signing, consolidation + tx_state + balance recheck + gas price validation |
 | `internal/tx/gas.go` | Gas pre-seeding service: distribute BNB + idempotency + nonce gap handling + tx_state lifecycle |
-| `internal/tx/sol_tx.go` | SOL native + SPL token consolidation + blockhash cache + tx_state + uncertain handling + ATA visibility polling |
+| `internal/tx/bsc_fallback.go` | V2: FallbackEthClient — tries primary RPC, falls back to Ankr on SendTransaction failure |
+| `internal/tx/sol_tx.go` | SOL native + SPL token consolidation + blockhash cache + tx_state + uncertain handling + ATA visibility polling + broadcast fallback |
 | `internal/tx/sol_serialize.go` | Raw Solana binary TX serialization |
 | `internal/tx/sweep.go` | V2: Sweep ID generator (crypto/rand) |
 | `internal/tx/sse.go` | TX SSE hub for real-time transaction status broadcasting |
@@ -260,6 +265,7 @@ hdpay/
 | POST | `/api/send/dismiss/{id}` | Implemented | `handlers/send.go` |
 | GET | `/api/send/resume/{sweepID}` | Implemented | `handlers/send.go` |
 | POST | `/api/send/resume` | Implemented | `handlers/send.go` |
+| GET | `/api/health/providers` | Implemented | `handlers/provider_health.go` |
 | GET | `/api/settings` | Stub | `handlers/settings.go` |
 
 ## Database Schema

@@ -2,7 +2,7 @@ import { API_BASE } from '$lib/constants';
 import type {
 	AddressWithBalance, APIErrorResponse, APIResponse, Chain,
 	GasPreSeedRequest, GasPreSeedResult,
-	PortfolioResponse, PriceData, ScanStateWithRunning,
+	PortfolioResponse, PriceData, ProviderHealthMap, ScanStateWithRunning,
 	SendRequest, Settings, Transaction, TransactionListParams,
 	UnifiedSendPreview, UnifiedSendResult
 } from '$lib/types';
@@ -213,4 +213,10 @@ export function resetBalances(): Promise<APIResponse<{ message: string }>> {
 
 export function resetAll(): Promise<APIResponse<{ message: string }>> {
 	return api.post<{ message: string }>('/settings/reset-all', { confirm: true });
+}
+
+// Provider Health API
+
+export function getProviderHealth(): Promise<APIResponse<ProviderHealthMap>> {
+	return api.get<ProviderHealthMap>('/health/providers');
 }

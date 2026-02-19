@@ -278,3 +278,27 @@ export interface GasPreSeedResult {
 
 // SendStep represents the current step in the send wizard.
 export type SendStep = 'select' | 'preview' | 'gas-preseed' | 'execute' | 'complete';
+
+// --- Provider Health Types ---
+
+// ProviderHealthStatus represents the health status of a provider.
+export type ProviderHealthStatus = 'healthy' | 'degraded' | 'down';
+
+// CircuitState represents the circuit breaker state.
+export type CircuitState = 'closed' | 'open' | 'half_open';
+
+// ProviderHealth represents a single provider's health from GET /api/health/providers.
+export interface ProviderHealth {
+	name: string;
+	chain: Chain;
+	type: string;
+	status: ProviderHealthStatus;
+	circuitState: CircuitState;
+	consecutiveFails: number;
+	lastSuccess: string;
+	lastError: string;
+	lastErrorMsg: string;
+}
+
+// ProviderHealthMap is the response data from GET /api/health/providers.
+export type ProviderHealthMap = Record<Chain, ProviderHealth[]>;

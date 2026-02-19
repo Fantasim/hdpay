@@ -34,6 +34,7 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", handlers.HealthHandler(cfg, Version))
+		r.Get("/health/providers", handlers.GetProviderHealth(database))
 
 		// Address management
 		r.Get("/addresses/{chain}", handlers.ListAddresses(database))

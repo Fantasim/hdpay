@@ -203,6 +203,52 @@ func (d *DB) RecordProviderFailure(providerName, errorMsg string) error {
 	return nil
 }
 
+// UpdateProviderCircuitState updates only the circuit_state and status fields for a provider.
+// Status is derived from the circuit state: closed=healthy, half_open=degraded, open=down.
+func (d *DB) UpdateProviderCircuitState(providerName, circuitState string) error {
+	slog.Debug("updating provider circuit state",
+		"provider", providerName,
+		"circuitState", circuitState,
+	)
+
+	// Derive status from circuit state.
+	status := "healthy"
+	switch circuitState {
+	case "open":
+		status = "down"
+	case "half_open":
+		status = "degraded"
+	}
+
+	result, err := d.conn.Exec(
+		`UPDATE provider_health
+		 SET circuit_state = ?,
+		     status = ?,
+		     updated_at = datetime('now')
+		 WHERE provider_name = ?`,
+		circuitState,
+		status,
+		providerName,
+	)
+	if err != nil {
+		return fmt.Errorf("update provider circuit state %s: %w", providerName, err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		slog.Warn("provider not found for circuit state update", "provider", providerName)
+		return nil
+	}
+
+	slog.Debug("provider circuit state updated",
+		"provider", providerName,
+		"circuitState", circuitState,
+		"status", status,
+	)
+
+	return nil
+}
+
 // scanProviderHealthRows scans multiple provider_health rows from a query result.
 func scanProviderHealthRows(rows *sql.Rows) ([]ProviderHealthRow, error) {
 	var results []ProviderHealthRow

@@ -30,6 +30,7 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 		NewBlockstreamProvider(httpClient, btcRL1, cfg.Network),
 		NewMempoolProvider(httpClient, btcRL2, cfg.Network),
 	)
+	btcPool.SetDB(database)
 	scanner.RegisterPool(models.ChainBTC, btcPool)
 
 	// BSC providers.
@@ -45,9 +46,11 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 		)
 		// Fallback: use only BscScan.
 		bscPool := NewPool(models.ChainBSC, bscScanProvider)
+		bscPool.SetDB(database)
 		scanner.RegisterPool(models.ChainBSC, bscPool)
 	} else {
 		bscPool := NewPool(models.ChainBSC, bscScanProvider, bscRPCProvider)
+		bscPool.SetDB(database)
 		scanner.RegisterPool(models.ChainBSC, bscPool)
 	}
 
@@ -77,6 +80,7 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 	}
 
 	solPool := NewPool(models.ChainSOL, solProviders...)
+	solPool.SetDB(database)
 	scanner.RegisterPool(models.ChainSOL, solPool)
 
 	slog.Info("scanner setup complete",

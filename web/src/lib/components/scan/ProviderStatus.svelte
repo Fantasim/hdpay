@@ -1,10 +1,50 @@
 <script lang="ts">
-	const providers = [
-		{ name: 'Blockstream', chain: 'BTC', status: 'Healthy' },
-		{ name: 'Mempool.space', chain: 'BTC', status: 'Healthy' },
-		{ name: 'BscScan', chain: 'BSC', status: 'Healthy' },
-		{ name: 'Solana RPC', chain: 'SOL', status: 'Healthy' }
-	] as const;
+	import { onMount } from 'svelte';
+	import { getProviderHealth } from '$lib/utils/api';
+	import { SUPPORTED_CHAINS } from '$lib/constants';
+	import type { ProviderHealth, ProviderHealthMap, Chain } from '$lib/types';
+
+	let providers: ProviderHealthMap | null = $state(null);
+	let loading = $state(true);
+	let error: string | null = $state(null);
+
+	async function fetchHealth(): Promise<void> {
+		try {
+			const res = await getProviderHealth();
+			providers = res.data;
+			error = null;
+		} catch (e) {
+			error = 'Failed to load provider health';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function statusDotClass(provider: ProviderHealth): string {
+		if (provider.status === 'healthy' && provider.circuitState === 'closed') {
+			return 'provider-dot-healthy';
+		}
+		if (provider.status === 'degraded' || provider.circuitState === 'half_open') {
+			return 'provider-dot-degraded';
+		}
+		return 'provider-dot-down';
+	}
+
+	function statusLabel(provider: ProviderHealth): string {
+		if (provider.circuitState === 'open') return 'Down';
+		if (provider.circuitState === 'half_open') return 'Degraded';
+		if (provider.consecutiveFails > 0) return `${provider.consecutiveFails} fails`;
+		return 'Healthy';
+	}
+
+	function allProviders(chain: Chain): ProviderHealth[] {
+		if (!providers) return [];
+		return providers[chain] ?? [];
+	}
+
+	onMount(() => {
+		fetchHealth();
+	});
 </script>
 
 <div class="card">
@@ -12,17 +52,31 @@
 		<div class="card-title">Provider Status</div>
 	</div>
 	<div class="card-body">
-		<div class="provider-grid">
-			{#each providers as provider}
-				<div class="provider-item">
-					<span class="provider-dot provider-dot-healthy"></span>
-					<div>
-						<div class="provider-name">{provider.name}</div>
-						<div class="provider-status">{provider.status}</div>
-					</div>
-				</div>
-			{/each}
-		</div>
+		{#if loading}
+			<div class="loading">Loading provider status...</div>
+		{:else if error}
+			<div class="error-text">{error}</div>
+		{:else if providers}
+			<div class="provider-grid">
+				{#each SUPPORTED_CHAINS as chain (chain)}
+					{#each allProviders(chain) as provider (provider.name)}
+						<div class="provider-item" title={provider.lastErrorMsg || ''}>
+							<span class="provider-dot {statusDotClass(provider)}"></span>
+							<div>
+								<div class="provider-name">{provider.name}</div>
+								<div class="provider-meta">
+									<span class="provider-chain">{provider.chain}</span>
+									<span class="provider-status">{statusLabel(provider)}</span>
+								</div>
+							</div>
+						</div>
+					{/each}
+				{/each}
+			</div>
+			{#if SUPPORTED_CHAINS.every(c => allProviders(c).length === 0)}
+				<div class="empty-text">No providers configured yet. Run a scan to populate.</div>
+			{/if}
+		{/if}
 	</div>
 </div>
 
@@ -50,7 +104,7 @@
 
 	.provider-grid {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 		gap: 1rem;
 	}
 
@@ -71,14 +125,47 @@
 		background: var(--color-success);
 	}
 
+	.provider-dot-degraded {
+		background: var(--color-warning);
+	}
+
+	.provider-dot-down {
+		background: var(--color-error);
+	}
+
 	.provider-name {
 		font-size: 0.8125rem;
 		font-weight: 500;
 		color: var(--color-text-primary);
 	}
 
+	.provider-meta {
+		display: flex;
+		gap: 0.375rem;
+		align-items: center;
+	}
+
+	.provider-chain {
+		font-size: 0.6875rem;
+		color: var(--color-text-muted);
+		background: var(--color-bg-elevated);
+		padding: 0 0.25rem;
+		border-radius: 3px;
+	}
+
 	.provider-status {
 		font-size: 0.6875rem;
 		color: var(--color-text-muted);
+	}
+
+	.loading, .error-text, .empty-text {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		padding: 0.5rem 0;
+	}
+
+	.error-text {
+		color: var(--color-error);
 	}
 </style>

@@ -378,9 +378,27 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 		return nil, fmt.Errorf("dial BSC RPC %s: %w", bscRPCURL, err)
 	}
 
+	// BSC broadcast fallback: use Ankr RPC as secondary for mainnet.
+	var bscClient tx.EthClientWrapper = ethClient
+	if cfg.Network != string(models.NetworkTestnet) {
+		fallbackClient, fallbackErr := ethclient.Dial(config.BscRPCMainnetURL2)
+		if fallbackErr != nil {
+			slog.Warn("BSC fallback RPC failed to connect, using primary only",
+				"fallbackURL", config.BscRPCMainnetURL2,
+				"error", fallbackErr,
+			)
+		} else {
+			bscClient = tx.NewFallbackEthClient(ethClient, fallbackClient)
+			slog.Info("BSC broadcast fallback configured",
+				"primary", bscRPCURL,
+				"fallback", config.BscRPCMainnetURL2,
+			)
+		}
+	}
+
 	bscChainID := tx.BSCChainID(cfg.Network)
-	bscService := tx.NewBSCConsolidationService(keyService, ethClient, database, bscChainID)
-	gasPreSeedService := tx.NewGasPreSeedService(keyService, ethClient, database, bscChainID)
+	bscService := tx.NewBSCConsolidationService(keyService, bscClient, database, bscChainID)
+	gasPreSeedService := tx.NewGasPreSeedService(keyService, bscClient, database, bscChainID)
 
 	slog.Info("BSC services initialized", "rpcURL", bscRPCURL, "chainID", bscChainID)
 
