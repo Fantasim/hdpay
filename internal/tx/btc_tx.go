@@ -479,21 +479,30 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 		)
 	}
 
-	// 11. Wait for confirmation (best-effort — timeout is not a failure).
-	if err := WaitForBTCConfirmation(ctx, s.httpClient, s.confirmationURLs, txHash); err != nil {
-		slog.Warn("BTC confirmation polling timed out or failed",
-			"txHash", txHash,
-			"error", err,
-		)
-		s.updateTxState(txStateID, config.TxStateUncertain, txHash, fmt.Sprintf("confirmation: %s", err))
-	} else {
-		slog.Info("BTC transaction confirmed", "txHash", txHash)
-		s.updateTxState(txStateID, config.TxStateConfirmed, txHash, "")
-	}
+	// 11. Poll for confirmation in background (best-effort).
+	// Uses a fresh context since the HTTP request context will be cancelled when the response is sent.
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), config.BTCConfirmationTimeout)
+		defer cancel()
+
+		slog.Info("BTC background confirmation polling started", "txHash", txHash)
+
+		if err := WaitForBTCConfirmation(bgCtx, s.httpClient, s.confirmationURLs, txHash); err != nil {
+			slog.Warn("BTC confirmation polling timed out or failed",
+				"txHash", txHash,
+				"error", err,
+			)
+			s.updateTxState(txStateID, config.TxStateUncertain, txHash, fmt.Sprintf("confirmation: %s", err))
+		} else {
+			slog.Info("BTC transaction confirmed", "txHash", txHash)
+			s.updateTxState(txStateID, config.TxStateConfirmed, txHash, "")
+		}
+	}()
 
 	return &models.SendResult{
-		TxHash: txHash,
-		Chain:  models.ChainBTC,
+		TxHash:     txHash,
+		Chain:      models.ChainBTC,
+		OutputSats: built.OutputSats,
 	}, nil
 }
 

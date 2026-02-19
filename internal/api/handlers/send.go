@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -610,18 +611,25 @@ func executeBTCSweep(ctx context.Context, deps *SendDeps, req models.SendRequest
 		return nil, fmt.Errorf("BTC execute failed: %w", err)
 	}
 
+	// Build per-input results for display.
+	txResults := make([]models.TxResult, len(funded))
+	for i, f := range funded {
+		txResults[i] = models.TxResult{
+			AddressIndex: f.AddressIndex,
+			FromAddress:  f.Address,
+			TxHash:       btcResult.TxHash,
+			Amount:       f.NativeBalance,
+			Status:       "success",
+		}
+	}
+
 	return &models.UnifiedSendResult{
-		Chain: req.Chain,
-		Token: req.Token,
-		TxResults: []models.TxResult{
-			{
-				TxHash: btcResult.TxHash,
-				Status: "confirmed",
-			},
-		},
-		SuccessCount: 1,
+		Chain:        req.Chain,
+		Token:        req.Token,
+		TxResults:    txResults,
+		SuccessCount: len(funded),
 		FailCount:    0,
-		TotalSwept:   btcResult.TxHash, // For BTC, the txHash serves as reference.
+		TotalSwept:   strconv.FormatInt(btcResult.OutputSats, 10),
 	}, nil
 }
 

@@ -154,8 +154,9 @@ type SendPreview struct {
 
 // SendResult contains the result of broadcasting a transaction.
 type SendResult struct {
-	TxHash string `json:"txHash"`
-	Chain  Chain  `json:"chain"`
+	TxHash     string `json:"txHash"`
+	Chain      Chain  `json:"chain"`
+	OutputSats int64  `json:"outputSats,omitempty"` // BTC only: net output sats after fees
 }
 
 // BSCSendPreview contains the preview of a BSC consolidation transaction.
