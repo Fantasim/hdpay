@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Async Send Execution with SSE Progress
+
+#### Added
+- **Async send execution**: `POST /api/send/execute` now returns 202 Accepted immediately with a `sweepID`, sweep runs in background goroutine (`internal/api/handlers/send.go`)
+- **Per-TX SSE broadcasts**: All 5 sweep paths (BTC, BSC native/token, SOL native/token) broadcast `tx_status` events after each TX via `TxSSEHub` (`internal/tx/bsc_tx.go`, `internal/tx/sol_tx.go`, `internal/tx/btc_tx.go`)
+- **`tx_complete` SSE event**: Includes full `TxResults` array so frontend can build completion view from SSE alone (`internal/tx/sse.go`)
+- **`GET /api/send/sweep/{sweepID}` polling fallback**: Returns all TX states for a sweep when SSE disconnects (`internal/api/handlers/send.go`, `internal/api/router.go`)
+- **`SweepStarted` response model**: `{ sweepID, chain, token, addressCount }` returned by async execute (`internal/models/types.go`)
+- **Frontend polling fallback**: Polls sweep status every 3s when SSE drops, auto-detects completion when all TXs reach terminal state (`web/src/lib/stores/send.svelte.ts`)
+- **Navigation guard**: `beforeNavigate` + `beforeunload` warn user when leaving during active sweep (`web/src/routes/send/+page.svelte`)
+- **Progress counter**: Shows "N of M transactions processed" during execution (`web/src/lib/components/send/ExecuteStep.svelte`)
+- **Escape hatch link**: "Check Transactions page" visible during execution (`web/src/lib/components/send/ExecuteStep.svelte`)
+- **`SEND_POLL_INTERVAL_MS` constant** (`web/src/lib/constants.ts`)
+
+#### Changed
+- `TxStatusData` extended with `FromAddress` and `Error` fields (`internal/tx/sse.go`)
+- `TxCompleteData` extended with `TxResults []TxStatusData` field (`internal/tx/sse.go`)
+- `TxSSEHub` injected into all 3 consolidation services via constructor (`internal/tx/bsc_tx.go`, `internal/tx/sol_tx.go`, `internal/tx/btc_tx.go`)
+- Per-chain mutex uses `TryLock()` in handler, `defer mu.Unlock()` in goroutine (`internal/api/handlers/send.go`)
+- Background sweep uses `context.Background()` since HTTP request context is dead after 202 response
+- Frontend `executeSend()` return type changed to `SweepStarted` (`web/src/lib/utils/api.ts`)
+
+#### Fixed
+- **Send page stuck on "Executing..." forever**: Handler blocked synchronously until all TXs completed. Now returns 202 in <1ms, SSE drives real-time progress updates
+
+### 2026-02-19
+
+#### Fixed
+- **"Last Scanned" showing stale timestamps**: Scanner resume logic caused user-initiated scans to skip already-scanned addresses, leaving them with old `last_scanned` values. Scans now always start from index 0 (`internal/scanner/scanner.go`)
+- **`hydrateBalances` picking arbitrary timestamp**: When an address had multiple token balance rows with different `last_scanned` values, the code picked whichever came first instead of the most recent. Now uses MAX across all tokens (`internal/db/addresses.go`, `internal/db/balances.go`)
+
 ### 2026-02-19 — SOL Token Sweep: Fee Payer Mechanism
 
 #### Added
