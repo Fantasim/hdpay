@@ -476,3 +476,129 @@ func TestListTransactionsFiltered_MultipleFilters(t *testing.T) {
 		t.Errorf("returned = %d, want 1", len(txs))
 	}
 }
+
+func TestUpdateTransactionStatusByHash_SingleRow(t *testing.T) {
+	d := setupTestDB(t)
+
+	tx := models.Transaction{
+		Chain:        models.ChainBSC,
+		AddressIndex: 0,
+		TxHash:       "0xaabb1122aabb1122aabb1122aabb1122aabb1122aabb1122aabb1122aabb1122",
+		Direction:    "send",
+		Token:        models.TokenNative,
+		Amount:       "1000000000000000000",
+		FromAddress:  "0xSender",
+		ToAddress:    "0xReceiver",
+		Status:       "pending",
+	}
+
+	id, err := d.InsertTransaction(tx)
+	if err != nil {
+		t.Fatalf("InsertTransaction() error = %v", err)
+	}
+
+	// Update to confirmed by hash.
+	if err := d.UpdateTransactionStatusByHash("BSC", tx.TxHash, "confirmed"); err != nil {
+		t.Fatalf("UpdateTransactionStatusByHash() error = %v", err)
+	}
+
+	// Retrieve and verify.
+	got, err := d.GetTransaction(id)
+	if err != nil {
+		t.Fatalf("GetTransaction() error = %v", err)
+	}
+
+	if got.Status != "confirmed" {
+		t.Errorf("Status = %q, want %q", got.Status, "confirmed")
+	}
+	if got.ConfirmedAt == "" {
+		t.Error("ConfirmedAt should be set for confirmed status")
+	}
+}
+
+func TestUpdateTransactionStatusByHash_MultiRow_BTC(t *testing.T) {
+	d := setupTestDB(t)
+
+	// BTC consolidation creates multiple rows with the same txHash (one per UTXO input).
+	txHash := "btcmulti000000000000000000000000000000000000000000000000000000"
+	for i := 0; i < 3; i++ {
+		d.InsertTransaction(models.Transaction{
+			Chain:        models.ChainBTC,
+			AddressIndex: i,
+			TxHash:       txHash,
+			Direction:    "send",
+			Token:        models.TokenNative,
+			Amount:       "50000",
+			FromAddress:  "bc1qsender",
+			ToAddress:    "bc1qreceiver",
+			Status:       "pending",
+		})
+	}
+
+	// Update all rows by hash.
+	if err := d.UpdateTransactionStatusByHash("BTC", txHash, "confirmed"); err != nil {
+		t.Fatalf("UpdateTransactionStatusByHash() error = %v", err)
+	}
+
+	// Verify all rows are confirmed.
+	chain := models.ChainBTC
+	txs, total, err := d.ListTransactionsFiltered(TransactionFilter{
+		Chain:    &chain,
+		Page:     1,
+		PageSize: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+
+	for _, tx := range txs {
+		if tx.Status != "confirmed" {
+			t.Errorf("tx %d Status = %q, want %q", tx.ID, tx.Status, "confirmed")
+		}
+		if tx.ConfirmedAt == "" {
+			t.Errorf("tx %d ConfirmedAt should be set", tx.ID)
+		}
+	}
+}
+
+func TestUpdateTransactionStatusByHash_Failed_NoConfirmedAt(t *testing.T) {
+	d := setupTestDB(t)
+
+	tx := models.Transaction{
+		Chain:        models.ChainSOL,
+		AddressIndex: 0,
+		TxHash:       "solhash1111111111111111111111111111111111111111111111111111111111",
+		Direction:    "send",
+		Token:        models.TokenNative,
+		Amount:       "1000000000",
+		FromAddress:  "SolSender",
+		ToAddress:    "SolReceiver",
+		Status:       "pending",
+	}
+
+	id, err := d.InsertTransaction(tx)
+	if err != nil {
+		t.Fatalf("InsertTransaction() error = %v", err)
+	}
+
+	// Update to failed by hash.
+	if err := d.UpdateTransactionStatusByHash("SOL", tx.TxHash, "failed"); err != nil {
+		t.Fatalf("UpdateTransactionStatusByHash() error = %v", err)
+	}
+
+	got, err := d.GetTransaction(id)
+	if err != nil {
+		t.Fatalf("GetTransaction() error = %v", err)
+	}
+
+	if got.Status != "failed" {
+		t.Errorf("Status = %q, want %q", got.Status, "failed")
+	}
+	if got.ConfirmedAt != "" {
+		t.Errorf("ConfirmedAt = %q, should be empty for failed status", got.ConfirmedAt)
+	}
+}

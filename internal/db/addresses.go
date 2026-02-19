@@ -258,8 +258,10 @@ func (d *DB) hydrateBalances(addresses []models.AddressWithBalance) error {
 				})
 			}
 			if b.LastScanned != "" {
-				ls := b.LastScanned
-				lastScanned = &ls
+				if lastScanned == nil || b.LastScanned > *lastScanned {
+					ls := b.LastScanned
+					lastScanned = &ls
+				}
 			}
 		}
 		addresses[i].LastScanned = lastScanned

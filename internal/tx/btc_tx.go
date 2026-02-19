@@ -537,6 +537,7 @@ func (s *BTCConsolidationService) Execute(ctx context.Context, addresses []model
 }
 
 // updateTxState is a non-blocking helper that logs errors but doesn't propagate them.
+// For terminal states (confirmed, failed), also updates the transactions table.
 func (s *BTCConsolidationService) updateTxState(id, status, txHash, txError string) {
 	if err := s.database.UpdateTxStatus(id, status, txHash, txError); err != nil {
 		slog.Error("failed to update BTC tx_state",
@@ -544,6 +545,17 @@ func (s *BTCConsolidationService) updateTxState(id, status, txHash, txError stri
 			"status", status,
 			"error", err,
 		)
+	}
+
+	// Propagate terminal states to the transactions table.
+	if txHash != "" && (status == config.TxStateConfirmed || status == config.TxStateFailed) {
+		if err := s.database.UpdateTransactionStatusByHash(string(models.ChainBTC), txHash, status); err != nil {
+			slog.Error("failed to update BTC transaction status by hash",
+				"txHash", txHash,
+				"status", status,
+				"error", err,
+			)
+		}
 	}
 }
 

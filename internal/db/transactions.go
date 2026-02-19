@@ -85,6 +85,41 @@ func (d *DB) UpdateTransactionStatus(id int64, status string, confirmedAt *strin
 	return nil
 }
 
+// UpdateTransactionStatusByHash updates all transaction rows matching a chain and txHash.
+// If status is "confirmed", confirmed_at is set to the current time.
+// This handles BTC's multiple rows per txHash (one per UTXO input).
+func (d *DB) UpdateTransactionStatusByHash(chain, txHash, status string) error {
+	slog.Debug("updating transaction status by hash",
+		"chain", chain,
+		"txHash", txHash,
+		"status", status,
+	)
+
+	var err error
+	if status == "confirmed" {
+		_, err = d.conn.Exec(
+			"UPDATE transactions SET status = ?, confirmed_at = datetime('now') WHERE chain = ? AND tx_hash = ?",
+			status, chain, txHash,
+		)
+	} else {
+		_, err = d.conn.Exec(
+			"UPDATE transactions SET status = ? WHERE chain = ? AND tx_hash = ?",
+			status, chain, txHash,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("update transaction status by hash %s/%s: %w", chain, txHash, err)
+	}
+
+	slog.Info("transaction status updated by hash",
+		"chain", chain,
+		"txHash", txHash,
+		"status", status,
+	)
+
+	return nil
+}
+
 // GetTransaction retrieves a transaction by its ID.
 func (d *DB) GetTransaction(id int64) (*models.Transaction, error) {
 	slog.Debug("getting transaction", "id", id)

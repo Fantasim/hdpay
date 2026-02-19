@@ -323,6 +323,12 @@ const (
 	TxStateDismissed    = "dismissed"
 )
 
+// TX Reconciler (startup reconciliation of pending transactions)
+const (
+	ReconcileMaxAge       = 1 * time.Hour    // Pending TXs older than this are marked uncertain
+	ReconcileCheckTimeout = 10 * time.Second // Timeout per on-chain status check
+)
+
 // Provider Health Statuses
 const (
 	ProviderStatusHealthy  = "healthy"

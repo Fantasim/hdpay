@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### 2026-02-19 — Fix Transaction Status Stuck on "Pending"
+
+#### Added
+- **Startup TX reconciler**: On server start, checks all non-terminal `tx_state` rows against the blockchain and updates both `tx_state` and `transactions` tables. Re-launches polling goroutines for recent pending TXs, marks old ones (>1h) as "uncertain" (`internal/tx/reconciler.go`, `cmd/server/main.go`)
+- **`UpdateTransactionStatusByHash` DB method**: Updates all `transactions` rows matching a chain + txHash, handles BTC's multiple rows per txHash (`internal/db/transactions.go`)
+- **`ReconcileMaxAge` / `ReconcileCheckTimeout` constants** (`internal/config/constants.go`)
+- Tests for `UpdateTransactionStatusByHash` (single row, multi-row BTC, failed status) and reconciler (SOL confirmed, BSC confirmed, no-hash failed, empty)
+
+#### Fixed
+- **Transaction status stuck on "pending" forever**: Background confirmation goroutines updated the `tx_state` table but never propagated terminal states (confirmed/failed) to the `transactions` table, which is what the `/transactions` page reads. All three chain services' `updateTxState()` helpers now also call `UpdateTransactionStatusByHash` for terminal states (`internal/tx/btc_tx.go`, `internal/tx/bsc_tx.go`, `internal/tx/sol_tx.go`)
+- **Server restart loses confirmation polling**: If the server shut down while goroutines were polling for confirmation, those TXs stayed pending forever. The new startup reconciler handles this case
+
 ### 2026-02-19 — Async Send Execution with SSE Progress
 
 #### Added

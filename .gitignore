@@ -23,3 +23,7 @@ web/.svelte-kit/
 # OS
 .DS_Store
 Thumbs.db
+
+
+mnemonic.txt
+.playwright-mcp

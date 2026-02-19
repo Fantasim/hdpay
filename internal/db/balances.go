@@ -226,7 +226,9 @@ func (d *DB) GetFundedAddressesJoined(chain models.Chain, token models.Token) ([
 				return nil, fmt.Errorf("scan balance detail row: %w", err)
 			}
 			if lastScanned != nil {
-				awb.LastScanned = lastScanned
+				if awb.LastScanned == nil || *lastScanned > *awb.LastScanned {
+					awb.LastScanned = lastScanned
+				}
 			}
 			if models.Token(tok) == models.TokenNative {
 				awb.NativeBalance = bal

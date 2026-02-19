@@ -126,12 +126,15 @@ func runServe() error {
 	ps := price.NewPriceService()
 
 	// Setup TX services for send functionality.
-	sendDeps, err := setupSendDeps(database, cfg, hubCtx)
+	sendDeps, txReconciler, err := setupSendDeps(database, cfg, hubCtx)
 	if err != nil {
 		return fmt.Errorf("failed to setup send dependencies: %w", err)
 	}
 
 	slog.Info("send services initialized")
+
+	// Reconcile any pending transactions from previous server runs (non-blocking).
+	go txReconciler.ReconcilePending(hubCtx)
 
 	// Extract the embedded SPA build directory (strip the "build/" prefix from the embed FS).
 	staticFS, err := fs.Sub(web.StaticFiles, "build")
@@ -351,7 +354,8 @@ func generateAndStore(database *db.DB, chain models.Chain, expectedCount int, ge
 }
 
 // setupSendDeps initializes all transaction services needed for the send handlers.
-func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) (*handlers.SendDeps, error) {
+// Also returns a TxReconciler for startup reconciliation of pending transactions.
+func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) (*handlers.SendDeps, *tx.TxReconciler, error) {
 	netParams := wallet.NetworkParams(cfg.Network)
 	httpClient := &http.Client{Timeout: config.APITimeout}
 
@@ -402,7 +406,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 
 	ethClient, err := ethclient.Dial(bscRPCURL)
 	if err != nil {
-		return nil, fmt.Errorf("dial BSC RPC %s: %w", bscRPCURL, err)
+		return nil, nil, fmt.Errorf("dial BSC RPC %s: %w", bscRPCURL, err)
 	}
 
 	// BSC broadcast fallback: use Ankr RPC as secondary for mainnet.
@@ -445,6 +449,9 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 
 	slog.Info("SOL services initialized", "rpcURLs", solRPCURLs)
 
+	// Create TX reconciler for startup reconciliation of pending transactions.
+	reconciler := tx.NewTxReconciler(database, httpClient, btcProviderURLs, bscClient, solRPCClient)
+
 	return &handlers.SendDeps{
 		DB:         database,
 		Config:     cfg,
@@ -459,7 +466,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 			models.ChainBSC: {},
 			models.ChainSOL: {},
 		},
-	}, nil
+	}, reconciler, nil
 }
 
 func runExport() error {

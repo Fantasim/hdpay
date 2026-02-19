@@ -103,23 +103,14 @@ func (s *Scanner) StartScan(ctx context.Context, chain models.Chain, maxID int) 
 		"maxID", maxID,
 	)
 
-	// Check resume state.
-	shouldResume, resumeIndex, err := s.db.ShouldResume(chain)
-	if err != nil {
-		slog.Warn("failed to check resume state",
-			"chain", chain,
-			"error", err,
-		)
-	}
-
+	// Always start from index 0 on user-initiated scans.
+	// Users expect a full rescan when they click "Scan".
 	startIndex := 0
-	if shouldResume {
-		startIndex = resumeIndex
-		slog.Info("resuming scan",
-			"chain", chain,
-			"fromIndex", startIndex,
-		)
-	}
+
+	slog.Info("scan starting fresh from index 0",
+		"chain", chain,
+		"maxID", maxID,
+	)
 
 	// Set initial scan state.
 	now := time.Now().UTC().Format(time.RFC3339)
