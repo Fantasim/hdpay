@@ -13,8 +13,6 @@
 	let bscGasPreseedBnb = $state('0.005');
 	let logLevel = $state('info');
 	let networkMode = $state<'mainnet' | 'testnet'>('testnet');
-	let initialNetworkMode = $state<'mainnet' | 'testnet'>('testnet');
-	let networkChanged = $state(false);
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -39,7 +37,6 @@
 			bscGasPreseedBnb = s.bsc_gas_preseed_bnb ?? '0.005';
 			logLevel = s.log_level ?? 'info';
 			networkMode = (s.network === 'mainnet' ? 'mainnet' : 'testnet');
-			initialNetworkMode = networkMode;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load settings';
 		} finally {
@@ -59,11 +56,7 @@
 				btc_fee_rate: btcFeeRate,
 				bsc_gas_preseed_bnb: bscGasPreseedBnb,
 				log_level: logLevel,
-				network: networkMode,
 			});
-			if (networkMode !== initialNetworkMode) {
-				networkChanged = true;
-			}
 			saveSuccess = true;
 			setTimeout(() => { saveSuccess = false; }, 2000);
 		} catch (err) {
@@ -122,73 +115,25 @@
 	<div class="error-banner">{error}</div>
 {/if}
 
-{#if networkChanged}
-	<div class="restart-banner">
-		<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-			<path d="M9 2L1.5 15.5h15L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-			<path d="M9 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-			<circle cx="9" cy="13" r="0.5" fill="currentColor"/>
-		</svg>
-		Restart required for network change to take effect.
-	</div>
-{/if}
-
 {#if loading}
 	<div class="loading-state">Loading settings...</div>
 {:else}
 	<div class="settings-body">
 		<div class="settings-cards">
 
-			<!-- Network Card -->
+			<!-- Network Card (read-only, driven by HDPAY_NETWORK env var) -->
 			<div class="card">
 				<div class="card-header">
 					<div class="card-title">Network</div>
 				</div>
 				<div class="card-body">
-					<div class="form-group">
-						<label class="form-label">Network Mode</label>
-						<div class="network-options">
-							<button
-								class="network-option"
-								class:selected={networkMode === 'mainnet'}
-								onclick={() => { networkMode = 'mainnet'; }}
-							>
-								<div class="network-option-radio">
-									<div class="network-option-radio-dot"></div>
-								</div>
-								<div class="network-option-content">
-									<div class="network-option-label">
-										<span class="network-indicator network-indicator-mainnet"></span>
-										Mainnet
-									</div>
-									<div class="network-option-desc">Production network</div>
-								</div>
-							</button>
-							<button
-								class="network-option"
-								class:selected={networkMode === 'testnet'}
-								onclick={() => { networkMode = 'testnet'; }}
-							>
-								<div class="network-option-radio">
-									<div class="network-option-radio-dot"></div>
-								</div>
-								<div class="network-option-content">
-									<div class="network-option-label">
-										<span class="network-indicator network-indicator-testnet"></span>
-										Testnet
-									</div>
-									<div class="network-option-desc">Test network</div>
-								</div>
-							</button>
+					<div class="form-group" style="margin-bottom: 0;">
+						<label class="form-label">Active Network</label>
+						<div class="network-badge">
+							<span class="network-indicator network-indicator-{networkMode}"></span>
+							{networkMode === 'mainnet' ? 'Mainnet' : 'Testnet'}
 						</div>
-					</div>
-					<div class="alert alert-warning">
-						<svg class="alert-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
-							<path d="M9 2L1.5 15.5h15L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-							<path d="M9 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-							<circle cx="9" cy="13" r="0.5" fill="currentColor"/>
-						</svg>
-						Switching networks requires a restart and re-scan of all addresses.
+						<div class="form-hint">Set via <code>HDPAY_NETWORK</code> environment variable</div>
 					</div>
 				</div>
 			</div>
@@ -399,76 +344,18 @@
 		color: var(--color-error);
 	}
 
-	/* Network options */
-	.network-options {
-		display: flex;
-		gap: 0.75rem;
-	}
-
-	.network-option {
-		flex: 1;
-		display: flex;
+	/* Network badge (read-only) */
+	.network-badge {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 1rem;
+		gap: 0.5rem;
+		padding: 0.5rem 0.875rem;
 		background: var(--color-bg-input, var(--color-bg-surface));
 		border: 1px solid var(--color-border);
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 150ms ease;
-		text-align: left;
-	}
-
-	.network-option:hover {
-		border-color: var(--color-border-hover);
-	}
-
-	.network-option.selected {
-		border-color: var(--color-accent);
-		background: var(--color-accent-muted);
-	}
-
-	.network-option-radio {
-		width: 18px;
-		height: 18px;
-		border-radius: 50%;
-		border: 2px solid var(--color-border);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		transition: border-color 150ms ease;
-	}
-
-	.network-option.selected .network-option-radio {
-		border-color: var(--color-accent);
-	}
-
-	.network-option-radio-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: transparent;
-		transition: background 150ms ease;
-	}
-
-	.network-option.selected .network-option-radio-dot {
-		background: var(--color-accent);
-	}
-
-	.network-option-content {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.network-option-label {
+		border-radius: 6px;
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--color-text-primary);
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
 	}
 
 	.network-indicator {
@@ -480,34 +367,6 @@
 
 	.network-indicator-mainnet { background: var(--color-success); }
 	.network-indicator-testnet { background: var(--color-warning); }
-
-	.network-option-desc {
-		font-size: 0.6875rem;
-		color: var(--color-text-muted);
-	}
-
-	/* Alert */
-	.alert {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.5rem;
-		padding: 0.75rem 1rem;
-		border-radius: 6px;
-		font-size: 0.8125rem;
-		margin-top: 0.75rem;
-	}
-
-	.alert-warning {
-		background: var(--color-warning-muted);
-		color: var(--color-warning);
-	}
-
-	.alert-icon {
-		flex-shrink: 0;
-		width: 18px;
-		height: 18px;
-		margin-top: 1px;
-	}
 
 	/* Form elements */
 	.form-group {
@@ -767,15 +626,4 @@
 		font-size: 0.8125rem;
 	}
 
-	.restart-banner {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-		padding: 0.75rem 1rem;
-		border-radius: 6px;
-		background: var(--color-warning-muted);
-		color: var(--color-warning);
-		font-size: 0.8125rem;
-	}
 </style>

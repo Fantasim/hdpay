@@ -2,16 +2,15 @@
 
 ## [Unreleased]
 
-### 2026-02-19 — Fix Network Setting Not Persisting
+### 2026-02-19 — Network Setting: Env-Only, Default Testnet
 
 #### Fixed
-- **Network setting not changeable via Settings UI**: The network toggle (mainnet/testnet) was completely non-functional — the value was never loaded from the API, never sent on save, and the backend rejected it as an unknown key. Fixed all three layers: backend now accepts `network` as a valid setting key, stores it in the DB, and loads it on startup; frontend now reads and sends the network value
-- **Default network changed to testnet**: Config default was `mainnet`, now `testnet` — matches the intended development-first workflow
+- **Default network changed to testnet**: Config default was `mainnet`, now `testnet` via `HDPAY_NETWORK` env var
 
 #### Changed
-- `GetSettings` handler no longer requires `*config.Config` parameter — network is now DB-driven like all other settings
-- Network setting persists across restarts via DB (overrides env default on startup)
-- UI shows "Restart required" banner when network is changed (takes effect on next server restart)
+- Network is now env-only (`HDPAY_NETWORK`), not editable from the Settings UI
+- Settings page shows current network as a read-only badge with env var hint
+- Removed interactive network toggle (radio buttons) from Settings page
 
 ### 2026-02-19 — Fix Transaction Status Stuck on "Pending"
 

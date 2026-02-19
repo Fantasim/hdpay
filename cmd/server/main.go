@@ -106,14 +106,6 @@ func runServe() error {
 
 	slog.Info("database migrations applied")
 
-	// Override network from DB setting (persisted via Settings UI).
-	if dbNetwork, err := database.GetSetting("network"); err == nil && (dbNetwork == "mainnet" || dbNetwork == "testnet") {
-		if dbNetwork != cfg.Network {
-			slog.Info("overriding network from DB setting", "envDefault", cfg.Network, "dbValue", dbNetwork)
-			cfg.Network = dbNetwork
-		}
-	}
-
 	// Setup SSE hub and scanner engine.
 	hub := scanner.NewSSEHub()
 	hubCtx, hubCancel := context.WithCancel(context.Background())
