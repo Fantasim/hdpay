@@ -26,6 +26,8 @@ export function formatBalance(balance: string, decimals: number = BALANCE_DECIMA
  * for large integer strings (>2^53).
  */
 export function formatRawBalance(rawBalance: string, chain: Chain, token: string): string {
+	if (!rawBalance) return '0';
+
 	const decimals = TOKEN_DECIMALS[chain]?.[token] ?? 0;
 
 	// Strip leading zeros but keep at least one digit.
