@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
 )
 
 // BTC API response page size (Blockstream/Mempool return 25 txs per page).

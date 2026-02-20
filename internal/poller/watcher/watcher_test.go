@@ -13,7 +13,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/poller/points"
 	"github.com/Fantasim/hdpay/internal/poller/pollerdb"
 	"github.com/Fantasim/hdpay/internal/poller/provider"
-	"github.com/Fantasim/hdpay/internal/price"
+	"github.com/Fantasim/hdpay/internal/shared/price"
 )
 
 // --- Mock Provider ---

@@ -4,8 +4,7 @@ import (
 	"io/fs"
 	"log/slog"
 
-	hdhandlers "github.com/Fantasim/hdpay/internal/api/handlers"
-	hdmiddleware "github.com/Fantasim/hdpay/internal/api/middleware"
+	"github.com/Fantasim/hdpay/internal/shared/httputil"
 	"github.com/Fantasim/hdpay/internal/poller/api/handlers"
 	pollermw "github.com/Fantasim/hdpay/internal/poller/api/middleware"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
@@ -35,7 +34,7 @@ func NewRouter(deps *Dependencies) chi.Router {
 	// Global middleware (applied to ALL routes).
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
-	r.Use(hdmiddleware.RequestLogging)
+	r.Use(httputil.RequestLogging)
 	r.Use(pollermw.CORS)
 
 	slog.Info("poller router initialized",
@@ -87,7 +86,7 @@ func NewRouter(deps *Dependencies) chi.Router {
 	// Embedded SPA: serve static files with client-side routing fallback.
 	if deps.StaticFS != nil {
 		slog.Info("embedded SPA enabled, serving static files with fallback")
-		r.NotFound(hdhandlers.SPAHandler(deps.StaticFS))
+		r.NotFound(httputil.SPAHandler(deps.StaticFS))
 	}
 
 	return r

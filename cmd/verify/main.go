@@ -3,31 +3,31 @@ package main
 import (
 	"fmt"
 
-	"github.com/Fantasim/hdpay/internal/wallet"
+	"github.com/Fantasim/hdpay/internal/wallet/hd"
 	"github.com/btcsuite/btcd/chaincfg"
 )
 
 func main() {
-	mnemonic, _ := wallet.ReadMnemonicFromFile("/home/louis/test/mnemonic_testnet.txt")
-	seed, _ := wallet.MnemonicToSeed(mnemonic)
+	mnemonic, _ := hd.ReadMnemonicFromFile("/home/louis/test/mnemonic_testnet.txt")
+	seed, _ := hd.MnemonicToSeed(mnemonic)
 
 	net := &chaincfg.TestNet3Params
-	masterKey, _ := wallet.DeriveMasterKey(seed, net)
+	masterKey, _ := hd.DeriveMasterKey(seed, net)
 
 	fmt.Println("=== BTC Testnet ===")
 	for i := 0; i < 3; i++ {
-		addr, _ := wallet.DeriveBTCAddress(masterKey, uint32(i), net)
+		addr, _ := hd.DeriveBTCAddress(masterKey, uint32(i), net)
 		fmt.Printf("  index %d: %s\n", i, addr)
 	}
 
 	fmt.Println("\n=== BSC (EVM) ===")
-	bscAddrs, _ := wallet.GenerateBSCAddresses(masterKey, 3, nil)
+	bscAddrs, _ := hd.GenerateBSCAddresses(masterKey, 3, nil)
 	for _, a := range bscAddrs {
 		fmt.Printf("  index %d: %s\n", a.AddressIndex, a.Address)
 	}
 
 	fmt.Println("\n=== SOL ===")
-	solAddrs, _ := wallet.GenerateSOLAddresses(seed, 3, nil)
+	solAddrs, _ := hd.GenerateSOLAddresses(seed, 3, nil)
 	for _, a := range solAddrs {
 		fmt.Printf("  index %d: %s\n", a.AddressIndex, a.Address)
 	}

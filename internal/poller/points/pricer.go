@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Fantasim/hdpay/internal/poller/config"
-	"github.com/Fantasim/hdpay/internal/price"
+	"github.com/Fantasim/hdpay/internal/shared/price"
 )
 
 // Pricer wraps HDPay's PriceService with Poller-specific behavior:

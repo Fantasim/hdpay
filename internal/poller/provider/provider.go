@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"sync"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
-	"github.com/Fantasim/hdpay/internal/scanner"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
+	"github.com/Fantasim/hdpay/internal/shared/scanner"
 )
 
 // Provider defines the interface for blockchain transaction detection.

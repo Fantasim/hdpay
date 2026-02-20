@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
 )
 

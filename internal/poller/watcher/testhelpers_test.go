@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Fantasim/hdpay/internal/price"
+	"github.com/Fantasim/hdpay/internal/shared/price"
 )
 
 // testPriceServer is a mock CoinGecko server for tests.

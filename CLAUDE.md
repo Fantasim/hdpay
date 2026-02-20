@@ -79,61 +79,76 @@ All scanning uses free-tier APIs with round-robin rotation to stay within limits
 ### Go Backend
 
 #### File Organization
+
+The monorepo contains two apps (**Wallet** and **Poller**) with shared infrastructure:
+
 ```
 cmd/
-  server/
-    main.go                # Entry point, minimal
-internal/
-  api/
-    router.go              # Chi router setup, middleware
-    handlers/
-      address.go           # Address generation, listing, export
-      scan.go              # Balance scanning endpoints
-      send.go              # Transaction building, signing, broadcasting
-      dashboard.go         # Portfolio overview, stats
-      settings.go          # Configuration endpoints
-    middleware/
-      security.go          # CORS, CSRF, localhost-only
-      logging.go           # Request/response logging
   wallet/
-    hd.go                  # BIP-44 HD key derivation (master)
-    btc.go                 # BTC address generation (Native SegWit bech32)
-    bsc.go                 # BSC/EVM address generation (same as ETH, coin type 60)
-    sol.go                 # SOL address generation (ed25519, m/44'/501'/N'/0')
-  scanner/
-    scanner.go             # Scanner orchestrator, resume logic
-    provider.go            # Provider interface + round-robin rotation
-    btc_provider.go        # Blockstream, Mempool.space, Blockchain.info
-    bsc_provider.go        # BscScan, public RPCs
-    sol_provider.go        # Solana RPC, Helius
-    ratelimiter.go         # Per-provider rate limiting
-  tx/
-    btc_tx.go              # BTC multi-input UTXO transaction building
-    bsc_tx.go              # BSC sequential transfers (native + BEP-20)
-    sol_tx.go              # SOL multi-instruction transaction building (native + SPL)
-    gas.go                 # BSC gas pre-seeding logic
-    broadcaster.go         # Transaction broadcast + confirmation tracking
-  db/
-    sqlite.go              # SQLite connection, migrations
-    addresses.go           # Address CRUD
-    balances.go            # Balance state
-    transactions.go        # Transaction history
-    scans.go               # Scan state (resume support)
-  price/
-    coingecko.go           # USD price fetching
-  config/
-    config.go              # Configuration struct (envconfig)
-    constants.go           # ALL numeric/string constants
-    errors.go              # ALL error types and codes
-  models/
-    types.go               # Shared domain types
-  logging/
-    logger.go              # slog setup: stdout + daily file rotation
+    main.go                # Wallet entry point
+  poller/
+    main.go                # Poller entry point
+  verify/
+    main.go                # Address verification utility
+internal/
+  wallet/                  # ── Wallet-specific backend ──
+    api/
+      router.go            # Chi router setup, middleware
+      handlers/
+        address.go         # Address generation, listing, export
+        scan.go            # Balance scanning endpoints
+        send.go            # Transaction building, signing, broadcasting
+        dashboard.go       # Portfolio overview, stats
+        settings.go        # Configuration endpoints
+      middleware/
+        security.go        # CORS, CSRF, localhost-only
+    hd/
+      hd.go                # BIP-44 HD key derivation (master)
+      btc.go               # BTC address generation (Native SegWit bech32)
+      bsc.go               # BSC/EVM address generation (same as ETH, coin type 60)
+      sol.go               # SOL address generation (ed25519, m/44'/501'/N'/0')
+    tx/
+      btc_tx.go            # BTC multi-input UTXO transaction building
+      bsc_tx.go            # BSC sequential transfers (native + BEP-20)
+      sol_tx.go            # SOL multi-instruction transaction building (native + SPL)
+      gas.go               # BSC gas pre-seeding logic
+      broadcaster.go       # Transaction broadcast + confirmation tracking
+    db/
+      sqlite.go            # SQLite connection, migrations
+      addresses.go         # Address CRUD
+      balances.go          # Balance state
+      transactions.go      # Transaction history
+      scans.go             # Scan state (resume support)
+  poller/                  # ── Poller-specific backend ──
+    api/                   # Poller REST API (auth, watches, points, dashboard)
+    config/                # Poller configuration (POLLER_* env vars)
+    pollerdb/              # Poller SQLite schema
+    provider/              # Blockchain providers for polling
+    watcher/               # Core polling engine
+    points/                # Points calculation & tiers
+  shared/                  # ── Shared infrastructure ──
+    config/
+      config.go            # Configuration struct (envconfig)
+      constants.go         # ALL numeric/string constants
+      errors.go            # ALL error types and codes
+    httputil/
+      spa.go               # Embedded SPA file server (used by both apps)
+      logging.go           # HTTP request logging middleware
+    scanner/
+      scanner.go           # Scanner orchestrator, resume logic
+      provider.go          # Provider interface + round-robin rotation
+      ratelimiter.go       # Per-provider rate limiting
+    price/
+      coingecko.go         # USD price fetching
+    models/
+      types.go             # Shared domain types
+    logging/
+      logger.go            # slog setup: stdout + daily file rotation
 ```
 
 #### Naming Conventions
 - **Files**: lowercase with underscores (`btc_tx.go`, `sol_provider.go`)
-- **Packages**: short, lowercase, no underscores (`wallet`, `scanner`, `tx`)
+- **Packages**: short, lowercase, no underscores (`hd`, `scanner`, `tx`)
 - **Exported**: PascalCase (`GenerateAddresses`, `ScanResult`)
 - **Unexported**: camelCase (`deriveKey`, `buildTxInput`)
 - **Constants**: PascalCase (`MaxAddressesPerChain`, `DefaultScanBatchSize`)
@@ -199,7 +214,7 @@ slog.Error("transaction broadcast failed",
 
 #### Database Conventions
 - Use `modernc.org/sqlite` (pure Go, no CGO dependency)
-- All migrations in `internal/db/migrations/` as numbered SQL files
+- All migrations in `internal/wallet/db/migrations/` as numbered SQL files
 - WAL mode enabled for concurrent reads
 - Prepared statements for all queries
 - All table/column names in snake_case
@@ -209,61 +224,67 @@ slog.Error("transaction broadcast failed",
 ### Frontend (SvelteKit)
 
 #### File Organization
+
+Both frontends live under `web/` as named siblings:
+
 ```
 web/
-  src/
-    lib/
-      components/
-        ui/                 # shadcn-svelte components
-        layout/
-          Sidebar.svelte
-          Header.svelte
-        address/
-          AddressTable.svelte
-          AddressExport.svelte
+  wallet/                   # ── Wallet SvelteKit app ──
+    embed.go                # Go embed for static build
+    package.json
+    svelte.config.js
+    vite.config.ts          # Proxies /api to :8080
+    src/
+      lib/
+        components/
+          layout/           # Sidebar, Header
+          address/          # AddressTable, AddressExport
+          scan/             # ScanControl, ScanProgress
+          send/             # SendPanel, GasPreSeed, TransactionConfirm
+          dashboard/        # PortfolioOverview, ChainBreakdown
+        stores/
+          addresses.ts      # Address state
+          scan.ts           # Scan state + SSE connection
+        utils/
+          api.ts            # API client (single source of truth)
+          formatting.ts     # Number/address/date formatting
+          validation.ts     # Input validation
+          chains.ts         # Chain metadata helpers
+        constants.ts        # ALL frontend constants, error codes
+        types.ts            # ALL TypeScript interfaces
+      routes/
+        +layout.svelte
+        +page.svelte        # Dashboard (landing)
+        addresses/
         scan/
-          ScanControl.svelte
-          ScanProgress.svelte
         send/
-          SendPanel.svelte
-          GasPreSeed.svelte
-          TransactionConfirm.svelte
-        dashboard/
-          PortfolioOverview.svelte
-          ChainBreakdown.svelte
-          TokenBalances.svelte
+        transactions/
         settings/
-          SettingsPanel.svelte
-      stores/
-        addresses.ts        # Address state
-        scan.ts             # Scan state + SSE connection
-        balances.ts         # Balance aggregation
-        transactions.ts     # Transaction history
-        settings.ts         # User settings (max ID, network mode)
-        prices.ts           # USD price cache
-      utils/
-        api.ts              # API client (single source of truth)
-        formatting.ts       # Number/address/date formatting
-        validation.ts       # Input validation
-        chains.ts           # Chain metadata helpers
-      constants.ts          # ALL frontend constants, error codes
-      types.ts              # ALL TypeScript interfaces
-    routes/
-      +layout.svelte
-      +page.svelte          # Dashboard (landing)
-      addresses/
-        +page.svelte
-      scan/
-        +page.svelte
-      send/
-        +page.svelte
-      transactions/
-        +page.svelte
-      settings/
-        +page.svelte
-    app.css
-    app.d.ts
-  static/
+      app.css
+      app.d.ts
+    static/
+  poller/                   # ── Poller SvelteKit app ──
+    embed.go                # Go embed for static build
+    package.json
+    svelte.config.js
+    vite.config.ts          # Proxies /api to :8081
+    src/
+      lib/
+        components/         # Charts, dashboard, layout, UI (bits-ui)
+        stores/             # Auth store
+        utils/              # API client, formatting, explorer links
+        constants.ts
+        types.ts
+      routes/
+        +layout.svelte
+        +page.svelte        # Dashboard
+        login/
+        points/
+        watches/
+        transactions/
+        settings/
+        errors/
+    static/
 ```
 
 #### TypeScript Rules
@@ -346,7 +367,7 @@ export const formatBalance = (wei, decimals) => { ... }
 
 Every single number, string, error code, URL, timeout, limit, and configuration value goes in dedicated constant files. The constants package is the compass of this project.
 
-**Go** (`internal/config/constants.go`):
+**Go** (`internal/shared/config/constants.go`):
 ```go
 package config
 
@@ -450,7 +471,7 @@ const (
 )
 ```
 
-**Go** (`internal/config/errors.go`):
+**Go** (`internal/shared/config/errors.go`):
 ```go
 package config
 
@@ -477,7 +498,7 @@ const (
 )
 ```
 
-**TypeScript** (`web/src/lib/constants.ts`):
+**TypeScript** (`web/wallet/src/lib/constants.ts`):
 ```typescript
 // API
 export const API_BASE = '/api';
@@ -556,16 +577,18 @@ Every feature MUST have tests. No exceptions.
 ```
 internal/
   wallet/
-    hd.go
-    hd_test.go
-    btc.go
-    btc_test.go
-  scanner/
-    scanner.go
-    scanner_test.go
-  tx/
-    btc_tx.go
-    btc_tx_test.go
+    hd/
+      hd.go
+      hd_test.go
+      btc.go
+      btc_test.go
+    tx/
+      btc_tx.go
+      btc_tx_test.go
+  shared/
+    scanner/
+      scanner.go
+      scanner_test.go
 ```
 
 #### Test Patterns
@@ -605,7 +628,7 @@ func TestDeriveBTCAddress(t *testing.T) {
 ```
 
 #### Coverage Target
-- Minimum 70% for core packages (`wallet`, `scanner`, `tx`, `db`)
+- Minimum 70% for core packages (`wallet/hd`, `shared/scanner`, `wallet/tx`, `wallet/db`)
 - `go test -cover ./...`
 
 ### Frontend Testing
@@ -803,11 +826,12 @@ After EVERY coding session, update `CHANGELOG.md`:
 ### No Duplicated Logic
 
 Before creating any new component or utility:
-1. `grep -r "functionName" web/src/lib/`
-2. If exists → import from existing location
-3. If new but reusable → create in `web/src/lib/utils/` immediately
+1. `grep -r "functionName" web/wallet/src/lib/` (wallet frontend)
+2. `grep -r "functionName" web/poller/src/lib/` (poller frontend)
+3. If exists → import from existing location
+4. If new but reusable → create in the app's `src/lib/utils/` immediately
 
-### Shared Utilities
+### Shared Utilities (per app)
 - Address formatting → `utils/formatting.ts`
 - API calls → `utils/api.ts` (SINGLE source of truth for all backend calls)
 - Validation → `utils/validation.ts`
@@ -832,7 +856,7 @@ When working on this codebase:
 
 **ALWAYS check before creating helpers:**
 
-1. `grep -r "functionName" web/src/lib/` (frontend)
+1. `grep -r "functionName" web/wallet/src/lib/` or `web/poller/src/lib/` (frontend)
 2. `grep -r "functionName" internal/` (backend)
 3. If exists → import from existing location
 4. If new but reusable → put in proper utils package immediately
@@ -842,8 +866,8 @@ When working on this codebase:
 ### ⚠️ Constants Are Sacred
 
 - NEVER hardcode a number, string, URL, timeout, error message, or limit
-- ALL values go in `internal/config/constants.go` or `web/src/lib/constants.ts`
-- Error codes go in `internal/config/errors.go`
+- ALL values go in `internal/shared/config/constants.go` or `web/wallet/src/lib/constants.ts`
+- Error codes go in `internal/shared/config/errors.go`
 - If you're typing a literal value that isn't a variable name, it probably needs to be a constant
 
 ### Workflow Checklist

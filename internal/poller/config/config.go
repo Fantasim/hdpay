@@ -28,7 +28,7 @@ type Config struct {
 
 // Load reads configuration from .env file (if present) then from environment variables.
 func Load() (*Config, error) {
-	envFiles := []string{".env"}
+	envFiles := []string{".env.poller"}
 	for _, f := range envFiles {
 		if _, err := os.Stat(f); err == nil {
 			if err := godotenv.Load(f); err != nil {

@@ -1,34 +1,39 @@
-.PHONY: dev dev-frontend build build-frontend build-poller build-poller-frontend \
-       test test-backend test-poller test-frontend check-frontend lint clean \
-       dev-poller
+.PHONY: dev dev-wallet-frontend dev-poller dev-poller-frontend \
+       build build-wallet-frontend build-poller build-poller-frontend \
+       test test-backend test-wallet test-poller test-wallet-frontend \
+       check-wallet-frontend lint clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 GO := PATH=$(PATH):/usr/local/go/bin go
 
-# ── HDPay ──────────────────────────────────────────────
+# ── Wallet ────────────────────────────────────────────
 
-# Run Go backend
+# Run Wallet Go backend
 dev:
-	$(GO) run $(LDFLAGS) ./cmd/server serve
+	$(GO) run $(LDFLAGS) ./cmd/wallet serve
 
-# Run SvelteKit dev server
-dev-frontend:
-	cd web && npm run dev
+# Run Wallet SvelteKit dev server
+dev-wallet-frontend:
+	cd web/wallet && npm run dev
 
-# Build frontend then compile Go binary with embedded static files
-build: build-frontend
-	$(GO) build $(LDFLAGS) -o hdpay ./cmd/server
+# Build Wallet frontend then compile Go binary with embedded static files
+build: build-wallet-frontend
+	$(GO) build $(LDFLAGS) -o hdpay ./cmd/wallet
 
-# Build frontend only
-build-frontend:
-	cd web && npm run build
+# Build Wallet frontend only
+build-wallet-frontend:
+	cd web/wallet && npm run build
 
 # ── Poller ─────────────────────────────────────────────
 
-# Run Poller backend
+# Run Poller Go backend
 dev-poller:
 	$(GO) run $(LDFLAGS) ./cmd/poller
+
+# Run Poller SvelteKit dev server
+dev-poller-frontend:
+	cd web/poller && npm run dev
 
 # Build Poller frontend only
 build-poller-frontend:
@@ -40,24 +45,28 @@ build-poller: build-poller-frontend
 
 # ── Tests ──────────────────────────────────────────────
 
-# Run all tests (backend + frontend)
-test: test-backend test-frontend
+# Run all tests (backend + wallet frontend)
+test: test-backend test-wallet-frontend
 
-# Run Go tests
+# Run all Go tests
 test-backend:
 	$(GO) test ./... -count=1
 
-# Run Poller tests only
+# Run Wallet Go tests only
+test-wallet:
+	$(GO) test ./internal/wallet/... -count=1 -v
+
+# Run Poller Go tests only
 test-poller:
 	$(GO) test ./internal/poller/... -count=1 -v
 
-# Run frontend unit tests (Vitest)
-test-frontend:
-	cd web && npx vitest run
+# Run Wallet frontend unit tests (Vitest)
+test-wallet-frontend:
+	cd web/wallet && npx vitest run
 
-# Run frontend type checks (svelte-check)
-check-frontend:
-	cd web && npm run check
+# Run Wallet frontend type checks (svelte-check)
+check-wallet-frontend:
+	cd web/wallet && npm run check
 
 # ── Quality ────────────────────────────────────────────
 
@@ -69,4 +78,4 @@ lint:
 clean:
 	rm -f hdpay
 	rm -f bin/poller
-	rm -rf web/build web/.svelte-kit web/poller/build web/poller/.svelte-kit
+	rm -rf web/wallet/build web/wallet/.svelte-kit web/poller/build web/poller/.svelte-kit

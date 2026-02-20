@@ -1,17 +1,22 @@
-# Go binary
+# Go binaries
 hdpay
+bin/
 
 # Data & logs
 data/
 logs/
 
 # Environment
-.env
+.env.wallet
+.env.poller
 
 # Frontend
-web/node_modules/
-web/build/
-web/.svelte-kit/
+web/wallet/node_modules/
+web/wallet/build/
+web/wallet/.svelte-kit/
+web/poller/node_modules/
+web/poller/build/
+web/poller/.svelte-kit/
 
 # IDE
 .idea/
@@ -20,14 +25,10 @@ web/.svelte-kit/
 *.swo
 *~
 
-bin/
-
-
-
 # OS
 .DS_Store
 Thumbs.db
 
-
+# Secrets
 mnemonic.txt
 .playwright-mcp

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
 )
 
 // --- SOL test fixtures ---

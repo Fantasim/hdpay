@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
-	"github.com/Fantasim/hdpay/internal/logging"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
+	"github.com/Fantasim/hdpay/internal/shared/logging"
 	pollerapi "github.com/Fantasim/hdpay/internal/poller/api"
 	pollermw "github.com/Fantasim/hdpay/internal/poller/api/middleware"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
@@ -20,7 +20,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/poller/pollerdb"
 	"github.com/Fantasim/hdpay/internal/poller/provider"
 	"github.com/Fantasim/hdpay/internal/poller/watcher"
-	"github.com/Fantasim/hdpay/internal/price"
+	"github.com/Fantasim/hdpay/internal/shared/price"
 	webpoller "github.com/Fantasim/hdpay/web/poller"
 )
 

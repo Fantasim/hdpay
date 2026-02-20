@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	hdconfig "github.com/Fantasim/hdpay/internal/config"
-	"github.com/Fantasim/hdpay/internal/scanner"
+	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
+	"github.com/Fantasim/hdpay/internal/shared/scanner"
 )
 
 // mockProvider implements Provider for testing round-robin and circuit breaker logic.
