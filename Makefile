@@ -1,8 +1,12 @@
-.PHONY: dev dev-frontend build test test-backend test-frontend check-frontend lint clean
+.PHONY: dev dev-frontend build build-frontend build-poller build-poller-frontend \
+       test test-backend test-poller test-frontend check-frontend lint clean \
+       dev-poller
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 GO := PATH=$(PATH):/usr/local/go/bin go
+
+# ── HDPay ──────────────────────────────────────────────
 
 # Run Go backend
 dev:
@@ -20,12 +24,28 @@ build: build-frontend
 build-frontend:
 	cd web && npm run build
 
+# ── Poller ─────────────────────────────────────────────
+
+# Run Poller backend
+dev-poller:
+	$(GO) run $(LDFLAGS) ./cmd/poller
+
+# Build Poller binary
+build-poller:
+	$(GO) build $(LDFLAGS) -o bin/poller ./cmd/poller
+
+# ── Tests ──────────────────────────────────────────────
+
 # Run all tests (backend + frontend)
 test: test-backend test-frontend
 
 # Run Go tests
 test-backend:
 	$(GO) test ./... -count=1
+
+# Run Poller tests only
+test-poller:
+	$(GO) test ./internal/poller/... -count=1 -v
 
 # Run frontend unit tests (Vitest)
 test-frontend:
@@ -35,6 +55,8 @@ test-frontend:
 check-frontend:
 	cd web && npm run check
 
+# ── Quality ────────────────────────────────────────────
+
 # Run Go vet
 lint:
 	$(GO) vet ./...
@@ -42,4 +64,5 @@ lint:
 # Clean build artifacts
 clean:
 	rm -f hdpay
+	rm -f bin/poller
 	rm -rf web/build web/.svelte-kit

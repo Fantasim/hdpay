@@ -169,7 +169,7 @@ func TestCleanOldLogs_RemovesOldFiles(t *testing.T) {
 	oldTime := time.Now().AddDate(0, 0, -60)
 	os.Chtimes(oldFile, oldTime, oldTime)
 
-	removed := CleanOldLogs(tmpDir, 30)
+	removed := CleanOldLogs(tmpDir, 30, "hdpay-")
 
 	if removed != 1 {
 		t.Errorf("CleanOldLogs() removed = %d, want 1", removed)
@@ -204,7 +204,7 @@ func TestCleanOldLogs_IgnoresNonMatchingFiles(t *testing.T) {
 	}
 	os.Chtimes(wrongPrefix, oldTime, oldTime)
 
-	removed := CleanOldLogs(tmpDir, 30)
+	removed := CleanOldLogs(tmpDir, 30, "hdpay-")
 
 	if removed != 0 {
 		t.Errorf("CleanOldLogs() removed = %d, want 0 (non-matching files)", removed)
@@ -231,7 +231,7 @@ func TestCleanOldLogs_RetainsRecentFiles(t *testing.T) {
 		}
 	}
 
-	removed := CleanOldLogs(tmpDir, 30)
+	removed := CleanOldLogs(tmpDir, 30, "hdpay-")
 
 	if removed != 0 {
 		t.Errorf("CleanOldLogs() removed = %d, want 0 (all recent)", removed)
@@ -240,7 +240,7 @@ func TestCleanOldLogs_RetainsRecentFiles(t *testing.T) {
 
 func TestCleanOldLogs_MissingDirectory(t *testing.T) {
 	// Should not panic on non-existent directory.
-	removed := CleanOldLogs("/tmp/nonexistent-dir-hdpay-test", 30)
+	removed := CleanOldLogs("/tmp/nonexistent-dir-hdpay-test", 30, "hdpay-")
 	if removed != 0 {
 		t.Errorf("CleanOldLogs() removed = %d, want 0", removed)
 	}

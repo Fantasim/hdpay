@@ -1,0 +1,30 @@
+package config
+
+// Error codes — shared with frontend via API responses.
+const (
+	ErrorAlreadyWatching    = "ERROR_ALREADY_WATCHING"
+	ErrorWatchNotFound      = "ERROR_WATCH_NOT_FOUND"
+	ErrorWatchExpired       = "ERROR_WATCH_EXPIRED"
+	ErrorAddressNotFound    = "ERROR_ADDRESS_NOT_FOUND"
+	ErrorAddressInvalid     = "ERROR_ADDRESS_INVALID"
+	ErrorInvalidChain       = "ERROR_INVALID_CHAIN"
+	ErrorInvalidToken       = "ERROR_INVALID_TOKEN"
+	ErrorInvalidTimeout     = "ERROR_INVALID_TIMEOUT"
+	ErrorMaxWatches         = "ERROR_MAX_WATCHES"
+	ErrorTxAlreadyRecorded  = "ERROR_TX_ALREADY_RECORDED"
+	ErrorNothingToClaim     = "ERROR_NOTHING_TO_CLAIM"
+	ErrorProviderUnavailable = "ERROR_PROVIDER_UNAVAILABLE"
+	ErrorProviderRateLimit  = "ERROR_PROVIDER_RATE_LIMIT"
+	ErrorPriceFetchFailed   = "ERROR_PRICE_FETCH_FAILED"
+	ErrorDatabase           = "ERROR_DATABASE"
+	ErrorTiersInvalid       = "ERROR_TIERS_INVALID"
+	ErrorTiersFile          = "ERROR_TIERS_FILE"
+	ErrorUnauthorized       = "ERROR_UNAUTHORIZED"
+	ErrorForbidden          = "ERROR_FORBIDDEN"
+	ErrorSessionExpired     = "ERROR_SESSION_EXPIRED"
+	ErrorIPNotAllowed       = "ERROR_IP_NOT_ALLOWED"
+	ErrorInvalidCredentials = "ERROR_INVALID_CREDENTIALS"
+	ErrorDiscrepancy        = "ERROR_DISCREPANCY"
+	ErrorInvalidRequest     = "ERROR_INVALID_REQUEST"
+	ErrorInternal           = "ERROR_INTERNAL"
+)

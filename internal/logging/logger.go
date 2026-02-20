@@ -98,9 +98,16 @@ func (mc *multiCloser) Close() error {
 }
 
 // Setup initializes the global slog logger with dual output: stdout + per-level daily rotated log files.
-// Separate files are created for each log level >= the configured minimum (e.g. info, warn, error).
+// Uses the default HDPay log file pattern and prefix.
 // Returns an io.Closer that the caller should close on shutdown (closes all log file handles).
 func Setup(levelStr, logDir string) (io.Closer, error) {
+	return SetupWithPrefix(levelStr, logDir, config.LogFilePattern, "hdpay-")
+}
+
+// SetupWithPrefix initializes the global slog logger with a custom log file pattern and prefix.
+// filePattern is a fmt format string with two %s placeholders: date and level (e.g. "poller-%s-%s.log").
+// cleanPrefix is the filename prefix used by CleanOldLogs to identify which files to clean (e.g. "poller-").
+func SetupWithPrefix(levelStr, logDir, filePattern, cleanPrefix string) (io.Closer, error) {
 	level, err := parseLevel(levelStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse log level %q: %w", levelStr, err)
@@ -127,7 +134,7 @@ func Setup(levelStr, logDir string) (io.Closer, error) {
 			continue
 		}
 
-		filename := fmt.Sprintf(config.LogFilePattern, dateStr, levelName(lvl))
+		filename := fmt.Sprintf(filePattern, dateStr, levelName(lvl))
 		logFilePath := filepath.Join(logDir, filename)
 
 		file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -163,7 +170,7 @@ func Setup(levelStr, logDir string) (io.Closer, error) {
 	)
 
 	// Clean up old log files on startup.
-	removed := CleanOldLogs(logDir, config.LogMaxAgeDays)
+	removed := CleanOldLogs(logDir, config.LogMaxAgeDays, cleanPrefix)
 	if removed > 0 {
 		slog.Info("cleaned old log files", "removed", removed, "maxAgeDays", config.LogMaxAgeDays)
 	}
@@ -172,8 +179,9 @@ func Setup(levelStr, logDir string) (io.Closer, error) {
 }
 
 // CleanOldLogs deletes log files in logDir that are older than maxAgeDays.
+// prefix filters which files to clean (e.g. "hdpay-" or "poller-").
 // Returns the number of files removed.
-func CleanOldLogs(logDir string, maxAgeDays int) int {
+func CleanOldLogs(logDir string, maxAgeDays int, prefix string) int {
 	cutoff := time.Now().AddDate(0, 0, -maxAgeDays)
 	removed := 0
 
@@ -189,7 +197,7 @@ func CleanOldLogs(logDir string, maxAgeDays int) int {
 		}
 
 		name := entry.Name()
-		if !strings.HasPrefix(name, "hdpay-") || !strings.HasSuffix(name, ".log") {
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".log") {
 			continue
 		}
 

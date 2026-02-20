@@ -13,14 +13,16 @@ web/node_modules/
 web/build/
 web/.svelte-kit/
 
-poller/
-
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+
+bin/
+
+
 
 # OS
 .DS_Store
