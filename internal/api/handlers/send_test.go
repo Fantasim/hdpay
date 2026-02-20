@@ -108,6 +108,29 @@ func TestValidateDestination(t *testing.T) {
 			wantErr: true,
 		},
 
+		// BSC EIP-55 checksum
+		{
+			name:    "BSC valid EIP-55 checksummed",
+			chain:   models.ChainBSC,
+			address: "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb",
+			net:     &chaincfg.MainNetParams,
+			wantErr: false,
+		},
+		{
+			name:    "BSC wrong EIP-55 checksum (mixed case typo)",
+			chain:   models.ChainBSC,
+			address: "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdB", // last char B instead of b
+			net:     &chaincfg.MainNetParams,
+			wantErr: true,
+		},
+		{
+			name:    "BSC all uppercase (no checksum, accepted)",
+			chain:   models.ChainBSC,
+			address: "0xF278CF59F82EDCF871D630F28ECC8056F25C1CDB",
+			net:     &chaincfg.MainNetParams,
+			wantErr: false,
+		},
+
 		// SOL valid
 		{
 			name:    "SOL valid base58",

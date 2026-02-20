@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +93,96 @@ func TestRunMigrationsIdempotent(t *testing.T) {
 	}
 	if count != expectedCount {
 		t.Errorf("expected %d migration records, got %d", expectedCount, count)
+	}
+}
+
+func TestValidateNetworkConsistency_EmptyDB(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.sqlite")
+
+	d, err := New(dbPath, "testnet")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer d.Close()
+
+	if err := d.RunMigrations(); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	// Empty DB should pass — no addresses to compare against.
+	if err := d.ValidateNetworkConsistency(); err != nil {
+		t.Errorf("ValidateNetworkConsistency() should pass on empty DB, got: %v", err)
+	}
+}
+
+func TestValidateNetworkConsistency_Match(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.sqlite")
+
+	d, err := New(dbPath, "testnet")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer d.Close()
+
+	if err := d.RunMigrations(); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	// Seed testnet addresses.
+	addrs := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "tb1qtest0"},
+	}
+	if err := d.InsertAddressBatch(models.ChainBTC, addrs); err != nil {
+		t.Fatalf("InsertAddressBatch() error = %v", err)
+	}
+
+	// Same network should pass.
+	if err := d.ValidateNetworkConsistency(); err != nil {
+		t.Errorf("ValidateNetworkConsistency() should pass for matching network, got: %v", err)
+	}
+}
+
+func TestValidateNetworkConsistency_Mismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.sqlite")
+
+	// Create DB as testnet and insert addresses.
+	testnetDB, err := New(dbPath, "testnet")
+	if err != nil {
+		t.Fatalf("New(testnet) error = %v", err)
+	}
+	if err := testnetDB.RunMigrations(); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	addrs := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "tb1qtest0"},
+	}
+	if err := testnetDB.InsertAddressBatch(models.ChainBTC, addrs); err != nil {
+		t.Fatalf("InsertAddressBatch() error = %v", err)
+	}
+	testnetDB.Close()
+
+	// Re-open as mainnet — should fail validation.
+	mainnetDB, err := New(dbPath, "mainnet")
+	if err != nil {
+		t.Fatalf("New(mainnet) error = %v", err)
+	}
+	defer mainnetDB.Close()
+
+	err = mainnetDB.ValidateNetworkConsistency()
+	if err == nil {
+		t.Fatal("ValidateNetworkConsistency() should fail when network mismatches, got nil")
+	}
+
+	// Error message should mention both networks.
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "NETWORK MISMATCH") {
+		t.Errorf("error should contain 'NETWORK MISMATCH', got: %s", errMsg)
+	}
+	if !strings.Contains(errMsg, "mainnet") || !strings.Contains(errMsg, "testnet") {
+		t.Errorf("error should mention both networks, got: %s", errMsg)
 	}
 }
 

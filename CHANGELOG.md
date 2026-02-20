@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 2026-02-20 — Safety Audit: User Money Loss & Misleading Information Fixes
+
+#### Added
+- **Network consistency check on startup**: Server refuses to start if DB contains addresses from a different network than configured (`HDPAY_NETWORK`). Prevents silent mainnet/testnet confusion (`internal/db/sqlite.go`, `cmd/server/main.go`)
+- **Testnet banner**: Prominent yellow "TESTNET MODE" banner visible on every page when running on testnet (`web/src/routes/+layout.svelte`)
+- **Price unavailability indicators**: Dashboard shows "Price unavailable" instead of misleading "$0.00" when CoinGecko price fetch fails. Stale price warning shown when prices are outdated (`internal/api/handlers/dashboard.go`, `PortfolioOverview.svelte`, `BalanceBreakdown.svelte`)
+- **Token scan error visibility**: Warning displayed in scan progress UI when a token scan fails (e.g., "USDT scan failed — balances may be incomplete") (`web/src/lib/components/scan/ScanProgress.svelte`)
+- **BSC token sweep balance divergence detection**: If on-chain token balance drops >5% from DB between preview and execute, address is skipped with clear error instead of silently sweeping less (`internal/tx/bsc_tx.go`, `internal/config/constants.go`)
+- **BSC EIP-55 checksum validation**: Mixed-case BSC destination addresses are validated against EIP-55 checksum to catch single-character typos that would send funds to unrecoverable addresses (`internal/api/handlers/send.go`)
+- **Settings validation**: `max_scan_id` must be 1-500,000; `btc_fee_rate` must be non-negative; `resume_threshold_hours` must be >= 1 (`internal/api/handlers/settings.go`)
+- **Per-chain scan timestamps**: Balance breakdown table shows "Last Scanned" per chain; portfolio overview shows "Oldest Scan" stat card identifying which chain has the most stale data (`BalanceBreakdown.svelte`, `PortfolioOverview.svelte`, `internal/db/balances.go`)
+- Tests for all new functionality: `ValidateNetworkConsistency`, `GetScanTimesByChain`, `validateSettingValue`, BSC EIP-55 checksum validation, settings validation rejection
+
+#### Removed
+- **ResetAll feature**: Removed handler, route, and UI entirely — too dangerous to exist as a one-click operation. Users who need to reset can manually delete the SQLite file (`internal/api/handlers/settings.go`, `internal/api/router.go`, `web/src/routes/settings/+page.svelte`)
+
 ### 2026-02-20 — Per-Level Log File Splitting
 
 #### Changed

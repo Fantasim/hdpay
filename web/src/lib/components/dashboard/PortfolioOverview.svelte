@@ -19,6 +19,24 @@
 	);
 
 	let chainCount = $derived(SUPPORTED_CHAINS.length);
+
+	// Find the oldest per-chain scan time to surface stale data.
+	let oldestScan = $derived(() => {
+		if (!portfolio) return { time: null as string | null, chain: '' };
+		let oldest: string | null = null;
+		let oldestChain = '';
+		for (const c of portfolio.chains) {
+			if (!c.lastScan) {
+				// A chain with no scan at all is the "oldest" (never scanned).
+				return { time: null, chain: c.chain };
+			}
+			if (!oldest || c.lastScan < oldest) {
+				oldest = c.lastScan;
+				oldestChain = c.chain;
+			}
+		}
+		return { time: oldest, chain: oldestChain };
+	});
 </script>
 
 <!-- Portfolio Total -->
@@ -28,6 +46,9 @@
 		<div class="stat-value stat-value-lg font-mono skeleton">Loading...</div>
 	{:else}
 		<div class="stat-value stat-value-lg font-mono">{formatUsd(portfolio?.totalUsd ?? 0)}</div>
+		{#if portfolio?.pricesStale}
+			<div class="stale-warning">Prices may be outdated — CoinGecko fetch failed</div>
+		{/if}
 	{/if}
 </div>
 
@@ -53,8 +74,11 @@
 	</div>
 	<div class="card">
 		<div class="stat">
-			<span class="stat-label">Last Scan</span>
-			<span class="stat-value stat-value-sm">{formatRelativeTime(portfolio?.lastScan ?? null)}</span>
+			<span class="stat-label">Oldest Scan</span>
+			<span class="stat-value stat-value-sm">{formatRelativeTime(oldestScan().time)}</span>
+			{#if oldestScan().chain}
+				<span class="stat-hint">{oldestScan().chain}</span>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -128,5 +152,18 @@
 
 	.text-success {
 		color: var(--color-success);
+	}
+
+	.stat-hint {
+		font-size: 0.6875rem;
+		color: var(--color-text-muted);
+		font-weight: 400;
+	}
+
+	.stale-warning {
+		font-size: 0.75rem;
+		color: var(--color-warning, #eab308);
+		margin-top: -1rem;
+		margin-bottom: 1rem;
 	}
 </style>

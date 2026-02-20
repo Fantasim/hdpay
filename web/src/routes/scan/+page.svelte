@@ -60,6 +60,7 @@
 				progress={store.state.progress[chain] ?? null}
 				lastComplete={store.state.lastComplete[chain] ?? null}
 				lastError={store.state.lastError[chain] ?? null}
+				lastTokenError={store.state.lastTokenError[chain] ?? null}
 			/>
 		{/each}
 	</div>

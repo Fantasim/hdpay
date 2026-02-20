@@ -86,6 +86,30 @@ func New(path string, network string) (*DB, error) {
 	return &DB{conn: conn, path: path, network: network}, nil
 }
 
+// ValidateNetworkConsistency checks that the configured network matches the
+// network of existing addresses in the database. Returns an error if addresses
+// exist for a different network, preventing silent address/balance mismatch.
+func (d *DB) ValidateNetworkConsistency() error {
+	var dbNetwork string
+	err := d.conn.QueryRow("SELECT DISTINCT network FROM addresses LIMIT 1").Scan(&dbNetwork)
+	if err != nil {
+		// No addresses yet — nothing to validate.
+		slog.Debug("no addresses in database, skipping network consistency check")
+		return nil
+	}
+
+	if dbNetwork != d.network {
+		return fmt.Errorf(
+			"NETWORK MISMATCH: server configured for %q but database contains %q addresses. "+
+				"Change HDPAY_NETWORK to %q or use a different database file",
+			d.network, dbNetwork, dbNetwork,
+		)
+	}
+
+	slog.Info("network consistency check passed", "network", d.network)
+	return nil
+}
+
 // Close closes the database connection.
 func (d *DB) Close() error {
 	slog.Info("closing database", "path", d.path)

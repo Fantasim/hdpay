@@ -57,6 +57,20 @@ func validateDestination(chain models.Chain, address string, netParams *chaincfg
 		if !common.IsHexAddress(address) {
 			return fmt.Errorf("invalid BSC address: must be 0x-prefixed hex (42 chars)")
 		}
+		// EIP-55 checksum validation: if the address contains mixed case (not all-lower
+		// or all-upper after 0x), verify it matches the canonical EIP-55 checksum.
+		// This catches single-character typos that would send funds to an unrecoverable address.
+		if strings.HasPrefix(address, "0x") || strings.HasPrefix(address, "0X") {
+			hexPart := address[2:]
+			isAllLower := hexPart == strings.ToLower(hexPart)
+			isAllUpper := hexPart == strings.ToUpper(hexPart)
+			if !isAllLower && !isAllUpper {
+				checksummed := common.HexToAddress(address).Hex()
+				if checksummed != address {
+					return fmt.Errorf("invalid BSC address: EIP-55 checksum mismatch (expected %s)", checksummed)
+				}
+			}
+		}
 
 	case models.ChainSOL:
 		if !solBase58Regex.MatchString(address) {

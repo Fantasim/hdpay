@@ -417,6 +417,29 @@ func (d *DB) GetLatestScanTime() (string, error) {
 	return *lastScan, nil
 }
 
+// GetScanTimesByChain returns the last scan update time for each chain.
+// Returns a map of chain -> updated_at timestamp string.
+func (d *DB) GetScanTimesByChain() (map[string]string, error) {
+	rows, err := d.conn.Query(
+		"SELECT chain, updated_at FROM scan_state WHERE network = ? AND updated_at IS NOT NULL",
+		d.network,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query scan times by chain: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]string)
+	for rows.Next() {
+		var chain, updatedAt string
+		if err := rows.Scan(&chain, &updatedAt); err != nil {
+			return nil, fmt.Errorf("scan scan time row: %w", err)
+		}
+		result[chain] = updatedAt
+	}
+	return result, rows.Err()
+}
+
 // GetAddressesBatch returns addresses for a chain within an index range.
 // Used by the scanner to load batches of addresses for scanning.
 func (d *DB) GetAddressesBatch(chain models.Chain, startIndex, count int) ([]models.Address, error) {

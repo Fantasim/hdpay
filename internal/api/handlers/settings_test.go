@@ -22,7 +22,6 @@ func setupSettingsRouter(t *testing.T) (http.Handler, func()) {
 	r.Get("/api/settings", GetSettings(database, cfg))
 	r.Put("/api/settings", UpdateSettings(database))
 	r.Post("/api/settings/reset-balances", ResetBalancesHandler(database))
-	r.Post("/api/settings/reset-all", ResetAllHandler(database))
 
 	return r, func() { database.Close() }
 }
@@ -158,28 +157,78 @@ func TestResetBalances_Success(t *testing.T) {
 	}
 }
 
-func TestResetAll_RequiresConfirmation(t *testing.T) {
-	router, cleanup := setupSettingsRouter(t)
-	defer cleanup()
+// --- validateSettingValue tests ---
 
-	req := httptest.NewRequest("POST", "/api/settings/reset-all", strings.NewReader(`{}`))
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+func TestValidateSettingValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		value   string
+		wantErr bool
+	}{
+		// max_scan_id
+		{"max_scan_id valid", "max_scan_id", "5000", false},
+		{"max_scan_id min", "max_scan_id", "1", false},
+		{"max_scan_id max", "max_scan_id", "500000", false},
+		{"max_scan_id zero", "max_scan_id", "0", true},
+		{"max_scan_id negative", "max_scan_id", "-1", true},
+		{"max_scan_id too large", "max_scan_id", "999999", true},
+		{"max_scan_id not a number", "max_scan_id", "abc", true},
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 without confirmation", w.Code)
+		// btc_fee_rate
+		{"btc_fee_rate valid", "btc_fee_rate", "10", false},
+		{"btc_fee_rate zero", "btc_fee_rate", "0", false},
+		{"btc_fee_rate negative", "btc_fee_rate", "-1", true},
+		{"btc_fee_rate not a number", "btc_fee_rate", "abc", true},
+
+		// resume_threshold_hours
+		{"resume_threshold_hours valid", "resume_threshold_hours", "24", false},
+		{"resume_threshold_hours min", "resume_threshold_hours", "1", false},
+		{"resume_threshold_hours zero", "resume_threshold_hours", "0", true},
+		{"resume_threshold_hours negative", "resume_threshold_hours", "-1", true},
+		{"resume_threshold_hours not a number", "resume_threshold_hours", "xyz", true},
+
+		// keys without validation pass through
+		{"log_level any value", "log_level", "debug", false},
+		{"auto_resume_scans", "auto_resume_scans", "true", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSettingValue(tt.key, tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateSettingValue(%q, %q) error = %v, wantErr %v",
+					tt.key, tt.value, err, tt.wantErr)
+			}
+		})
 	}
 }
 
-func TestResetAll_Success(t *testing.T) {
+func TestUpdateSettings_ValidationRejectsInvalid(t *testing.T) {
 	router, cleanup := setupSettingsRouter(t)
 	defer cleanup()
 
-	req := httptest.NewRequest("POST", "/api/settings/reset-all", strings.NewReader(`{"confirm": true}`))
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"max_scan_id zero", `{"max_scan_id": "0"}`},
+		{"max_scan_id negative", `{"max_scan_id": "-5"}`},
+		{"max_scan_id too large", `{"max_scan_id": "999999"}`},
+		{"btc_fee_rate negative", `{"btc_fee_rate": "-1"}`},
+		{"resume_threshold_hours zero", `{"resume_threshold_hours": "0"}`},
+	}
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("PUT", "/api/settings", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400. body: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }

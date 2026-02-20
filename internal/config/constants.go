@@ -293,8 +293,9 @@ const (
 
 // BSC Balance Recheck
 const (
-	BSCMinNativeSweepWei   = "100000000000000" // 0.0001 BNB — below this, skip address
-	BEP20BalanceOfMethodID = "70a08231"         // keccak256("balanceOf(address)")[:4]
+	BSCMinNativeSweepWei           = "100000000000000" // 0.0001 BNB — below this, skip address
+	BEP20BalanceOfMethodID         = "70a08231"         // keccak256("balanceOf(address)")[:4]
+	BSCTokenBalanceDivergenceRatio = 0.05               // skip address if on-chain balance dropped >5% from DB
 )
 
 // BSC Gas Price Re-Estimation

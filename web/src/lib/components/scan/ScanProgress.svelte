@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { CHAIN_COLORS } from '$lib/constants';
-	import type { Chain, ScanCompleteEvent, ScanErrorEvent, ScanProgress, ScanStateWithRunning } from '$lib/types';
+	import type { Chain, ScanCompleteEvent, ScanErrorEvent, ScanProgress, ScanStateWithRunning, ScanTokenErrorEvent } from '$lib/types';
 	import { formatNumber, formatRelativeTime, parseElapsedToMs, formatDuration } from '$lib/utils/formatting';
 
 	interface Props {
@@ -9,9 +9,10 @@
 		progress: ScanProgress | null;
 		lastComplete: ScanCompleteEvent | null;
 		lastError: ScanErrorEvent | null;
+		lastTokenError: ScanTokenErrorEvent | null;
 	}
 
-	let { chain, status, progress, lastComplete, lastError }: Props = $props();
+	let { chain, status, progress, lastComplete, lastError, lastTokenError }: Props = $props();
 
 	const chainLabels: Record<Chain, string> = {
 		BTC: 'Bitcoin',
@@ -100,6 +101,12 @@
 			No scan history
 		{/if}
 	</div>
+
+	{#if lastTokenError}
+		<div class="token-error-warning">
+			{lastTokenError.token} scan failed — balances for this token may be incomplete
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -204,5 +211,13 @@
 
 	.text-error {
 		color: var(--color-error);
+	}
+
+	.token-error-warning {
+		font-size: 0.75rem;
+		color: var(--color-warning, #eab308);
+		background: var(--color-warning-muted, rgba(234, 179, 8, 0.1));
+		padding: 0.375rem 0.625rem;
+		border-radius: 4px;
 	}
 </style>

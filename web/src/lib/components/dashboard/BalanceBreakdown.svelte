@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ChainPortfolio, Chain } from '$lib/types';
 	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
-	import { formatRawBalance, formatUsd, formatNumber } from '$lib/utils/formatting';
+	import { formatRawBalance, formatUsd, formatNumber, formatRelativeTime } from '$lib/utils/formatting';
 
 	interface Props {
 		chains: ChainPortfolio[];
@@ -17,6 +17,7 @@
 		balance: string;
 		usd: number;
 		fundedCount: number;
+		lastScan: string | null;
 	}
 
 	let rows = $derived<BalanceRow[]>(() => {
@@ -34,7 +35,8 @@
 					rawToken: token.symbol,
 					balance: token.balance,
 					usd: token.usd,
-					fundedCount: token.fundedCount
+					fundedCount: token.fundedCount,
+					lastScan: chainData.lastScan
 				});
 			}
 		}
@@ -63,6 +65,7 @@
 						<th class="text-right">Balance</th>
 						<th class="text-right">USD Value</th>
 						<th class="text-right">Funded Addresses</th>
+						<th class="text-right">Last Scanned</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -71,8 +74,9 @@
 							<td><span class={badgeClass(row.chain)}>{row.chain}</span></td>
 							<td>{row.displayToken}</td>
 							<td class="mono text-right">{formatRawBalance(row.balance, row.chain, row.rawToken)}</td>
-							<td class="mono text-right">{formatUsd(row.usd)}</td>
+							<td class="mono text-right">{#if row.usd < 0}<span class="price-unavailable">Price unavailable</span>{:else}{formatUsd(row.usd)}{/if}</td>
 							<td class="text-right">{formatNumber(row.fundedCount)}</td>
+							<td class="text-right text-muted">{row.lastScan ? formatRelativeTime(row.lastScan) : 'Never'}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -166,6 +170,18 @@
 	.badge-sol {
 		background: var(--color-sol-muted);
 		color: var(--color-sol);
+	}
+
+	.text-muted {
+		color: var(--color-text-muted);
+		font-size: 0.8125rem;
+	}
+
+	.price-unavailable {
+		color: var(--color-text-muted);
+		font-style: italic;
+		font-family: var(--font-sans, inherit);
+		font-size: 0.75rem;
 	}
 
 	.empty-state {

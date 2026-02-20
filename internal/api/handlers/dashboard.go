@@ -27,13 +27,15 @@ type chainPortfolio struct {
 	AddressCount int                  `json:"addressCount"`
 	FundedCount  int                  `json:"fundedCount"`
 	Tokens       []tokenPortfolioItem `json:"tokens"`
+	LastScan     *string              `json:"lastScan"`
 }
 
 // portfolioData is the data payload for GET /api/dashboard/portfolio.
 type portfolioData struct {
-	TotalUSD float64          `json:"totalUsd"`
-	LastScan *string          `json:"lastScan"`
-	Chains   []chainPortfolio `json:"chains"`
+	TotalUSD    float64          `json:"totalUsd"`
+	LastScan    *string          `json:"lastScan"`
+	Chains      []chainPortfolio `json:"chains"`
+	PricesStale bool             `json:"pricesStale"`
 }
 
 // GetPrices handles GET /api/dashboard/prices.
@@ -153,13 +155,26 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 			)
 		}
 
+		// Fetch per-chain scan times.
+		scanTimesByChain, err := database.GetScanTimesByChain()
+		if err != nil {
+			slog.Warn("failed to fetch per-chain scan times",
+				"error", err,
+			)
+			scanTimesByChain = make(map[string]string)
+		}
+
 		// Build per-chain data.
 		chainMap := make(map[models.Chain]*chainPortfolio)
 		for _, chain := range models.AllChains {
-			chainMap[chain] = &chainPortfolio{
+			cp := &chainPortfolio{
 				Chain:  chain,
 				Tokens: []tokenPortfolioItem{},
 			}
+			if t, ok := scanTimesByChain[string(chain)]; ok {
+				cp.LastScan = &t
+			}
+			chainMap[chain] = cp
 		}
 
 		var totalUSD float64
@@ -172,7 +187,7 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 			}
 
 			symbol := tokenToSymbol(agg.Chain, agg.Token)
-			priceUSD := prices[symbol]
+			priceUSD, priceFound := prices[symbol]
 
 			rawBalance, err := strconv.ParseFloat(agg.TotalBalance, 64)
 			if err != nil {
@@ -189,8 +204,12 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 			decimals := tokenDecimals(agg.Chain, agg.Token)
 			balance := rawBalance / math.Pow10(decimals)
 
-			usdValue := balance * priceUSD
-			totalUSD += usdValue
+			// Use -1 to signal "price unavailable" so frontend can distinguish from $0.
+			usdValue := float64(-1)
+			if priceFound && priceUSD > 0 {
+				usdValue = balance * priceUSD
+				totalUSD += usdValue
+			}
 
 			cp.Tokens = append(cp.Tokens, tokenPortfolioItem{
 				Symbol:      agg.Token,
@@ -222,8 +241,9 @@ func GetPortfolio(database *db.DB, ps *price.PriceService) http.HandlerFunc {
 		}
 
 		data := portfolioData{
-			TotalUSD: totalUSD,
-			Chains:   chains,
+			TotalUSD:    totalUSD,
+			Chains:      chains,
+			PricesStale: ps.IsStale(),
 		}
 
 		if lastScan != "" {

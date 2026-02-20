@@ -808,6 +808,29 @@ func (s *BSCConsolidationService) sweepTokenAddress(
 			"dbBalance", dbTokenBalance.String(),
 			"onChainBalance", onChainBalance.String(),
 		)
+
+		// If on-chain balance dropped significantly, skip this address to avoid
+		// silently sweeping less than the user expected from the preview.
+		if onChainBalance.Cmp(dbTokenBalance) < 0 && dbTokenBalance.Sign() > 0 {
+			diff := new(big.Int).Sub(dbTokenBalance, onChainBalance)
+			diffFloat := new(big.Float).SetInt(diff)
+			dbFloat := new(big.Float).SetInt(dbTokenBalance)
+			ratio, _ := new(big.Float).Quo(diffFloat, dbFloat).Float64()
+
+			if ratio > config.BSCTokenBalanceDivergenceRatio {
+				txResult.Status = "failed"
+				txResult.Error = fmt.Sprintf("token balance diverged: DB=%s, on-chain=%s (%.0f%% drop, threshold %.0f%%)",
+					dbTokenBalance.String(), onChainBalance.String(),
+					ratio*100, config.BSCTokenBalanceDivergenceRatio*100)
+				slog.Warn("BSC token sweep: skipping address due to balance divergence",
+					"address", addr.Address,
+					"token", token,
+					"ratio", fmt.Sprintf("%.1f%%", ratio*100),
+					"threshold", fmt.Sprintf("%.1f%%", config.BSCTokenBalanceDivergenceRatio*100),
+				)
+				return txResult
+			}
+		}
 	}
 
 	// Use the lower of DB and on-chain balance (conservative).

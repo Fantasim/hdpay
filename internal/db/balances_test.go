@@ -2,6 +2,7 @@ package db
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Fantasim/hdpay/internal/models"
 )
@@ -234,5 +235,64 @@ func TestGetAddressesBatch_OutOfRange(t *testing.T) {
 
 	if len(addresses) != 0 {
 		t.Errorf("expected 0 addresses, got %d", len(addresses))
+	}
+}
+
+func TestGetScanTimesByChain_Empty(t *testing.T) {
+	database := setupTestDB(t)
+
+	result, err := database.GetScanTimesByChain()
+	if err != nil {
+		t.Fatalf("GetScanTimesByChain() error = %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected 0 entries for empty DB, got %d", len(result))
+	}
+}
+
+func TestGetScanTimesByChain_WithData(t *testing.T) {
+	database := setupTestDB(t)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Insert scan states for BTC and BSC.
+	if err := database.UpsertScanState(models.ScanState{
+		Chain:            models.ChainBTC,
+		LastScannedIndex: 100,
+		MaxScanID:        5000,
+		Status:           "completed",
+		StartedAt:        now,
+	}); err != nil {
+		t.Fatalf("UpsertScanState(BTC) error = %v", err)
+	}
+
+	if err := database.UpsertScanState(models.ScanState{
+		Chain:            models.ChainBSC,
+		LastScannedIndex: 50,
+		MaxScanID:        5000,
+		Status:           "completed",
+		StartedAt:        now,
+	}); err != nil {
+		t.Fatalf("UpsertScanState(BSC) error = %v", err)
+	}
+
+	result, err := database.GetScanTimesByChain()
+	if err != nil {
+		t.Fatalf("GetScanTimesByChain() error = %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result))
+	}
+
+	if _, ok := result["BTC"]; !ok {
+		t.Error("expected BTC entry in scan times")
+	}
+	if _, ok := result["BSC"]; !ok {
+		t.Error("expected BSC entry in scan times")
+	}
+	// SOL should not be present (no scan state).
+	if _, ok := result["SOL"]; ok {
+		t.Error("SOL should not be present (no scan state)")
 	}
 }

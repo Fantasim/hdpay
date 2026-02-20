@@ -106,6 +106,12 @@ func runServe() error {
 
 	slog.Info("database migrations applied")
 
+	// Safety check: ensure configured network matches addresses in DB.
+	// Prevents silent mismatch if HDPAY_NETWORK changed between runs.
+	if err := database.ValidateNetworkConsistency(); err != nil {
+		return fmt.Errorf("startup safety check failed: %w", err)
+	}
+
 	// Setup SSE hub and scanner engine.
 	hub := scanner.NewSSEHub()
 	hubCtx, hubCancel := context.WithCancel(context.Background())

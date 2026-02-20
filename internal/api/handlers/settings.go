@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Fantasim/hdpay/internal/config"
@@ -19,6 +21,37 @@ var validSettingKeys = map[string]bool{
 	"btc_fee_rate":           true,
 	"bsc_gas_preseed_bnb":    true,
 	"log_level":              true,
+}
+
+// validateSettingValue validates a setting value for a given key.
+func validateSettingValue(key, value string) error {
+	switch key {
+	case "max_scan_id":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("max_scan_id must be a number, got %q", value)
+		}
+		if n < 1 || n > config.MaxAddressesPerChain {
+			return fmt.Errorf("max_scan_id must be between 1 and %d, got %d", config.MaxAddressesPerChain, n)
+		}
+	case "btc_fee_rate":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("btc_fee_rate must be a number, got %q", value)
+		}
+		if n < 0 {
+			return fmt.Errorf("btc_fee_rate must be non-negative, got %d", n)
+		}
+	case "resume_threshold_hours":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("resume_threshold_hours must be a number, got %q", value)
+		}
+		if n < 1 {
+			return fmt.Errorf("resume_threshold_hours must be at least 1, got %d", n)
+		}
+	}
+	return nil
 }
 
 // GetSettings handles GET /api/settings.
@@ -71,6 +104,13 @@ func UpdateSettings(database *db.DB) http.HandlerFunc {
 			if !validSettingKeys[key] {
 				slog.Warn("unknown setting key", "key", key)
 				writeError(w, http.StatusBadRequest, config.ErrorInvalidConfig, "unknown setting key: "+key)
+				return
+			}
+
+			// Value validation.
+			if err := validateSettingValue(key, value); err != nil {
+				slog.Warn("invalid setting value", "key", key, "value", value, "error", err)
+				writeError(w, http.StatusBadRequest, config.ErrorInvalidConfig, err.Error())
 				return
 			}
 
@@ -131,28 +171,3 @@ func ResetBalancesHandler(database *db.DB) http.HandlerFunc {
 	}
 }
 
-// ResetAllHandler handles POST /api/settings/reset-all.
-func ResetAllHandler(database *db.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Warn("reset ALL data requested", "remoteAddr", r.RemoteAddr)
-
-		var body resetConfirmation
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !body.Confirm {
-			slog.Warn("reset all not confirmed")
-			writeError(w, http.StatusBadRequest, config.ErrorInvalidConfig, "confirmation required: {\"confirm\": true}")
-			return
-		}
-
-		if err := database.ResetAll(); err != nil {
-			slog.Error("failed to reset all data", "error", err)
-			writeError(w, http.StatusInternalServerError, config.ErrorDatabase, "failed to reset all data")
-			return
-		}
-
-		slog.Info("full data reset successfully")
-
-		writeJSON(w, http.StatusOK, models.APIResponse{
-			Data: map[string]string{"message": "All data cleared — addresses, balances, scan state, and transactions"},
-		})
-	}
-}

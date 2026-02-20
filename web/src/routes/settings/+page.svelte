@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/layout/Header.svelte';
-	import { getSettings, updateSettings, resetBalances, resetAll } from '$lib/utils/api';
+	import { getSettings, updateSettings, resetBalances } from '$lib/utils/api';
 	import { RESUME_THRESHOLD_OPTIONS, LOG_LEVELS } from '$lib/constants';
 	import type { Settings } from '$lib/types';
 
@@ -21,7 +21,6 @@
 
 	// Danger zone confirmation
 	let confirmResetBalances = $state(false);
-	let confirmResetAll = $state(false);
 	let resetting = $state(false);
 
 	async function loadSettings(): Promise<void> {
@@ -82,25 +81,8 @@
 		}
 	}
 
-	async function handleResetAll(): Promise<void> {
-		if (!confirmResetAll) {
-			confirmResetAll = true;
-			return;
-		}
-		resetting = true;
-		try {
-			await resetAll();
-			confirmResetAll = false;
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to reset data';
-		} finally {
-			resetting = false;
-		}
-	}
-
 	function cancelReset(): void {
 		confirmResetBalances = false;
-		confirmResetAll = false;
 	}
 
 	onMount(() => {
@@ -259,23 +241,6 @@
 							</div>
 						{:else}
 							<button class="btn btn-danger" onclick={handleResetBalances}>Reset</button>
-						{/if}
-					</div>
-
-					<div class="danger-item">
-						<div class="danger-item-info">
-							<div class="danger-item-title">Re-generate Addresses</div>
-							<div class="danger-item-desc">Delete all addresses and regenerate from mnemonic. This will also clear all scan data.</div>
-						</div>
-						{#if confirmResetAll}
-							<div class="confirm-group">
-								<button class="btn btn-danger btn-sm" onclick={handleResetAll} disabled={resetting}>
-									{resetting ? 'Resetting...' : 'Confirm Re-generate'}
-								</button>
-								<button class="btn btn-secondary btn-sm" onclick={cancelReset}>Cancel</button>
-							</div>
-						{:else}
-							<button class="btn btn-danger" onclick={handleResetAll}>Re-generate</button>
 						{/if}
 					</div>
 				</div>

@@ -166,6 +166,7 @@ export interface PortfolioResponse {
 	totalUsd: number;
 	lastScan: string | null;
 	chains: ChainPortfolio[];
+	pricesStale: boolean;
 }
 
 // ChainPortfolio represents a single chain's portfolio data.
@@ -174,6 +175,7 @@ export interface ChainPortfolio {
 	addressCount: number;
 	fundedCount: number;
 	tokens: TokenPortfolioItem[];
+	lastScan: string | null;
 }
 
 // TokenPortfolioItem represents a token balance within a chain's portfolio.

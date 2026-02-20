@@ -60,7 +60,6 @@ func NewRouter(database *db.DB, cfg *config.Config, sc *scanner.Scanner, hub *sc
 		r.Get("/settings", handlers.GetSettings(database, cfg))
 		r.Put("/settings", handlers.UpdateSettings(database))
 		r.Post("/settings/reset-balances", handlers.ResetBalancesHandler(database))
-		r.Post("/settings/reset-all", handlers.ResetAllHandler(database))
 
 		// Send / Transaction
 		r.Route("/send", func(r chi.Router) {
