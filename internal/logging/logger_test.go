@@ -1,9 +1,11 @@
 package logging
 
 import (
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,9 +19,20 @@ func TestSetup(t *testing.T) {
 	}
 	defer closer.Close()
 
-	expectedFile := filepath.Join(tmpDir, "hdpay-"+time.Now().Format("2006-01-02")+".log")
-	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
-		t.Errorf("expected log file %q to exist", expectedFile)
+	dateStr := time.Now().Format("2006-01-02")
+
+	// Should create info, warn, error files (not debug since level is info).
+	for _, lvl := range []string{"info", "warn", "error"} {
+		expected := filepath.Join(tmpDir, "hdpay-"+dateStr+"-"+lvl+".log")
+		if _, err := os.Stat(expected); os.IsNotExist(err) {
+			t.Errorf("expected log file %q to exist", expected)
+		}
+	}
+
+	// Debug file should NOT exist.
+	debugFile := filepath.Join(tmpDir, "hdpay-"+dateStr+"-debug.log")
+	if _, err := os.Stat(debugFile); !os.IsNotExist(err) {
+		t.Errorf("debug log file should not exist when level is info")
 	}
 }
 
@@ -31,6 +44,16 @@ func TestSetupDebugLevel(t *testing.T) {
 		t.Fatalf("Setup() error = %v", err)
 	}
 	defer closer.Close()
+
+	dateStr := time.Now().Format("2006-01-02")
+
+	// Should create all 4 level files.
+	for _, lvl := range []string{"debug", "info", "warn", "error"} {
+		expected := filepath.Join(tmpDir, "hdpay-"+dateStr+"-"+lvl+".log")
+		if _, err := os.Stat(expected); os.IsNotExist(err) {
+			t.Errorf("expected log file %q to exist", expected)
+		}
+	}
 
 	slog.Debug("test debug message")
 }
@@ -47,17 +70,99 @@ func TestSetupInvalidLevel(t *testing.T) {
 	}
 }
 
+func TestLogRoutesToCorrectFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	closer, err := Setup("debug", tmpDir)
+	if err != nil {
+		t.Fatalf("Setup() error = %v", err)
+	}
+
+	// Write one message at each level with a unique marker.
+	slog.Debug("marker-debug-only")
+	slog.Info("marker-info-only")
+	slog.Warn("marker-warn-only")
+	slog.Error("marker-error-only")
+
+	// Close to flush all files.
+	closer.Close()
+
+	dateStr := time.Now().Format("2006-01-02")
+	levels := []string{"debug", "info", "warn", "error"}
+	markers := map[string]string{
+		"debug": "marker-debug-only",
+		"info":  "marker-info-only",
+		"warn":  "marker-warn-only",
+		"error": "marker-error-only",
+	}
+
+	for _, lvl := range levels {
+		filePath := filepath.Join(tmpDir, "hdpay-"+dateStr+"-"+lvl+".log")
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", filePath, err)
+		}
+		content := string(data)
+
+		// This level's marker MUST be present.
+		expectedMarker := markers[lvl]
+		if !strings.Contains(content, expectedMarker) {
+			t.Errorf("%s.log should contain %q but doesn't", lvl, expectedMarker)
+		}
+
+		// Other levels' markers must NOT be present.
+		for otherLvl, otherMarker := range markers {
+			if otherLvl == lvl {
+				continue
+			}
+			if strings.Contains(content, otherMarker) {
+				t.Errorf("%s.log should NOT contain %q (from %s level)", lvl, otherMarker, otherLvl)
+			}
+		}
+	}
+}
+
+func TestLogFileContainsValidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	closer, err := Setup("info", tmpDir)
+	if err != nil {
+		t.Fatalf("Setup() error = %v", err)
+	}
+
+	slog.Warn("json-test-message", "key", "value")
+	closer.Close()
+
+	dateStr := time.Now().Format("2006-01-02")
+	filePath := filepath.Join(tmpDir, "hdpay-"+dateStr+"-warn.log")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read warn log: %v", err)
+	}
+
+	// Each non-empty line should be valid JSON.
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		var obj map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			t.Errorf("line is not valid JSON: %s", line)
+		}
+	}
+}
+
 func TestCleanOldLogs_RemovesOldFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a "recent" log file (today).
-	recentFile := filepath.Join(tmpDir, "hdpay-"+time.Now().Format("2006-01-02")+".log")
+	recentFile := filepath.Join(tmpDir, "hdpay-"+time.Now().Format("2006-01-02")+"-info.log")
 	if err := os.WriteFile(recentFile, []byte("recent log"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create an "old" log file and backdate its modification time.
-	oldFile := filepath.Join(tmpDir, "hdpay-2020-01-01.log")
+	oldFile := filepath.Join(tmpDir, "hdpay-2020-01-01-error.log")
 	if err := os.WriteFile(oldFile, []byte("old log"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +225,7 @@ func TestCleanOldLogs_RetainsRecentFiles(t *testing.T) {
 	// Create files within the retention period.
 	for i := 0; i < 5; i++ {
 		d := time.Now().AddDate(0, 0, -i)
-		name := filepath.Join(tmpDir, "hdpay-"+d.Format("2006-01-02")+".log")
+		name := filepath.Join(tmpDir, "hdpay-"+d.Format("2006-01-02")+"-info.log")
 		if err := os.WriteFile(name, []byte("log"), 0o644); err != nil {
 			t.Fatal(err)
 		}

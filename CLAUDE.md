@@ -819,14 +819,14 @@ Before creating any new component or utility:
 
 When working on this codebase:
 
-### ⚠️ CRITICAL: Always Commit Your Work
+### ⚠️ CRITICAL: Always Changelog + Commit After Every Task
 
-**YOU MUST COMMIT BEFORE ENDING ANY SESSION OR TASK.**
+**YOU MUST UPDATE CHANGELOG.md AND COMMIT BEFORE ENDING ANY SESSION OR TASK. NO EXCEPTIONS.**
 
-- Commit after completing each phase, feature, or meaningful change
-- Never leave uncommitted work
-- Use proper commit messages
-- Update CHANGELOG.md before committing
+1. Update `CHANGELOG.md` with what changed
+2. Commit all modified files with a proper commit message
+3. Never leave uncommitted work
+4. Do this after EVERY task, not just at the end of a session
 
 ### ⚠️ Before Adding Any Function
 

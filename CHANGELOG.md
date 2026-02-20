@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### 2026-02-20 — Per-Level Log File Splitting
+
+#### Changed
+- Log output now splits into separate files per level: `hdpay-YYYY-MM-DD-info.log`, `hdpay-YYYY-MM-DD-warn.log`, `hdpay-YYYY-MM-DD-error.log` (and `-debug.log` when debug level is configured) instead of a single combined file (`internal/logging/logger.go`)
+- Custom `multiHandler` routes each slog record to stdout (all levels) plus the matching level-specific file
+- `multiCloser` ensures all file handles are closed on shutdown
+- `LogFilePattern` constant updated to `"hdpay-%s-%s.log"` (date + level) (`internal/config/constants.go`)
+- Updated and expanded logger tests: file creation per level, exclusive routing verification, JSON validity check (`internal/logging/logger_test.go`)
+
 ### 2026-02-19 — Network Column: Mainnet/Testnet Coexistence
 
 #### Added

@@ -197,7 +197,7 @@ const (
 // Logging
 const (
 	LogDir         = "./logs"
-	LogFilePattern = "hdpay-%s.log" // %s = YYYY-MM-DD
+	LogFilePattern = "hdpay-%s-%s.log" // date (YYYY-MM-DD), level (info/warn/error/debug)
 	LogMaxAgeDays  = 30
 )
 
