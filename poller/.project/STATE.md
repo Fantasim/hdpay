@@ -4,9 +4,9 @@
 
 ## Current Position
 - **Version:** V1
-- **Phase:** Building (Phase 4 of 8 next)
-- **Status:** Phase 3 (Blockchain Providers) complete. Provider interface, round-robin, BTC/BSC/SOL tx detection with tests.
-- **Last session:** 2026-02-20 — Phase 3 Blockchain Providers built and tested
+- **Phase:** Building (Phase 5 of 8 next)
+- **Status:** Phase 4 (Watch Engine) complete. Watcher orchestrator, poll loop, tx detection, confirmation tracking, points calculation, startup recovery, main.go integration.
+- **Last session:** 2026-02-20 — Phase 4 Watch Engine built and tested
 
 ## Build Progress
 
@@ -15,29 +15,30 @@
 | 1 | Foundation | **DONE** | 1 |
 | 2 | Core Services | **DONE** | 1 |
 | 3 | Blockchain Providers | **DONE** | 1 |
-| 4 | Watch Engine | **NEXT** | ~2 |
-| 5 | API Layer | Pending | ~1-2 |
+| 4 | Watch Engine | **DONE** | 1 |
+| 5 | API Layer | **NEXT** | ~1-2 |
 | 6 | Frontend Setup & Auth | Pending | ~1 |
 | 7 | Dashboard Pages | Pending | ~2-3 |
 | 8 | Embedding & Polish | Pending | ~1 |
 
-**Total estimate: 10-13 sessions (3 done)**
+**Total estimate: 10-13 sessions (4 done)**
 
-## Phase 3 Deliverables (Complete)
-- `internal/poller/provider/provider.go` — Provider interface, RawTransaction, ProviderSet (round-robin, rate limit, circuit breaker), NewHTTPClient
-- `internal/poller/provider/btc.go` — BlockstreamProvider, MempoolProvider (shared Esplora format, pagination, satoshi→human)
-- `internal/poller/provider/bsc.go` — BscScanProvider (txlist+tokentx, USDC/USDT by contract, block-based confirmations, weiToHuman)
-- `internal/poller/provider/sol.go` — SolanaRPCProvider (getSignaturesForAddress+getTransaction, native+SPL, composite tx_hash, lamportsToHuman)
-- Tests: 49 tests, 82.5% coverage
-- Constants: ErrorCategoryProvider/Watcher, ErrorSeverity levels added to poller config
+## Phase 4 Deliverables (Complete)
+- `internal/poller/watcher/watcher.go` — Watcher orchestrator: CreateWatch, CancelWatch, Stop, goroutine-per-watch, context timeouts, WaitGroup shutdown, runtime settings (MaxActiveWatches, DefaultWatchTimeout)
+- `internal/poller/watcher/poll.go` — Poll loop: resolveCutoff, processTransaction (dedup, price, points), recheckPending (confirmation tracking), checkStopConditions (EXPIRED/COMPLETED/CANCELLED), SOL composite tx_hash handling
+- `internal/poller/watcher/recovery.go` — Startup recovery: expire stale ACTIVE watches, retry orphaned PENDING txs (3 retries, 30s intervals), log unresolvable to system_errors
+- `cmd/poller/main.go` — Full integration: config→logging→DB→tiers→PriceService→Pricer→Calculator→ProviderSets→Watcher→Recovery→router→server→shutdown
+- `internal/poller/pollerdb/transactions.go` — Added ListPendingByWatchID, CountByWatchID
+- `internal/poller/config/constants.go` — Added WatchContextGracePeriod (5s), RecoveryTimeout (5m)
+- Tests: 31 tests, 71% coverage, 0 race conditions
 
-## Phase 4: Watch Engine (Next)
-- Watcher service: poll active watches on their chain-specific intervals
-- Transaction detection: use ProviderSet.ExecuteFetch() per active watch
-- Confirmation tracking: use ProviderSet.ExecuteConfirmation() for pending txs
-- Points calculation: integrate PointsCalculator + Pricer on confirmed txs
-- DB integration: store detected txs, update points accounts, log errors to system_errors
-- Watch lifecycle: active → completed (on expiry or manual stop)
+## Phase 5: API Layer (Next)
+- Chi router with middleware (auth, IP allowlist, logging, CORS)
+- Session auth (bcrypt + cookie sessions)
+- Watch CRUD endpoints (create, cancel, list, get)
+- Points/transaction query endpoints
+- Admin endpoints (settings, system errors)
+- Health check with component status
 
 ## Key Decisions
 - **Module structure**: Poller lives inside HDPay's Go module (`cmd/poller/` + `internal/poller/`). Full access to HDPay's `internal/` packages. Two binaries from one module.
@@ -48,6 +49,10 @@
 - **BSC confirmation**: `currentBlock - txBlock >= 12` via BscScan proxy
 - **SOL confirmation**: `confirmationStatus == "finalized"` (no block counting)
 - **Helius**: Falls back to Solana devnet in testnet mode
+- **Goroutine-per-watch**: context.Background() with timeout (not HTTP request context), WaitGroup for graceful shutdown
+- **Smart cutoff**: MAX(last recorded tx detected_at, POLLER_START_DATE) — prevents re-processing old txs
+- **SOL composite dedup**: extractBaseSignature strips ":TOKEN" suffix before confirmation checks
+- **Watch stop**: EXPIRED (context deadline), COMPLETED (all confirmed + ≥1 tx), CANCELLED (manual cancel)
 - Build output: `bin/poller` via Makefile (avoids conflict with `poller/` directory)
 - Backend-first build order (all Go before any frontend)
 - Desktop-only (no responsive), manual refresh (no SSE)
@@ -66,8 +71,8 @@
 | Deployment | Single Go binary with embedded SPA (go:embed) |
 
 ## Next Actions
-- Run `/cf-next` to start Phase 4: Watch Engine
-- Phase 4 deliverable: Watcher service that polls active watches, detects txs, confirms, calculates points
+- Run `/cf-next` to start Phase 5: API Layer
+- Phase 5 deliverable: Chi router with auth, IP allowlist, watch CRUD, points/tx queries, admin endpoints
 
 ## Files Reference
 | File | Purpose |
@@ -83,6 +88,8 @@
 | `.project/04-build-plan/phases/phase-02/SUMMARY.md` | Phase 2 summary (complete) |
 | `.project/04-build-plan/phases/phase-03/PLAN.md` | Phase 3 plan |
 | `.project/04-build-plan/phases/phase-03/SUMMARY.md` | Phase 3 summary (complete) |
+| `.project/04-build-plan/phases/phase-04/PLAN.md` | Phase 4 plan (detailed, complete) |
+| `.project/04-build-plan/phases/phase-04/SUMMARY.md` | Phase 4 summary (complete) |
 | `.project/custom/PROMPT.md` | Development guidelines (future CLAUDE.md) |
 
 ## Session History
@@ -93,3 +100,4 @@
 | 3 | 2026-02-20 | building | Phase 1 Foundation completed. Scaffolded config, DB (5 tables, 30 CRUD methods), main entry point, Makefile targets. Parameterized HDPay logging. Tests pass (config 82.6%, pollerdb 76.9%). |
 | 4 | 2026-02-20 | building | Phase 2 Core Services completed. Tier config (load/validate/create), points calculator (flat, thread-safe), price wrapper (stablecoin $1, retry), address validation (BTC/BSC/SOL). Tests: points 93.7%, validate 100.0%. |
 | 5 | 2026-02-20 | building | Phase 3 Blockchain Providers completed. Provider interface (tx detection), ProviderSet (round-robin, RateLimiter, CircuitBreaker), BTC (Blockstream+Mempool, pagination), BSC (BscScan txlist+tokentx, block confirmations), SOL (JSON-RPC, native+SPL, composite tx_hash). 49 tests, 82.5% coverage. |
+| 6 | 2026-02-20 | building | Phase 4 Watch Engine completed. Watcher orchestrator (goroutine-per-watch, context timeouts, WaitGroup shutdown). Poll loop (tx detection, confirmation tracking, points calculation). Startup recovery (expire stale, retry pending). main.go full integration. 31 tests, 71% coverage, 0 races. |
