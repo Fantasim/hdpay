@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AddressWithBalance, Chain } from '$lib/types';
-	import { truncateAddress, formatRawBalance, formatRelativeTime, copyToClipboard } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance, formatRelativeTime, copyToClipboard, isZeroBalance } from '$lib/utils/formatting';
 	import { CHAIN_COLORS } from '$lib/constants';
 
 	interface Props {
@@ -27,11 +27,6 @@
 
 	function chainBadgeClass(chain: string): string {
 		return `badge badge-${chain.toLowerCase()}`;
-	}
-
-	function isZeroBalance(balance: string): boolean {
-		const num = parseFloat(balance);
-		return isNaN(num) || num === 0;
 	}
 </script>
 

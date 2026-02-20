@@ -334,6 +334,46 @@ func TestSolanaRPCProvider_TokenNullATA(t *testing.T) {
 	}
 }
 
+// TestSolanaRPCProvider_NativeMalformedJSON tests that malformed JSON RPC response is handled gracefully.
+func TestSolanaRPCProvider_NativeMalformedJSON(t *testing.T) {
+	provider, server := newSolanaRPCTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{totally broken json!!!`))
+	})
+	defer server.Close()
+
+	addresses := []models.Address{
+		{Chain: models.ChainSOL, AddressIndex: 0, Address: "addr0"},
+	}
+
+	_, err := provider.FetchNativeBalances(context.Background(), addresses)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+}
+
+// TestSolanaRPCProvider_NativeContextCancellation tests that context cancellation returns an error.
+func TestSolanaRPCProvider_NativeContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately.
+
+	provider := &SolanaRPCProvider{
+		client: http.DefaultClient,
+		rl:     NewRateLimiter("test", 100),
+		rpcURL: "http://localhost:1", // won't be called
+		name:   "TestSolana",
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainSOL, AddressIndex: 0, Address: "addr0"},
+	}
+
+	_, err := provider.FetchNativeBalances(ctx, addresses)
+	if err == nil {
+		t.Fatal("expected error on context cancellation")
+	}
+}
+
 func TestSolanaRPCProvider_Metadata(t *testing.T) {
 	provider := &SolanaRPCProvider{name: "SolanaRPC"}
 	if provider.Name() != "SolanaRPC" {

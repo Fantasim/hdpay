@@ -46,26 +46,25 @@ func (d *DB) InsertAddressBatch(chain models.Chain, addresses []models.Address) 
 }
 
 // insertBatch inserts a single batch of addresses in one transaction.
+// Uses a prepared statement loop to avoid SQLite's SQLITE_MAX_VARIABLE_NUMBER limit.
 func (d *DB) insertBatch(addresses []models.Address) error {
 	tx, err := d.conn.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
-	// Build multi-value INSERT for performance.
-	valueStrings := make([]string, 0, len(addresses))
-	valueArgs := make([]interface{}, 0, len(addresses)*4)
+	stmt, err := tx.Prepare("INSERT INTO addresses (chain, network, address_index, address) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("prepare insert statement: %w", err)
+	}
+	defer stmt.Close()
 
 	for _, addr := range addresses {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?)")
-		valueArgs = append(valueArgs, string(addr.Chain), d.network, addr.AddressIndex, addr.Address)
-	}
-
-	query := "INSERT INTO addresses (chain, network, address_index, address) VALUES " + strings.Join(valueStrings, ", ")
-
-	if _, err := tx.Exec(query, valueArgs...); err != nil {
-		tx.Rollback()
-		return fmt.Errorf("exec batch insert: %w", err)
+		if _, err := stmt.Exec(string(addr.Chain), d.network, addr.AddressIndex, addr.Address); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("exec insert at index %d: %w", addr.AddressIndex, err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

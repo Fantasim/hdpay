@@ -236,6 +236,47 @@ func TestGetAddressesWithBalances_HydratesBalances(t *testing.T) {
 	}
 }
 
+func TestInsertAddressBatch_LargeBatch(t *testing.T) {
+	d := setupTestDB(t)
+
+	// 15,000 addresses crosses the 10K batch boundary, which previously caused
+	// "too many SQL variables" with the multi-value INSERT approach.
+	const count = 15_000
+	addresses := make([]models.Address, count)
+	for i := 0; i < count; i++ {
+		addresses[i] = models.Address{
+			Chain:        models.ChainBTC,
+			AddressIndex: i,
+			Address:      "bc1q_test_" + itoa(i),
+		}
+	}
+
+	if err := d.InsertAddressBatch(models.ChainBTC, addresses); err != nil {
+		t.Fatalf("InsertAddressBatch(15000) error = %v", err)
+	}
+
+	// Verify count.
+	got, err := d.CountAddresses(models.ChainBTC)
+	if err != nil {
+		t.Fatalf("CountAddresses() error = %v", err)
+	}
+	if got != count {
+		t.Errorf("CountAddresses() = %d, want %d", got, count)
+	}
+
+	// Verify boundary addresses survive correctly.
+	for _, idx := range []int{0, 9_999, 10_000, 14_999} {
+		addr, err := d.GetAddressByIndex(models.ChainBTC, idx)
+		if err != nil {
+			t.Fatalf("GetAddressByIndex(%d) error = %v", idx, err)
+		}
+		want := "bc1q_test_" + itoa(idx)
+		if addr.Address != want {
+			t.Errorf("address at index %d = %q, want %q", idx, addr.Address, want)
+		}
+	}
+}
+
 func TestGetAddressesWithBalances_EmptyChain(t *testing.T) {
 	d := setupTestDB(t)
 

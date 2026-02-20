@@ -1,4 +1,4 @@
-.PHONY: dev dev-frontend build test test-frontend lint clean
+.PHONY: dev dev-frontend build test test-backend test-frontend check-frontend lint clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
@@ -20,12 +20,19 @@ build: build-frontend
 build-frontend:
 	cd web && npm run build
 
-# Run all Go tests
-test:
-	$(GO) test ./... -v
+# Run all tests (backend + frontend)
+test: test-backend test-frontend
 
-# Run frontend type checks
+# Run Go tests
+test-backend:
+	$(GO) test ./... -count=1
+
+# Run frontend unit tests (Vitest)
 test-frontend:
+	cd web && npx vitest run
+
+# Run frontend type checks (svelte-check)
+check-frontend:
 	cd web && npm run check
 
 # Run Go vet

@@ -240,6 +240,76 @@ func TestBscScanProvider_FetchTokenBalances_ErrorCollection(t *testing.T) {
 	}
 }
 
+// TestBscScanProvider_FetchNativeBalances_HTTP500 tests that HTTP 500 returns an error.
+func TestBscScanProvider_FetchNativeBalances_HTTP500(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	rl := NewRateLimiter("test", 100)
+	provider := &BscScanProvider{
+		client: server.Client(),
+		rl:     rl,
+		apiURL: server.URL,
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBSC, AddressIndex: 0, Address: "0xAddr1"},
+	}
+
+	_, err := provider.FetchNativeBalances(context.Background(), addresses)
+	if err == nil {
+		t.Fatal("expected error for HTTP 500 response")
+	}
+}
+
+// TestBscScanProvider_FetchNativeBalances_MalformedJSON tests that malformed JSON is handled gracefully.
+func TestBscScanProvider_FetchNativeBalances_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{not valid json at all!!!`))
+	}))
+	defer server.Close()
+
+	rl := NewRateLimiter("test", 100)
+	provider := &BscScanProvider{
+		client: server.Client(),
+		rl:     rl,
+		apiURL: server.URL,
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBSC, AddressIndex: 0, Address: "0xAddr1"},
+	}
+
+	_, err := provider.FetchNativeBalances(context.Background(), addresses)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+}
+
+// TestBscScanProvider_FetchNativeBalances_ContextCancellation tests that context cancellation returns an error.
+func TestBscScanProvider_FetchNativeBalances_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately.
+
+	provider := &BscScanProvider{
+		client: http.DefaultClient,
+		rl:     NewRateLimiter("test", 100),
+		apiURL: "http://localhost:1", // won't be called
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBSC, AddressIndex: 0, Address: "0xAddr1"},
+	}
+
+	_, err := provider.FetchNativeBalances(ctx, addresses)
+	if err == nil {
+		t.Fatal("expected error on context cancellation")
+	}
+}
+
 func TestBscScanProvider_Metadata(t *testing.T) {
 	provider := &BscScanProvider{}
 	if provider.Name() != "BscScan" {

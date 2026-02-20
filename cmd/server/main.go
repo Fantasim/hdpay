@@ -278,25 +278,38 @@ func runInit() error {
 
 	totalStart := time.Now()
 
-	// Generate BTC addresses.
-	if err := generateAndStore(database, models.ChainBTC, *count, func() ([]models.Address, error) {
-		return wallet.GenerateBTCAddresses(masterKey, *count, net, progress)
-	}); err != nil {
-		return err
+	// Generate all chains in parallel — BTC, BSC, SOL are independent.
+	type chainJob struct {
+		chain    models.Chain
+		generate func() ([]models.Address, error)
+	}
+	jobs := []chainJob{
+		{models.ChainBTC, func() ([]models.Address, error) {
+			return wallet.GenerateBTCAddresses(masterKey, *count, net, progress)
+		}},
+		{models.ChainBSC, func() ([]models.Address, error) {
+			return wallet.GenerateBSCAddresses(masterKey, *count, progress)
+		}},
+		{models.ChainSOL, func() ([]models.Address, error) {
+			return wallet.GenerateSOLAddresses(seed, *count, progress)
+		}},
 	}
 
-	// Generate BSC addresses.
-	if err := generateAndStore(database, models.ChainBSC, *count, func() ([]models.Address, error) {
-		return wallet.GenerateBSCAddresses(masterKey, *count, progress)
-	}); err != nil {
-		return err
+	var wg sync.WaitGroup
+	errs := make([]error, len(jobs))
+	for i, job := range jobs {
+		wg.Add(1)
+		go func(idx int, j chainJob) {
+			defer wg.Done()
+			errs[idx] = generateAndStore(database, j.chain, *count, j.generate)
+		}(i, job)
 	}
+	wg.Wait()
 
-	// Generate SOL addresses.
-	if err := generateAndStore(database, models.ChainSOL, *count, func() ([]models.Address, error) {
-		return wallet.GenerateSOLAddresses(seed, *count, progress)
-	}); err != nil {
-		return err
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
 	}
 
 	slog.Info("address initialization complete",

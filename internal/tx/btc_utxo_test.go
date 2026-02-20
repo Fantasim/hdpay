@@ -218,6 +218,35 @@ func TestBTCUTXOFetcher_FetchAllUTXOs(t *testing.T) {
 	}
 }
 
+func TestBTCUTXOFetcher_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{totally broken json!!!`))
+	}))
+	defer server.Close()
+
+	rl := scanner.NewRateLimiter("test", 100)
+	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
+
+	_, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+}
+
+func TestBTCUTXOFetcher_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately.
+
+	rl := scanner.NewRateLimiter("test", 100)
+	fetcher := NewBTCUTXOFetcher(http.DefaultClient, []string{"http://localhost:1"}, []*scanner.RateLimiter{rl})
+
+	_, err := fetcher.FetchUTXOs(ctx, "bc1qtest", 0)
+	if err == nil {
+		t.Fatal("expected error on context cancellation")
+	}
+}
+
 func TestBTCUTXOFetcher_RoundRobin(t *testing.T) {
 	provider1Calls := 0
 	provider2Calls := 0

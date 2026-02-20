@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { getProviderHealth } from '$lib/utils/api';
 	import { SUPPORTED_CHAINS } from '$lib/constants';
-	import type { ProviderHealth, ProviderHealthMap, Chain } from '$lib/types';
+	import type { ProviderHealthMap, ProviderHealth, Chain } from '$lib/types';
+	import { statusDotClass, statusLabel } from '$lib/utils/providers';
 
 	let providers: ProviderHealthMap | null = $state(null);
 	let loading = $state(true);
@@ -18,23 +19,6 @@
 		} finally {
 			loading = false;
 		}
-	}
-
-	function statusDotClass(provider: ProviderHealth): string {
-		if (provider.status === 'healthy' && provider.circuitState === 'closed') {
-			return 'provider-dot-healthy';
-		}
-		if (provider.status === 'degraded' || provider.circuitState === 'half_open') {
-			return 'provider-dot-degraded';
-		}
-		return 'provider-dot-down';
-	}
-
-	function statusLabel(provider: ProviderHealth): string {
-		if (provider.circuitState === 'open') return 'Down';
-		if (provider.circuitState === 'half_open') return 'Degraded';
-		if (provider.consecutiveFails > 0) return `${provider.consecutiveFails} fails`;
-		return 'Healthy';
 	}
 
 	function allProviders(chain: Chain): ProviderHealth[] {

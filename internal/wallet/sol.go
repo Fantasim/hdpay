@@ -22,10 +22,10 @@ type slip10Key struct {
 	chainCode []byte // 32 bytes
 }
 
-// DeriveSOLAddress derives a Solana address using SLIP-10 ed25519 at the given account index.
-// Path: m/44'/501'/N'/0' (all hardened, Phantom/Solflare standard).
-func DeriveSOLAddress(seed []byte, index uint32) (string, error) {
-	// SLIP-10 master key: HMAC-SHA512(Key="ed25519 seed", Data=BIP39 seed)
+// DeriveSOLParentKey pre-derives the SOL parent key to m/44'/501'.
+// This eliminates redundant master key + first 2 levels of derivation during batch generation.
+// The returned slip10Key is a value type, safe for concurrent use.
+func DeriveSOLParentKey(seed []byte) (slip10Key, error) {
 	mac := hmac.New(sha512.New, []byte(slip10Curve))
 	mac.Write(seed)
 	I := mac.Sum(nil)
@@ -35,24 +35,42 @@ func DeriveSOLAddress(seed []byte, index uint32) (string, error) {
 		chainCode: I[32:],
 	}
 
-	// Derive path m/44'/501'/index'/0'
-	segments := []uint32{
-		44 + hardenedOffset,
-		501 + hardenedOffset,
-		index + hardenedOffset,
-		0 + hardenedOffset,
-	}
+	// m/44'
+	current := slip10DeriveChild(master, 44+hardenedOffset)
+	// m/44'/501'
+	current = slip10DeriveChild(current, 501+hardenedOffset)
 
-	current := master
-	for _, seg := range segments {
-		current = slip10DeriveChild(current, seg)
-	}
+	slog.Debug("pre-derived SOL parent key", "path", "m/44'/501'")
+	return current, nil
+}
 
-	// ed25519 public key from 32-byte seed
+// DeriveSOLAddressFromParent derives a SOL address from a pre-derived parent key.
+// parentKey must be at m/44'/501' (from DeriveSOLParentKey).
+// Only performs 2 derivations (index' and 0') instead of 4, plus skips master key derivation.
+func DeriveSOLAddressFromParent(parentKey slip10Key, index uint32) (string, error) {
+	// m/44'/501'/index'
+	current := slip10DeriveChild(parentKey, index+hardenedOffset)
+	// m/44'/501'/index'/0'
+	current = slip10DeriveChild(current, 0+hardenedOffset)
+
 	privKey := ed25519.NewKeyFromSeed(current.key)
 	pubKey := privKey.Public().(ed25519.PublicKey)
 
-	addr := base58.Encode(pubKey)
+	return base58.Encode(pubKey), nil
+}
+
+// DeriveSOLAddress derives a Solana address using SLIP-10 ed25519 at the given account index.
+// Path: m/44'/501'/N'/0' (all hardened, Phantom/Solflare standard).
+func DeriveSOLAddress(seed []byte, index uint32) (string, error) {
+	parentKey, err := DeriveSOLParentKey(seed)
+	if err != nil {
+		return "", err
+	}
+
+	addr, err := DeriveSOLAddressFromParent(parentKey, index)
+	if err != nil {
+		return "", err
+	}
 
 	slog.Debug("derived SOL address",
 		"index", index,

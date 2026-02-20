@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CHAIN_COLORS } from '$lib/constants';
 	import type { Chain, ScanCompleteEvent, ScanErrorEvent, ScanProgress, ScanStateWithRunning } from '$lib/types';
-	import { formatNumber, formatRelativeTime } from '$lib/utils/formatting';
+	import { formatNumber, formatRelativeTime, parseElapsedToMs, formatDuration } from '$lib/utils/formatting';
 
 	interface Props {
 		chain: Chain;
@@ -40,28 +40,6 @@
 		const etaMs = remaining / ratePerMs;
 		return formatDuration(etaMs);
 	});
-
-	function parseElapsedToMs(elapsed: string): number {
-		let totalMs = 0;
-		const hours = elapsed.match(/(\d+)h/);
-		const mins = elapsed.match(/(\d+)m/);
-		const secs = elapsed.match(/(\d+)s/);
-		if (hours) totalMs += parseInt(hours[1]) * 3600000;
-		if (mins) totalMs += parseInt(mins[1]) * 60000;
-		if (secs) totalMs += parseInt(secs[1]) * 1000;
-		return totalMs;
-	}
-
-	function formatDuration(ms: number): string {
-		const totalSec = Math.ceil(ms / 1000);
-		if (totalSec < 60) return `${totalSec}s`;
-		const min = Math.floor(totalSec / 60);
-		const sec = totalSec % 60;
-		if (min < 60) return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
-		const hr = Math.floor(min / 60);
-		const remMin = min % 60;
-		return `${hr}h ${remMin}m`;
-	}
 
 	let fundedCount = $derived(
 		progress?.found ?? lastComplete?.found ?? status?.fundedCount ?? 0

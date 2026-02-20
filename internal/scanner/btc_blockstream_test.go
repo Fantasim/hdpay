@@ -260,6 +260,45 @@ func TestBlockstreamProvider_ErrorCollection_AllFail(t *testing.T) {
 	}
 }
 
+// TestBlockstreamProvider_MalformedJSON tests that malformed JSON is handled gracefully.
+func TestBlockstreamProvider_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{invalid json!!! not even close`))
+	}))
+	defer server.Close()
+
+	rl := NewRateLimiter("test", 100)
+	provider := &BlockstreamProvider{
+		client:  server.Client(),
+		rl:      rl,
+		baseURL: server.URL,
+	}
+
+	addresses := []models.Address{
+		{Chain: models.ChainBTC, AddressIndex: 0, Address: "bc1qtest"},
+	}
+
+	// Single address with malformed JSON → all fail → returns error.
+	results, err := provider.FetchNativeBalances(context.Background(), addresses)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Error == "" {
+		t.Error("expected error annotation on result")
+	}
+	if results[0].Balance != "0" {
+		t.Errorf("expected balance 0 for failed address, got %s", results[0].Balance)
+	}
+	if !strings.Contains(results[0].Error, "decode response") {
+		t.Errorf("expected decode error, got: %s", results[0].Error)
+	}
+}
+
 // TestBlockstreamProvider_ContextCancellation tests that context cancellation stops iteration.
 func TestBlockstreamProvider_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

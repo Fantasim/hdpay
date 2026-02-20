@@ -2,9 +2,9 @@
 	import { onMount } from 'svelte';
 	import { sendStore } from '$lib/stores/send.svelte';
 	import { getChainLabel, getExplorerTxUrl } from '$lib/utils/chains';
-	import { truncateAddress, formatRawBalance } from '$lib/utils/formatting';
+	import { truncateAddress, formatRawBalance, computeUsdValue as computeUsd } from '$lib/utils/formatting';
 	import { getSettings, getPrices } from '$lib/utils/api';
-	import { CHAIN_NATIVE_SYMBOLS, TOKEN_DECIMALS } from '$lib/constants';
+	import { CHAIN_NATIVE_SYMBOLS } from '$lib/constants';
 	import type { Chain, TxResult, PriceData } from '$lib/types';
 
 	const store = sendStore;
@@ -66,29 +66,10 @@
 		}
 	});
 
-	// Compute USD value from raw balance string.
+	// Compute USD value from raw balance string using the extracted utility.
 	function computeUsdValue(rawAmount: string): string | null {
 		if (!prices || !chain || !preview) return null;
-
-		const token = preview.token;
-		const decimals = TOKEN_DECIMALS[chain]?.[token] ?? 0;
-		if (decimals === 0) return null;
-
-		const numericValue = Number(rawAmount) / Math.pow(10, decimals);
-		if (isNaN(numericValue) || numericValue === 0) return null;
-
-		let priceKey: keyof PriceData;
-		if (token === 'NATIVE') {
-			priceKey = (chain === 'BSC' ? 'BNB' : chain) as keyof PriceData;
-		} else {
-			priceKey = token as keyof PriceData;
-		}
-
-		const usdPrice = prices[priceKey];
-		if (!usdPrice) return null;
-
-		const usdValue = numericValue * usdPrice;
-		return usdValue.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		return computeUsd(rawAmount, chain, preview.token, prices as unknown as Record<string, number>);
 	}
 
 	let netAmountUsd = $derived(preview ? computeUsdValue(preview.netAmount) : null);

@@ -120,6 +120,77 @@ export function formatRelativeTime(dateStr: string | null): string {
 }
 
 /**
+ * Parse a Go-style elapsed time string (e.g., "2m30s", "1h5m", "45s") to milliseconds.
+ */
+export function parseElapsedToMs(elapsed: string): number {
+	let totalMs = 0;
+	const hours = elapsed.match(/(\d+)h/);
+	const mins = elapsed.match(/(\d+)m/);
+	const secs = elapsed.match(/(\d+)s/);
+	if (hours) totalMs += parseInt(hours[1]) * 3600000;
+	if (mins) totalMs += parseInt(mins[1]) * 60000;
+	if (secs) totalMs += parseInt(secs[1]) * 1000;
+	return totalMs;
+}
+
+/**
+ * Format a duration in milliseconds to a human-readable string (e.g., "2m 30s", "1h 5m").
+ */
+export function formatDuration(ms: number): string {
+	const totalSec = Math.ceil(ms / 1000);
+	if (totalSec < 60) return `${totalSec}s`;
+	const min = Math.floor(totalSec / 60);
+	const sec = totalSec % 60;
+	if (min < 60) return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
+	const hr = Math.floor(min / 60);
+	const remMin = min % 60;
+	return `${hr}h ${remMin}m`;
+}
+
+/**
+ * Check if a balance string represents zero.
+ */
+export function isZeroBalance(balance: string): boolean {
+	const num = parseFloat(balance);
+	return isNaN(num) || num === 0;
+}
+
+/**
+ * Compute USD value from a raw balance amount.
+ * Returns formatted currency string or null if price data unavailable.
+ */
+export function computeUsdValue(
+	rawAmount: string,
+	chain: Chain,
+	token: string,
+	prices: Record<string, number>
+): string | null {
+	const decimals = TOKEN_DECIMALS[chain]?.[token] ?? 0;
+	if (decimals === 0) return null;
+
+	const numericValue = Number(rawAmount) / Math.pow(10, decimals);
+	if (isNaN(numericValue) || numericValue === 0) return null;
+
+	let priceKey: string;
+	if (token === 'NATIVE') {
+		priceKey = chain === 'BSC' ? 'BNB' : chain;
+	} else {
+		priceKey = token;
+	}
+
+	const usdPrice = prices[priceKey];
+	if (!usdPrice) return null;
+
+	const usdValue = numericValue * usdPrice;
+	return usdValue.toLocaleString('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2
+	});
+}
+
+/**
  * Copy text to the clipboard. Returns true on success.
  */
 export async function copyToClipboard(text: string): Promise<boolean> {

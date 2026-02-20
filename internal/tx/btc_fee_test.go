@@ -107,6 +107,28 @@ func TestBTCFeeEstimator_EnforcesMinimum(t *testing.T) {
 	}
 }
 
+func TestBTCFeeEstimator_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{this is not valid json at all!!!`))
+	}))
+	defer server.Close()
+
+	estimator := NewBTCFeeEstimator(server.Client(), server.URL)
+
+	// Malformed JSON causes fetchFromAPI to fail, so EstimateFee should
+	// fall back to the default estimate (no error returned).
+	estimate, err := estimator.EstimateFee(context.Background())
+	if err != nil {
+		t.Fatalf("EstimateFee() should not error on fallback, got: %v", err)
+	}
+
+	// Should fall back to default values.
+	if estimate.HalfHourFee != int64(config.BTCDefaultFeeRate) {
+		t.Errorf("HalfHourFee = %d, want default %d", estimate.HalfHourFee, config.BTCDefaultFeeRate)
+	}
+}
+
 func TestDefaultFeeRate(t *testing.T) {
 	estimate := &models.FeeEstimate{
 		FastestFee:  20,
