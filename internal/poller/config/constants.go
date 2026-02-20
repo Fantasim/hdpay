@@ -90,3 +90,16 @@ const (
 	ServerWriteTimeout   = 60 * time.Second
 	APITimeout           = 30 * time.Second
 )
+
+// Provider Error Categories (for system_errors table)
+const (
+	ErrorCategoryProvider = "provider"
+	ErrorCategoryWatcher  = "watcher"
+)
+
+// Provider Error Severities
+const (
+	ErrorSeverityWarn     = "warn"
+	ErrorSeverityError    = "error"
+	ErrorSeverityCritical = "critical"
+)
