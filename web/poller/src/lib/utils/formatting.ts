@@ -1,0 +1,107 @@
+import { ADDRESS_TRUNCATE_LENGTH } from '$lib/constants';
+
+/**
+ * Truncate an address to show start...end.
+ */
+export function truncateAddress(
+	address: string,
+	length: number = ADDRESS_TRUNCATE_LENGTH
+): string {
+	if (address.length <= length * 2 + 3) return address;
+	return `${address.slice(0, length)}...${address.slice(-length)}`;
+}
+
+/**
+ * Format a USD amount with $ prefix and 2 decimal places.
+ */
+export function formatUsd(amount: number): string {
+	return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Format a large number with commas.
+ */
+export function formatNumber(n: number): string {
+	return n.toLocaleString('en-US');
+}
+
+/**
+ * Format points (integer, comma-separated, no decimals).
+ */
+export function formatPoints(n: number): string {
+	return Math.round(n).toLocaleString('en-US');
+}
+
+/**
+ * Format a date string to locale display.
+ */
+export function formatDate(dateStr: string | null): string {
+	if (!dateStr) return 'N/A';
+	const date = new Date(dateStr);
+	if (isNaN(date.getTime())) return 'N/A';
+	return date.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+}
+
+/**
+ * Format a date string as relative time ("2 min ago", "1 hour ago", "Never").
+ */
+export function formatRelativeTime(dateStr: string | null): string {
+	if (!dateStr) return 'Never';
+
+	const date = new Date(dateStr);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffSec = Math.floor(diffMs / 1000);
+
+	if (diffSec < 60) return 'just now';
+
+	const diffMin = Math.floor(diffSec / 60);
+	if (diffMin < 60) return `${diffMin} min ago`;
+
+	const diffHours = Math.floor(diffMin / 60);
+	if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+
+	const diffDays = Math.floor(diffHours / 24);
+	if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+	return formatDate(dateStr);
+}
+
+/**
+ * Format a countdown timer from an expiry timestamp.
+ * Returns "12m 34s" remaining, or "Expired" if past.
+ */
+export function formatCountdown(expiresAt: string): string {
+	const expires = new Date(expiresAt);
+	const now = new Date();
+	const diffMs = expires.getTime() - now.getTime();
+
+	if (diffMs <= 0) return 'Expired';
+
+	const totalSec = Math.ceil(diffMs / 1000);
+	if (totalSec < 60) return `${totalSec}s`;
+	const min = Math.floor(totalSec / 60);
+	const sec = totalSec % 60;
+	if (min < 60) return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
+	const hr = Math.floor(min / 60);
+	const remMin = min % 60;
+	return `${hr}h ${remMin}m`;
+}
+
+/**
+ * Copy text to the clipboard. Returns true on success.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+	try {
+		await navigator.clipboard.writeText(text);
+		return true;
+	} catch {
+		return false;
+	}
+}
