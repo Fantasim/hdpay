@@ -178,6 +178,37 @@ func (d *DB) ListAll(filters models.TransactionFilters, pag models.Pagination) (
 	return txs, total, nil
 }
 
+// ListPendingByWatchID returns all pending transactions for a specific watch.
+func (d *DB) ListPendingByWatchID(watchID string) ([]models.Transaction, error) {
+	return d.queryTransactions(`
+		SELECT id, watch_id, tx_hash, chain, address, token,
+		       amount_raw, amount_human, decimals,
+		       usd_value, usd_price, tier, multiplier, points,
+		       status, confirmations, block_number,
+		       detected_at, confirmed_at, created_at
+		FROM transactions WHERE watch_id = ? AND status = 'PENDING'
+		ORDER BY detected_at ASC`, watchID)
+}
+
+// CountByWatchID returns the total and pending transaction counts for a watch.
+func (d *DB) CountByWatchID(watchID string) (total int, pending int, err error) {
+	err = d.conn.QueryRow(`
+		SELECT COUNT(*) FROM transactions WHERE watch_id = ?`, watchID,
+	).Scan(&total)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to count transactions for watch %s: %w", watchID, err)
+	}
+
+	err = d.conn.QueryRow(`
+		SELECT COUNT(*) FROM transactions WHERE watch_id = ? AND status = 'PENDING'`, watchID,
+	).Scan(&pending)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to count pending transactions for watch %s: %w", watchID, err)
+	}
+
+	return total, pending, nil
+}
+
 // LastDetectedAt returns the most recent detected_at timestamp for a given address.
 // Returns empty string if no transactions exist for this address.
 func (d *DB) LastDetectedAt(address string) (string, error) {

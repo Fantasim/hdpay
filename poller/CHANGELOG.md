@@ -4,6 +4,23 @@
 
 ### 2026-02-20
 
+#### Added (Phase 4: Watch Engine)
+- Watcher orchestrator: central `Watcher` struct managing one goroutine per active watch, with `sync.WaitGroup` for graceful shutdown (`internal/poller/watcher/watcher.go`)
+- Watch creation: validate chain/address, duplicate rejection (`ERROR_ALREADY_WATCHING`), max watch limit (`ERROR_MAX_WATCHES`), UUID generation, context.Background() with timeout per watch
+- Watch cancellation: cancel context triggers goroutine cleanup, DB status update to CANCELLED
+- Smart cutoff resolution: `MAX(last recorded tx detected_at, POLLER_START_DATE)` — subsequent watches skip already-seen transactions
+- Poll loop goroutine: per-chain ticker intervals (BTC:60s, BSC:5s, SOL:5s), fetch new txs → process → recheck pending → check stop conditions
+- Transaction processing pipeline: dedup by `tx_hash`, CONFIRMED tx: fetch price + calculate points + add to unclaimed ledger; PENDING tx: insert + estimate pending points
+- Confirmation tracking: re-check PENDING txs each tick via `ProviderSet.ExecuteConfirmation()`, on confirm: fetch price, calculate points, `MovePendingToUnclaimed()`
+- Watch stop conditions: EXPIRED (timeout), COMPLETED (all txs confirmed + ≥1 tx), CANCELLED (manual)
+- Startup recovery: expire all stale ACTIVE watches, re-check orphaned PENDING txs with 3 retries at 30s intervals, log system error if unresolvable (`internal/poller/watcher/recovery.go`)
+- Runtime-mutable settings: `MaxActiveWatches` and `DefaultWatchTimeout` with thread-safe getters/setters
+- New DB methods: `ListPendingByWatchID()`, `CountByWatchID()` for per-watch tx queries (`internal/poller/pollerdb/transactions.go`)
+- New constants: `WatchContextGracePeriod` (5s), `RecoveryTimeout` (5m) (`internal/poller/config/constants.go`)
+- main.go integration: full startup sequence (config → logging → DB → tiers → PriceService → Pricer → Calculator → Providers → Watcher → Recovery → HTTP), graceful shutdown (watcher.Stop() before HTTP shutdown)
+- Provider initialization: `initProviderSets()` creates BTC (Blockstream+Mempool), BSC (BscScan), SOL (SolanaRPC+Helius) sets with network-aware URLs
+- Watcher tests: 31 tests covering lifecycle, creation, cancellation, dedup (incl. SOL composite), cutoff resolution, stop conditions, recovery, concurrent watches, graceful shutdown — 71.0% coverage, 0 race conditions (`internal/poller/watcher/watcher_test.go`)
+
 #### Added (Phase 3: Blockchain Providers)
 - Provider interface for transaction detection: `Provider` interface with `FetchTransactions`, `CheckConfirmation`, `GetCurrentBlock` (`internal/poller/provider/provider.go`)
 - `RawTransaction` struct: TxHash, Token, AmountRaw, AmountHuman, Decimals, BlockTime, Confirmed, Confirmations, BlockNumber

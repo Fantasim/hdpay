@@ -11,9 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	hdconfig "github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/logging"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
+	"github.com/Fantasim/hdpay/internal/poller/points"
 	"github.com/Fantasim/hdpay/internal/poller/pollerdb"
+	"github.com/Fantasim/hdpay/internal/poller/provider"
+	"github.com/Fantasim/hdpay/internal/poller/watcher"
+	"github.com/Fantasim/hdpay/internal/price"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -63,18 +68,49 @@ func main() {
 
 	slog.Info("database ready", "path", cfg.DBPath)
 
+	// Load tier configuration.
+	tiers, err := points.LoadOrCreateTiers(cfg.TiersFile)
+	if err != nil {
+		slog.Error("failed to load tiers", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("tiers loaded", "count", len(tiers), "file", cfg.TiersFile)
+
+	// Initialize price service (HDPay's CoinGecko service).
+	priceSvc := price.NewPriceService()
+
+	// Initialize Poller services.
+	pricer := points.NewPricer(priceSvc)
+	calculator := points.NewPointsCalculator(tiers)
+
+	// Initialize blockchain providers (one ProviderSet per chain).
+	httpClient := provider.NewHTTPClient()
+	providerSets := initProviderSets(httpClient, cfg)
+
+	// Initialize watcher.
+	w := watcher.NewWatcher(db, providerSets, pricer, calculator, cfg)
+
+	// Run startup recovery (blocks until complete).
+	recoveryCtx, recoveryCancel := context.WithTimeout(context.Background(), pollerconfig.RecoveryTimeout)
+	if err := w.RunRecovery(recoveryCtx); err != nil {
+		slog.Error("recovery failed", "error", err)
+		// Recovery failure is non-fatal — log and continue.
+	}
+	recoveryCancel()
+
 	// Setup Chi router with health endpoint.
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 
-	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+	r.Get("/api/health", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
+		json.NewEncoder(rw).Encode(map[string]interface{}{
 			"data": map[string]interface{}{
-				"status":  "ok",
-				"network": cfg.Network,
+				"status":        "ok",
+				"network":       cfg.Network,
+				"activeWatches": w.ActiveCount(),
 			},
 		})
 	})
@@ -104,6 +140,10 @@ func main() {
 	sig := <-done
 	slog.Info("shutdown signal received", "signal", sig)
 
+	// Stop watcher first (cancel all watches, wait for goroutines).
+	w.Stop()
+
+	// Then shut down HTTP server.
 	ctx, cancel := context.WithTimeout(context.Background(), pollerconfig.ShutdownTimeout)
 	defer cancel()
 
@@ -112,4 +152,52 @@ func main() {
 	}
 
 	slog.Info("poller stopped")
+}
+
+// initProviderSets creates ProviderSets for each supported chain based on config.
+func initProviderSets(httpClient *http.Client, cfg *pollerconfig.Config) map[string]*provider.ProviderSet {
+	sets := make(map[string]*provider.ProviderSet)
+
+	// BTC providers: Blockstream + Mempool.
+	btcProviders := []provider.Provider{
+		provider.NewBlockstreamProvider(httpClient, cfg.Network),
+		provider.NewMempoolProvider(httpClient, cfg.Network),
+	}
+	btcRPS := []int{
+		hdconfig.RateLimitBlockstream,
+		hdconfig.RateLimitMempool,
+	}
+	sets["BTC"] = provider.NewProviderSet("BTC", btcProviders, btcRPS)
+
+	// BSC providers: BscScan.
+	bscProviders := []provider.Provider{
+		provider.NewBscScanProvider(httpClient, cfg.Network, cfg.BscScanAPIKey),
+	}
+	bscRPS := []int{
+		hdconfig.RateLimitBscScan,
+	}
+	sets["BSC"] = provider.NewProviderSet("BSC", bscProviders, bscRPS)
+
+	// SOL providers: Solana RPC + Helius (if API key provided).
+	solProviders := []provider.Provider{
+		provider.NewSolanaRPCProvider(httpClient, cfg.Network),
+	}
+	solRPS := []int{
+		hdconfig.RateLimitSolanaRPC,
+	}
+	if cfg.HeliusAPIKey != "" {
+		solProviders = append(solProviders,
+			provider.NewHeliusProvider(httpClient, cfg.Network, cfg.HeliusAPIKey),
+		)
+		solRPS = append(solRPS, hdconfig.RateLimitHelius)
+	}
+	sets["SOL"] = provider.NewProviderSet("SOL", solProviders, solRPS)
+
+	slog.Info("provider sets initialized",
+		"btcProviders", len(btcProviders),
+		"bscProviders", len(bscProviders),
+		"solProviders", len(solProviders),
+	)
+
+	return sets
 }

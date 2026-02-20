@@ -69,12 +69,14 @@ const (
 const (
 	RecoveryPendingRetries  = 3
 	RecoveryPendingInterval = 30 * time.Second
+	RecoveryTimeout         = 5 * time.Minute // max time for entire recovery process
 	StalePendingThreshold   = 24 * time.Hour
 )
 
 // Graceful Shutdown
 const (
-	ShutdownTimeout = 10 * time.Second
+	ShutdownTimeout          = 10 * time.Second
+	WatchContextGracePeriod  = 5 * time.Second // extra time beyond watch expiry for goroutine cleanup
 )
 
 // Pagination
