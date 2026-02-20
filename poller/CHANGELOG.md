@@ -4,6 +4,13 @@
 
 ### 2026-02-20
 
+#### Added (Phase 2: Core Services)
+- Tier configuration system: LoadTiers, ValidateTiers, CreateDefaultTiers, LoadOrCreateTiers — auto-creates default 9-tier config if missing (`internal/poller/points/tiers.go`)
+- Points calculator: USD→tier lookup→cents×multiplier→points, thread-safe with RWMutex for hot-reload from dashboard (`internal/poller/points/calculator.go`)
+- Price service wrapper: thin layer over HDPay's CoinGecko PriceService with stablecoin short-circuit ($1.00) and retry logic (3 attempts, 5s delay) (`internal/poller/points/pricer.go`)
+- Address validation: BTC (btcutil.DecodeAddress + IsForNet), BSC (0x + 40 hex regex), SOL (base58 decode to 32 bytes) with network-aware BTC validation (`internal/poller/validate/address.go`)
+- Core services tests: all 12 tier boundary values, validation edge cases, price retry/cancel/stablecoin, known testnet address vectors (points 93.7%, validate 100.0% coverage)
+
 #### Added (Phase 1: Foundation)
 - Poller config struct with envconfig (`POLLER_*` prefix), validation for required fields and value ranges (`internal/poller/config/config.go`)
 - Poller-specific constants: polling intervals, confirmation thresholds, watch defaults, session config, tiers, recovery, pagination (`internal/poller/config/constants.go`)
