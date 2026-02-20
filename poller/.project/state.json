@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 2,
+  "current_build_phase": 3,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,11 +25,11 @@
   },
   "build": {
     "total_phases": 8,
-    "current_phase_index": 2,
+    "current_phase_index": 3,
     "phases": [
       { "name": "Foundation", "status": "completed", "file": "04-build-plan/phases/phase-01/PLAN.md" },
       { "name": "Core Services", "status": "completed", "file": "04-build-plan/phases/phase-02/PLAN.md" },
-      { "name": "Blockchain Providers", "status": "pending", "file": "04-build-plan/phases/phase-03/PLAN.md" },
+      { "name": "Blockchain Providers", "status": "completed", "file": "04-build-plan/phases/phase-03/PLAN.md" },
       { "name": "Watch Engine", "status": "pending", "file": "04-build-plan/phases/phase-04/PLAN.md" },
       { "name": "API Layer", "status": "pending", "file": "04-build-plan/phases/phase-05/PLAN.md" },
       { "name": "Frontend Setup & Auth", "status": "pending", "file": "04-build-plan/phases/phase-06/PLAN.md" },
@@ -68,11 +68,11 @@
     "btc_network_validation": "btcutil.DecodeAddress alone doesn't reject cross-network addresses. Must add decoded.IsForNet(params) check.",
     "pricer_token_type": "Pricer.GetTokenPrice uses plain string for token param (not models.Token) since values come from various sources."
   },
-  "session_count": 4,
+  "session_count": 5,
   "last_session": {
-    "id": 4,
+    "id": 5,
     "date": "2026-02-20",
-    "summary": "Phase 2 (Core Services) completed. Tier config (load/validate/create defaults), points calculator (flat tiers, thread-safe), price service wrapper (HDPay CoinGecko reuse, stablecoin $1.00, retry), address validation (BTC bech32+network, BSC hex, SOL base58). Tests: points 93.7%, validate 100.0% coverage.",
+    "summary": "Phase 3 (Blockchain Providers) completed. Provider interface for tx detection (not balance scanning), ProviderSet round-robin with HDPay RateLimiter+CircuitBreaker. BTC (Blockstream+Mempool, pagination), BSC (BscScan txlist+tokentx, block confirmations), SOL (JSON-RPC, native+SPL, composite tx_hash). 49 tests, 82.5% coverage.",
     "phase": "building"
   },
   "pending_questions": false,

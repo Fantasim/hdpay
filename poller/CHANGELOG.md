@@ -4,6 +4,17 @@
 
 ### 2026-02-20
 
+#### Added (Phase 3: Blockchain Providers)
+- Provider interface for transaction detection: `Provider` interface with `FetchTransactions`, `CheckConfirmation`, `GetCurrentBlock` (`internal/poller/provider/provider.go`)
+- `RawTransaction` struct: TxHash, Token, AmountRaw, AmountHuman, Decimals, BlockTime, Confirmed, Confirmations, BlockNumber
+- `ProviderSet`: thread-safe round-robin rotation with HDPay's `RateLimiter` + `CircuitBreaker`, per-provider rate limiting, circuit breaker trip/recovery (`internal/poller/provider/provider.go`)
+- `NewHTTPClient`: configured HTTP client using HDPay's connection pool constants
+- BTC provider: `BlockstreamProvider` + `MempoolProvider` (embedded, shared Esplora API format), pagination at 25/page, multi-output aggregation, satoshi→human conversion (`internal/poller/provider/btc.go`)
+- BSC provider: `BscScanProvider` with normal txlist (BNB) + tokentx (USDC/USDT by contract address), network-aware contract resolution, block-number-based confirmation counting via `eth_blockNumber` proxy, weiToHuman converter (`internal/poller/provider/bsc.go`)
+- SOL provider: `SolanaRPCProvider` via JSON-RPC (`getSignaturesForAddress` + `getTransaction`), native SOL detection via pre/postBalances delta, SPL token detection via pre/postTokenBalances with owner matching, composite tx_hash format (`signature:TOKEN`), `NewHeliusProvider` factory, lamportsToHuman converter (`internal/poller/provider/sol.go`)
+- Provider tests: 49 tests covering round-robin rotation, circuit breaker integration, BTC/BSC/SOL response parsing, error handling (HTTP 429/500, malformed JSON, RPC errors), cutoff filtering, pagination, composite tx_hash — 82.5% coverage (`internal/poller/provider/*_test.go`)
+- Provider error constants: `ErrorCategoryProvider`, `ErrorCategoryWatcher`, `ErrorSeverityWarn/Error/Critical` (`internal/poller/config/constants.go`)
+
 #### Added (Phase 2: Core Services)
 - Tier configuration system: LoadTiers, ValidateTiers, CreateDefaultTiers, LoadOrCreateTiers — auto-creates default 9-tier config if missing (`internal/poller/points/tiers.go`)
 - Points calculator: USD→tier lookup→cents×multiplier→points, thread-safe with RWMutex for hot-reload from dashboard (`internal/poller/points/calculator.go`)
