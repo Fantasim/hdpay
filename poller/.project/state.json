@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 6,
+  "current_build_phase": 7,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,7 +25,7 @@
   },
   "build": {
     "total_phases": 8,
-    "current_phase_index": 6,
+    "current_phase_index": 7,
     "phases": [
       { "name": "Foundation", "status": "completed", "file": "04-build-plan/phases/phase-01/PLAN.md" },
       { "name": "Core Services", "status": "completed", "file": "04-build-plan/phases/phase-02/PLAN.md" },
@@ -33,7 +33,7 @@
       { "name": "Watch Engine", "status": "completed", "file": "04-build-plan/phases/phase-04/PLAN.md" },
       { "name": "API Layer", "status": "completed", "file": "04-build-plan/phases/phase-05/PLAN.md" },
       { "name": "Frontend Setup & Auth", "status": "completed", "file": "04-build-plan/phases/phase-06/PLAN.md" },
-      { "name": "Dashboard Pages", "status": "pending", "file": "04-build-plan/phases/phase-07/PLAN.md" },
+      { "name": "Dashboard Pages", "status": "completed", "file": "04-build-plan/phases/phase-07/PLAN.md" },
       { "name": "Embedding & Polish", "status": "pending", "file": "04-build-plan/phases/phase-08/PLAN.md" }
     ]
   },
@@ -67,13 +67,15 @@
     "sol_base58_lib": "Use mr-tron/base58 (already in go.mod) for SOL address validation — returns errors on invalid input, unlike btcutil/base58.",
     "btc_network_validation": "btcutil.DecodeAddress alone doesn't reject cross-network addresses. Must add decoded.IsForNet(params) check.",
     "pricer_token_type": "Pricer.GetTokenPrice uses plain string for token param (not models.Token) since values come from various sources.",
-    "frontend_independent": "web/poller/ is a fully standalone SvelteKit project, not sharing code with HDPay's web/. Shares visual design language only."
+    "frontend_independent": "web/poller/ is a fully standalone SvelteKit project, not sharing code with HDPay's web/. Shares visual design language only.",
+    "echarts_integration": "svelte-echarts@1.0.0 with tree-shaking via echarts/core subpaths. theme='dark' for built-in dark palette. ChartWrapper component wraps all charts.",
+    "shared_badge_helper": "chainBadgeClass() extracted to formatting.ts to avoid duplication across pages."
   },
-  "session_count": 8,
+  "session_count": 9,
   "last_session": {
-    "id": 8,
+    "id": 9,
     "date": "2026-02-20",
-    "summary": "Phase 6 (Frontend Setup & Auth) completed. SvelteKit project at web/poller/ with adapter-static, Tailwind v4, shadcn-svelte. Design system ported from mockups. Login page, sidebar, header, auth store, API client (20 endpoints), types, constants, formatting utils, 6 stub route pages. Build passes.",
+    "summary": "Phase 7 (Dashboard Pages) completed. All 6 pages built: Overview (8 stats cards + 7 charts), Transactions (11-col table, 6 filters, server-side pagination), Watches (filter chips, live countdown timers), Points (3 summary cards + table), Errors (3 sections: discrepancies, stale pending, system errors), Settings (tier editor, IP allowlist, watch defaults, system info). ECharts with tree-shaking, shared ChartWrapper, chainBadgeClass extracted to utils. Build passes.",
     "phase": "building"
   },
   "pending_questions": false,

@@ -71,6 +71,25 @@ export const CHART_COLORS: readonly string[] = [
 	'#10b981'
 ] as const;
 
+// Token colors (for pie charts)
+export const TOKEN_COLORS: Record<string, string> = {
+	BTC: '#f7931a',
+	BNB: '#F0B90B',
+	SOL: '#9945FF',
+	USDC: '#3b82f6',
+	USDT: '#10b981'
+} as const;
+
+// Pagination
+export const TABLE_PAGE_SIZES: readonly number[] = [25, 50, 100] as const;
+export const TABLE_DEFAULT_PAGE_SIZE = 25;
+
+// All tokens for filter dropdowns
+export const ALL_TOKENS: readonly string[] = ['BTC', 'BNB', 'SOL', 'USDC', 'USDT'] as const;
+
+// Max tier index for filter dropdown
+export const MAX_TIER_INDEX = 8;
+
 // Block explorer URLs (mainnet)
 export const EXPLORER_TX_URL: Record<Chain, string> = {
 	BTC: 'https://blockstream.info/tx/',

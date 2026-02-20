@@ -95,6 +95,28 @@ export function formatCountdown(expiresAt: string): string {
 }
 
 /**
+ * Format a date string as compact timestamp for tables ("2026-02-20 12:15").
+ */
+export function formatTimestamp(dateStr: string | null): string {
+	if (!dateStr) return 'N/A';
+	const date = new Date(dateStr);
+	if (isNaN(date.getTime())) return 'N/A';
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	const h = String(date.getHours()).padStart(2, '0');
+	const min = String(date.getMinutes()).padStart(2, '0');
+	return `${y}-${m}-${d} ${h}:${min}`;
+}
+
+/**
+ * Get CSS class for a chain badge (e.g. "badge badge-btc").
+ */
+export function chainBadgeClass(chain: string): string {
+	return `badge badge-${chain.toLowerCase()}`;
+}
+
+/**
  * Copy text to the clipboard. Returns true on success.
  */
 export async function copyToClipboard(text: string): Promise<boolean> {

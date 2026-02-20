@@ -4,6 +4,21 @@
 
 ### 2026-02-20
 
+#### Added (Phase 7: Dashboard Pages)
+- Overview page (`/`): 8 stats cards (2x4 grid), time range selector, 7 ECharts chart components (`web/poller/src/routes/+page.svelte`)
+- Transactions page (`/transactions`): 11-column table, 6 filters, page size control (25/50/100), server-side pagination (`web/poller/src/routes/transactions/+page.svelte`)
+- Watches page (`/watches`): filter chips (status+chain), table with live countdown timers at 1s interval (`web/poller/src/routes/watches/+page.svelte`)
+- Points page (`/points`): 3 summary cards (unclaimed/pending/all-time), merged points+pending data, color-coded values (`web/poller/src/routes/points/+page.svelte`)
+- Errors page (`/errors`): 3 card sections (discrepancies, stale pending, system errors), severity indicators, explorer links (`web/poller/src/routes/errors/+page.svelte`)
+- Settings page (`/settings`): tier editor with inline inputs + live example, IP allowlist CRUD, watch defaults form, system info grid (`web/poller/src/routes/settings/+page.svelte`)
+- `ChartWrapper.svelte`: reusable ECharts wrapper with tree-shaking from `echarts/core` subpaths
+- 7 chart components: UsdOverTime, PointsOverTime, TxCount, ChainBreakdown, TokenBreakdown, TierDistribution, WatchesOverTime (`web/poller/src/lib/components/charts/`)
+- `TimeRangeSelector.svelte`, `StatsCard.svelte` dashboard sub-components (`web/poller/src/lib/components/dashboard/`)
+- `explorer.ts`: block explorer URL helper handling SOL composite tx hashes (`web/poller/src/lib/utils/explorer.ts`)
+- `formatTimestamp()`, `chainBadgeClass()` shared utilities (`web/poller/src/lib/utils/formatting.ts`)
+- Constants: TOKEN_COLORS, TABLE_PAGE_SIZES, TABLE_DEFAULT_PAGE_SIZE, ALL_TOKENS, MAX_TIER_INDEX, EXPLORER_TX_URL, CONFIRMATIONS_REQUIRED (`web/poller/src/lib/constants.ts`)
+- Dependencies: `echarts`, `svelte-echarts@1.0.0`, `@tanstack/table-core`
+
 #### Added (Phase 6: Frontend Setup & Auth)
 - SvelteKit project scaffolded at `web/poller/` with adapter-static (SPA mode, `fallback: 'index.html'`)
 - Tailwind CSS v4 via `@tailwindcss/vite` plugin, Vite dev proxy `/api` → `localhost:8081`

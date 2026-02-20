@@ -4,9 +4,9 @@
 
 ## Current Position
 - **Version:** V1
-- **Phase:** Building (Phase 7 of 8 next)
-- **Status:** Phase 6 (Frontend Setup & Auth) complete. SvelteKit project at `web/poller/`, Tailwind v4 + shadcn-svelte, design system ported, login page, sidebar, auth store, API client, 6 stub routes.
-- **Last session:** 2026-02-20 — Phase 6 Frontend Setup & Auth built
+- **Phase:** Building (Phase 8 of 8 next — final phase)
+- **Status:** Phase 7 (Dashboard Pages) complete. All 6 pages built with charts, tables, filters, forms. ECharts integrated with tree-shaking.
+- **Last session:** 2026-02-20 — Phase 7 Dashboard Pages built
 
 ## Build Progress
 
@@ -18,39 +18,43 @@
 | 4 | Watch Engine | **DONE** | 1 |
 | 5 | API Layer | **DONE** | 1 |
 | 6 | Frontend Setup & Auth | **DONE** | 1 |
-| 7 | Dashboard Pages | **NEXT** | ~2-3 |
-| 8 | Embedding & Polish | Pending | ~1 |
+| 7 | Dashboard Pages | **DONE** | 1 |
+| 8 | Embedding & Polish | **NEXT** | ~1 |
 
-**Total estimate: 10-13 sessions (6 done)**
+**Total estimate: 10-13 sessions (7 done)**
 
-## Phase 6 Deliverables (Complete)
-- `web/poller/` — Standalone SvelteKit project (adapter-static, SPA mode)
-- `web/poller/src/app.css` — Design system: shadcn variables + Poller mockup tokens (dark-only)
-- `web/poller/src/lib/types.ts` — 25+ TypeScript interfaces matching backend models
-- `web/poller/src/lib/constants.ts` — All constants (chains, colors, statuses, error codes, nav items, explorer URLs)
-- `web/poller/src/lib/utils/api.ts` — Fetch wrapper + 20 endpoint functions (auto 401 redirect)
-- `web/poller/src/lib/utils/formatting.ts` — Number/address/date formatting utilities
-- `web/poller/src/lib/stores/auth.ts` — Auth state (login/logout/checkSession)
-- `web/poller/src/lib/components/layout/Sidebar.svelte` — 240px sidebar, 6 nav items, network badge
-- `web/poller/src/lib/components/layout/Header.svelte` — Page header with title/subtitle/actions
-- `web/poller/src/routes/+layout.svelte` — Auth gating, sidebar shell, ModeWatcher
-- `web/poller/src/routes/login/+page.svelte` — Login page (matches mockup)
-- `web/poller/src/routes/{transactions,watches,points,errors,settings}/+page.svelte` — Stub pages
-- `web/poller/src/lib/components/ui/` — shadcn components (button, card, input, label, badge, separator)
+## Phase 7 Deliverables (Complete)
 
-## Phase 7: Dashboard Pages (Next)
-- Overview dashboard (stats cards, daily chart, chain/token breakdown)
-- Transactions page (filterable table, pagination)
-- Watches page (active/completed list, create watch form)
-- Points page (accounts table, claim actions)
-- Errors page (discrepancies, system errors, stale pending)
-- Settings page (tiers editor, watch defaults, IP allowlist)
-- Install Apache ECharts for chart components
+### Pages Built
+- **Overview** (`/`) — 8 stats cards (2x4 grid), time range selector, 7 ECharts components
+- **Transactions** (`/transactions`) — 11-col table, 6 filters, page size control (25/50/100), server-side pagination
+- **Watches** (`/watches`) — Filter chips (status + chain), table with live countdown timers (1s interval)
+- **Points** (`/points`) — 3 summary cards (unclaimed/pending/all-time), points accounts table
+- **Errors** (`/errors`) — 3 card sections (discrepancies, stale pending, system errors)
+- **Settings** (`/settings`) — Tier editor (inline inputs), IP allowlist (add/remove), watch defaults, system info grid
+
+### Components Created
+- `ChartWrapper.svelte` — Reusable ECharts wrapper with tree-shaking (Bar, Line, Pie)
+- 7 chart components: UsdOverTime, PointsOverTime, TxCount, ChainBreakdown, TokenBreakdown, TierDistribution, WatchesOverTime
+- `TimeRangeSelector.svelte`, `StatsCard.svelte`
+- `explorer.ts` — Block explorer URL helper (handles SOL composite hashes)
+
+### Dependencies Added
+- `echarts`, `svelte-echarts@1.0.0`, `@tanstack/table-core`
+
+## Phase 8: Embedding & Polish (Next)
+- Go binary with `go:embed` for SPA serving
+- SvelteKit build output embedded in Go binary
+- Final integration testing
+- Polish and cleanup
 
 ## Key Decisions
 - **Module structure**: Poller lives inside HDPay's Go module (`cmd/poller/` + `internal/poller/`). Full access to HDPay's `internal/` packages. Two binaries from one module.
 - **HDPay reuse**: Import logging.SetupWithPrefix(), config constants/errors, models, PriceService, RateLimiter, CircuitBreaker, request logging middleware. Write new: watcher, providers (tx detection), points calculator, session auth, IP allowlist, handlers, DB CRUD, frontend.
 - **Independent frontend**: `web/poller/` is a fully standalone SvelteKit project, not sharing code with HDPay's `web/`. Shares visual design language only.
+- **ECharts tree-shaking**: Import from `echarts/core` subpaths, use built-in `dark` theme
+- **Server-side pagination**: Transactions page sends filter/page params to API
+- **Shared utilities**: `chainBadgeClass()` in formatting.ts, `getTxExplorerUrl()` in explorer.ts
 - **httputil package**: Response helpers in separate package to avoid import cycle between api/ and handlers/
 - **CORS Allow-Origin: ***: IP allowlist is the security boundary, not CORS
 - **Login IP-exempt**: POST /api/admin/login and GET /api/health bypass both IP allowlist and session auth
@@ -73,12 +77,11 @@
 | Rate Limiting | HDPay's scanner.RateLimiter + CircuitBreaker |
 | Auth | bcrypt + cookie sessions (in-memory), IP allowlist |
 | Frontend | SvelteKit (adapter-static, TS strict, Tailwind v4+shadcn-svelte) |
-| Charts | Apache ECharts (to be added in Phase 7) |
+| Charts | Apache ECharts (svelte-echarts@1.0.0, tree-shaking) |
 | Deployment | Single Go binary with embedded SPA (go:embed) |
 
 ## Next Actions
-- Run `/cf-next` to start Phase 7: Dashboard Pages
-- Phase 7 deliverable: All 6 dashboard pages with real data fetching, charts, tables, forms
+- Run `/cf-next` to start Phase 8: Embedding & Polish (final phase)
 
 ## Files Reference
 | File | Purpose |
@@ -103,3 +106,4 @@
 | 6 | 2026-02-20 | building | Phase 4 Watch Engine completed. Goroutine-per-watch, poll loop, startup recovery, graceful shutdown. |
 | 7 | 2026-02-20 | building | Phase 5 API Layer completed. Chi router, middleware, 17 endpoints, dashboard DB, 40 tests. |
 | 8 | 2026-02-20 | building | Phase 6 Frontend Setup & Auth completed. SvelteKit project, design system, login, sidebar, auth, API client, 6 stub routes. |
+| 9 | 2026-02-20 | building | Phase 7 Dashboard Pages completed. All 6 pages (overview+charts, transactions, watches, points, errors, settings). ECharts integrated. |
