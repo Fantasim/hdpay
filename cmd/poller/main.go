@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,14 +12,14 @@ import (
 
 	hdconfig "github.com/Fantasim/hdpay/internal/config"
 	"github.com/Fantasim/hdpay/internal/logging"
+	pollerapi "github.com/Fantasim/hdpay/internal/poller/api"
+	pollermw "github.com/Fantasim/hdpay/internal/poller/api/middleware"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
 	"github.com/Fantasim/hdpay/internal/poller/points"
 	"github.com/Fantasim/hdpay/internal/poller/pollerdb"
 	"github.com/Fantasim/hdpay/internal/poller/provider"
 	"github.com/Fantasim/hdpay/internal/poller/watcher"
 	"github.com/Fantasim/hdpay/internal/price"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -98,28 +97,38 @@ func main() {
 	}
 	recoveryCancel()
 
-	// Setup Chi router with health endpoint.
-	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
+	// Initialize IP allowlist from DB.
+	ipCache, err := db.LoadAllIPsIntoMap()
+	if err != nil {
+		slog.Error("failed to load IP allowlist", "error", err)
+		os.Exit(1)
+	}
+	allowlist := pollermw.NewIPAllowlist(ipCache)
 
-	r.Get("/api/health", func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-		json.NewEncoder(rw).Encode(map[string]interface{}{
-			"data": map[string]interface{}{
-				"status":        "ok",
-				"network":       cfg.Network,
-				"activeWatches": w.ActiveCount(),
-			},
-		})
-	})
+	// Initialize session store with admin credentials.
+	sessions, err := pollermw.NewSessionStore(cfg.AdminUsername, cfg.AdminPassword)
+	if err != nil {
+		slog.Error("failed to initialize session store", "error", err)
+		os.Exit(1)
+	}
+
+	// Build API router with all dependencies.
+	deps := &pollerapi.Dependencies{
+		DB:         db,
+		Watcher:    w,
+		Calculator: calculator,
+		Allowlist:  allowlist,
+		Sessions:   sessions,
+		Config:     cfg,
+		Pricer:     pricer,
+	}
+	router := pollerapi.NewRouter(deps)
 
 	// Start HTTP server.
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      r,
+		Handler:      router,
 		ReadTimeout:  pollerconfig.ServerReadTimeout,
 		WriteTimeout: pollerconfig.ServerWriteTimeout,
 	}

@@ -116,3 +116,59 @@ type Pagination struct {
 	Page     int
 	PageSize int
 }
+
+// DailyStatRow contains aggregated transaction data for a single day.
+type DailyStatRow struct {
+	Date    string  `json:"date"`
+	USD     float64 `json:"usd"`
+	Points  int     `json:"points"`
+	TxCount int     `json:"txs"`
+}
+
+// ChainBreakdown contains aggregated data for a single chain.
+type ChainBreakdown struct {
+	Chain string  `json:"chain"`
+	USD   float64 `json:"usd"`
+	Count int     `json:"count"`
+}
+
+// TokenBreakdown contains aggregated data for a single token.
+type TokenBreakdown struct {
+	Token string  `json:"token"`
+	USD   float64 `json:"usd"`
+	Count int     `json:"count"`
+}
+
+// TierBreakdown contains aggregated data for a single tier.
+type TierBreakdown struct {
+	Tier        int `json:"tier"`
+	Count       int `json:"count"`
+	TotalPoints int `json:"total_points"`
+}
+
+// DailyWatchStat contains watch counts for a single day.
+type DailyWatchStat struct {
+	Date      string `json:"date"`
+	Active    int    `json:"active"`
+	Completed int    `json:"completed"`
+	Expired   int    `json:"expired"`
+}
+
+// DiscrepancyRow represents a detected data discrepancy.
+type DiscrepancyRow struct {
+	Type       string `json:"type"`
+	Address    string `json:"address,omitempty"`
+	Chain      string `json:"chain,omitempty"`
+	Message    string `json:"message"`
+	Calculated int    `json:"calculated,omitempty"`
+	Stored     int    `json:"stored,omitempty"`
+}
+
+// StalePendingRow represents a transaction stuck in PENDING state.
+type StalePendingRow struct {
+	TxHash       string  `json:"tx_hash"`
+	Chain        string  `json:"chain"`
+	Address      string  `json:"address"`
+	DetectedAt   string  `json:"detected_at"`
+	HoursPending float64 `json:"hours_pending"`
+}
