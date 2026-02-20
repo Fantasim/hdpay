@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 1,
+  "current_build_phase": 2,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,10 +25,10 @@
   },
   "build": {
     "total_phases": 8,
-    "current_phase_index": 1,
+    "current_phase_index": 2,
     "phases": [
       { "name": "Foundation", "status": "completed", "file": "04-build-plan/phases/phase-01/PLAN.md" },
-      { "name": "Core Services", "status": "pending", "file": "04-build-plan/phases/phase-02/PLAN.md" },
+      { "name": "Core Services", "status": "completed", "file": "04-build-plan/phases/phase-02/PLAN.md" },
       { "name": "Blockchain Providers", "status": "pending", "file": "04-build-plan/phases/phase-03/PLAN.md" },
       { "name": "Watch Engine", "status": "pending", "file": "04-build-plan/phases/phase-04/PLAN.md" },
       { "name": "API Layer", "status": "pending", "file": "04-build-plan/phases/phase-05/PLAN.md" },
@@ -63,13 +63,16 @@
     "feature_tiers": "35 must-have, 3 should-have, 5 nice-to-have (V2), 8 explicitly deferred",
     "mockup_design": "Dark theme (Linear-inspired), matches HDPay exactly. Same tokens.css/components.css system. Inter + JetBrains Mono fonts. 240px sidebar, no responsive.",
     "build_plan": "8 phases: Foundation → Core Services → Providers → Watch Engine → API → Frontend Setup → Dashboard → Embedding. Backend-first, ~10-13 sessions total.",
-    "logging_parameterization": "HDPay's logging.Setup() parameterized via SetupWithPrefix(). Poller uses 'poller-' prefix for log files. Original Setup() remains backward-compatible."
+    "logging_parameterization": "HDPay's logging.Setup() parameterized via SetupWithPrefix(). Poller uses 'poller-' prefix for log files. Original Setup() remains backward-compatible.",
+    "sol_base58_lib": "Use mr-tron/base58 (already in go.mod) for SOL address validation — returns errors on invalid input, unlike btcutil/base58.",
+    "btc_network_validation": "btcutil.DecodeAddress alone doesn't reject cross-network addresses. Must add decoded.IsForNet(params) check.",
+    "pricer_token_type": "Pricer.GetTokenPrice uses plain string for token param (not models.Token) since values come from various sources."
   },
-  "session_count": 3,
+  "session_count": 4,
   "last_session": {
-    "id": 3,
+    "id": 4,
     "date": "2026-02-20",
-    "summary": "Phase 1 (Foundation) completed. Scaffolded cmd/poller/ + internal/poller/ with config, constants, errors, domain models, SQLite DB (5 tables, full CRUD), main entry point with health endpoint, Makefile targets. Parameterized HDPay logging for Poller prefix. All tests pass (config 82.6%, pollerdb 76.9% coverage).",
+    "summary": "Phase 2 (Core Services) completed. Tier config (load/validate/create defaults), points calculator (flat tiers, thread-safe), price service wrapper (HDPay CoinGecko reuse, stablecoin $1.00, retry), address validation (BTC bech32+network, BSC hex, SOL base58). Tests: points 93.7%, validate 100.0% coverage.",
     "phase": "building"
   },
   "pending_questions": false,
