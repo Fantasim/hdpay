@@ -1,0 +1,77 @@
+{
+  "project_name": "Poller",
+  "description": "A standalone microservice that monitors cryptocurrency addresses for incoming payments and converts them into points for a video game economy. Zero runtime dependency on HDPay at runtime. Watches addresses via API, detects incoming transactions across BTC/BSC/SOL, and awards points based on a configurable USD-to-points tier system.",
+  "project_type": "webapp",
+  "created_at": "2026-02-20T08:10:00Z",
+  "current_version": 1,
+  "version_history": [],
+  "integration_mode": false,
+  "existing_project": {
+    "maturity": null,
+    "goal": null,
+    "preserve": [],
+    "known_issues": [],
+    "discovery_file": null
+  },
+  "current_phase": "building",
+  "current_build_phase": 1,
+  "phases": {
+    "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
+    "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
+    "plan": { "status": "completed", "file": "02-plan.md", "started_at": "2026-02-20T08:10:00Z", "completed_at": "2026-02-20T08:15:00Z" },
+    "mockup": { "status": "completed", "file": "03-mockups/", "started_at": "2026-02-20T08:45:00Z", "completed_at": "2026-02-20T09:00:00Z" },
+    "build_plan": { "status": "completed", "file": "04-build-plan/", "started_at": "2026-02-20T10:00:00Z", "completed_at": "2026-02-20T10:30:00Z" },
+    "setup": { "status": "skipped", "file": null, "started_at": null, "completed_at": null }
+  },
+  "build": {
+    "total_phases": 8,
+    "current_phase_index": 1,
+    "phases": [
+      { "name": "Foundation", "status": "completed", "file": "04-build-plan/phases/phase-01/PLAN.md" },
+      { "name": "Core Services", "status": "pending", "file": "04-build-plan/phases/phase-02/PLAN.md" },
+      { "name": "Blockchain Providers", "status": "pending", "file": "04-build-plan/phases/phase-03/PLAN.md" },
+      { "name": "Watch Engine", "status": "pending", "file": "04-build-plan/phases/phase-04/PLAN.md" },
+      { "name": "API Layer", "status": "pending", "file": "04-build-plan/phases/phase-05/PLAN.md" },
+      { "name": "Frontend Setup & Auth", "status": "pending", "file": "04-build-plan/phases/phase-06/PLAN.md" },
+      { "name": "Dashboard Pages", "status": "pending", "file": "04-build-plan/phases/phase-07/PLAN.md" },
+      { "name": "Embedding & Polish", "status": "pending", "file": "04-build-plan/phases/phase-08/PLAN.md" }
+    ]
+  },
+  "tech_stack": {
+    "backend_language": "Go 1.22+",
+    "router": "Chi v5 (shared with HDPay)",
+    "database": "SQLite (modernc.org/sqlite, own DB file)",
+    "logging": "slog via HDPay's logging.SetupWithPrefix() (split by level)",
+    "config": "envconfig (POLLER_* prefix)",
+    "price_feed": "HDPay's PriceService (CoinGecko, cached)",
+    "session_auth": "bcrypt + cookie sessions (in-memory store)",
+    "frontend_framework": "SvelteKit (adapter-static)",
+    "frontend_language": "TypeScript (strict)",
+    "css": "Tailwind + shadcn-svelte",
+    "charts": "Apache ECharts",
+    "testing_backend": "Go stdlib testing",
+    "testing_frontend": "Vitest + Testing Library",
+    "deployment": "Single Go binary with embedded SPA (go:embed)"
+  },
+  "decisions": {
+    "initial_constraints": "Go 1.22+ backend (Chi, SQLite/modernc, slog, envconfig), SvelteKit frontend (adapter-static, TS strict, Tailwind+shadcn-svelte, ECharts), single binary deployment, IP allowlist (no API keys), session auth on dashboard, no private keys stored, free-tier blockchain APIs only, no CGO.",
+    "module_structure": "Poller lives inside HDPay's Go module as cmd/poller/ + internal/poller/. Imports HDPay's internal/ packages directly (logging, config, models, scanner, price). Two binaries from one module.",
+    "hdpay_reuse": "Import: logging.SetupWithPrefix(), config constants/errors, models.Chain/Token, price.PriceService, scanner.RateLimiter/CircuitBreaker, api/middleware/logging. Write new: watcher, providers (tx detection != balance scanning), points calculator, session auth, IP allowlist, all handlers, DB CRUD, frontend.",
+    "login_ip_exempt": "POST /api/admin/login and GET /api/health are exempt from IP allowlist checks. Admins can log in from anywhere.",
+    "watch_defaults_runtime": "Default timeout and max active watches are loaded from env vars, editable from dashboard at runtime, but lost on restart. No settings table.",
+    "block_number_column": "transactions table includes block_number column for BSC confirmation counting without re-fetching.",
+    "feature_tiers": "35 must-have, 3 should-have, 5 nice-to-have (V2), 8 explicitly deferred",
+    "mockup_design": "Dark theme (Linear-inspired), matches HDPay exactly. Same tokens.css/components.css system. Inter + JetBrains Mono fonts. 240px sidebar, no responsive.",
+    "build_plan": "8 phases: Foundation → Core Services → Providers → Watch Engine → API → Frontend Setup → Dashboard → Embedding. Backend-first, ~10-13 sessions total.",
+    "logging_parameterization": "HDPay's logging.Setup() parameterized via SetupWithPrefix(). Poller uses 'poller-' prefix for log files. Original Setup() remains backward-compatible."
+  },
+  "session_count": 3,
+  "last_session": {
+    "id": 3,
+    "date": "2026-02-20",
+    "summary": "Phase 1 (Foundation) completed. Scaffolded cmd/poller/ + internal/poller/ with config, constants, errors, domain models, SQLite DB (5 tables, full CRUD), main entry point with health endpoint, Makefile targets. Parameterized HDPay logging for Poller prefix. All tests pass (config 82.6%, pollerdb 76.9% coverage).",
+    "phase": "building"
+  },
+  "pending_questions": false,
+  "responsive": false
+}

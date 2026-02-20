@@ -1,0 +1,29 @@
+# Data & logs
+data/
+logs/
+
+# Environment
+.env
+mnemonic.txt
+
+# Tiers config (created at runtime with defaults)
+tiers.json
+
+# Frontend
+web/poller/node_modules/
+web/poller/build/
+web/poller/.svelte-kit/
+
+# Go binary
+poller
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

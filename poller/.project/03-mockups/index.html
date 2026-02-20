@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Design Mockups</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    .index-page {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: var(--space-12) var(--space-8);
+    }
+    .index-page h1 {
+      font-size: var(--font-size-3xl);
+      font-weight: var(--font-weight-semibold);
+      letter-spacing: var(--tracking-tight);
+      margin-bottom: var(--space-2);
+    }
+    .index-page > p {
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-base);
+      margin-bottom: var(--space-10);
+      max-width: 600px;
+      line-height: var(--line-height-relaxed);
+    }
+    .index-section {
+      margin-bottom: var(--space-10);
+    }
+    .index-section h2 {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-4);
+      letter-spacing: var(--tracking-tight);
+    }
+    .index-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .index-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      text-decoration: none;
+      transition: all var(--transition-base);
+    }
+    .index-link:hover {
+      background: var(--color-bg-surface-hover);
+      border-color: var(--color-border-hover);
+    }
+    .index-link-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .index-link-title {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-primary);
+    }
+    .index-link-desc {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+    }
+    .index-link-arrow {
+      color: var(--color-text-disabled);
+      transition: color var(--transition-base);
+    }
+    .index-link:hover .index-link-arrow {
+      color: var(--color-text-secondary);
+    }
+    .design-meta {
+      margin-top: var(--space-10);
+      padding-top: var(--space-6);
+      border-top: 1px solid var(--color-border-subtle);
+    }
+    .design-meta h2 {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-4);
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .meta-label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+    .meta-value {
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="index-page">
+    <h1>Poller — Design Mockups</h1>
+    <p>Crypto-to-Points microservice dashboard. These mockups define the visual design system and screen layouts for the SvelteKit dashboard. Component styles (tokens.css, components.css) are designed for reuse in the actual build.</p>
+
+    <div class="index-section">
+      <h2>Component Gallery</h2>
+      <ul class="index-list">
+        <li>
+          <a href="components/components.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">All Components</span>
+              <span class="index-link-desc">Colors, typography, buttons, forms, tables, badges, stat cards, alerts, pagination, and more</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="index-section">
+      <h2>Screens</h2>
+      <ul class="index-list">
+        <li>
+          <a href="screens/login.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Login</span>
+              <span class="index-link-desc">Username + password authentication form with error state and network badge</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/overview.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Overview Dashboard</span>
+              <span class="index-link-desc">Stats cards (8 metrics), time range selector, 7 chart placeholders (USD, points, chain/token breakdown, tiers)</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/transactions.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Transactions</span>
+              <span class="index-link-desc">Full history table with chain/token/status/tier filters, pagination, explorer links, and status badges</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/watches.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Watches</span>
+              <span class="index-link-desc">Active and historical watches with status/chain filter chips, countdown timers, and poll results</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/points.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Pending Points</span>
+              <span class="index-link-desc">Accounts with unclaimed/pending points, summary cards, per-address breakdown with all-time totals</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/errors.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Errors</span>
+              <span class="index-link-desc">Discrepancy detection (5 checks), stale pending transactions, and system error log with severity indicators</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a href="screens/settings.html" class="index-link">
+            <div class="index-link-info">
+              <span class="index-link-title">Settings</span>
+              <span class="index-link-desc">Tier editor (9 tiers), IP allowlist management, watch defaults, and system info display</span>
+            </div>
+            <svg class="index-link-arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="design-meta">
+      <h2>Design Decisions</h2>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Theme</span>
+          <span class="meta-value">Dark (Linear-inspired, matches HDPay)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Primary Color</span>
+          <span class="meta-value" style="display:flex;align-items:center;gap:var(--space-2);">
+            <span style="width:14px;height:14px;border-radius:var(--radius-sm);background:var(--color-accent);display:inline-block;"></span>
+            #5e6ad2 (Blue-violet)
+          </span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">UI Font</span>
+          <span class="meta-value">Inter</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Data Font</span>
+          <span class="meta-value" style="font-family:var(--font-mono);">JetBrains Mono</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Sidebar</span>
+          <span class="meta-value">Full (240px, always visible)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Auth</span>
+          <span class="meta-value">Session cookie (login page)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Responsive</span>
+          <span class="meta-value">No (desktop-only admin tool)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Min Font Size</span>
+          <span class="meta-value">12px</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

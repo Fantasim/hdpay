@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Transactions</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Design Tokens -->
+  <link rel="stylesheet" href="../styles/tokens.css">
+
+  <!-- Component Styles -->
+  <link rel="stylesheet" href="../styles/components.css">
+
+  <!-- Page-specific styles -->
+  <style>
+    /* Filter bar layout */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-5);
+    }
+
+    .filter-bar .form-select {
+      width: auto;
+      min-width: 130px;
+    }
+
+    .filter-bar .form-input {
+      width: 90px;
+    }
+
+    /* Page size segmented control */
+    .page-size-control {
+      display: flex;
+      align-items: center;
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-left: auto;
+    }
+
+    .page-size-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 var(--space-3);
+      height: 36px;
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      font-family: var(--font-sans);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+
+    .page-size-btn:last-child {
+      border-right: none;
+    }
+
+    .page-size-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-bg-surface-hover);
+    }
+
+    .page-size-btn.active {
+      background: var(--color-accent-muted);
+      color: var(--color-accent-text);
+    }
+
+    /* Filter bar label */
+    .filter-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      white-space: nowrap;
+    }
+
+    /* Table: timestamp column narrower */
+    .col-timestamp {
+      white-space: nowrap;
+      min-width: 130px;
+    }
+
+    .col-address {
+      min-width: 140px;
+      max-width: 160px;
+    }
+
+    .col-chain {
+      min-width: 70px;
+    }
+
+    .col-token {
+      min-width: 70px;
+    }
+
+    .col-amount {
+      min-width: 100px;
+      text-align: right;
+    }
+
+    .col-usd {
+      min-width: 90px;
+      text-align: right;
+    }
+
+    .col-tier {
+      min-width: 55px;
+      text-align: center;
+    }
+
+    .col-points {
+      min-width: 80px;
+      text-align: right;
+    }
+
+    .col-txhash {
+      min-width: 120px;
+      max-width: 140px;
+    }
+
+    .col-watch {
+      min-width: 70px;
+    }
+
+    .col-status {
+      min-width: 100px;
+    }
+
+    /* Table overflow wrapper for wide tables */
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    /* Points value emphasis */
+    .points-value {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-accent-text);
+    }
+
+    /* Tier badge */
+    .tier-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius-md);
+      background: var(--color-bg-surface-active);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    /* Sidebar footer logout + badge row */
+    .sidebar-footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Logout button inline in footer */
+    .logout-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--color-text-muted);
+      font-family: var(--font-sans);
+      font-size: var(--font-size-sm);
+      padding: 0;
+      transition: color var(--transition-base);
+    }
+
+    .logout-btn:hover {
+      color: var(--color-text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- ===== Sidebar ===== -->
+    <nav class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">P</div>
+        Poller
+      </div>
+
+      <!-- MONITOR section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">Monitor</div>
+        <ul class="sidebar-nav">
+
+          <!-- Overview -->
+          <li>
+            <a href="overview.html" class="sidebar-item">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="6" height="6" rx="1"/>
+                <rect x="10" y="2" width="6" height="6" rx="1"/>
+                <rect x="2" y="10" width="6" height="6" rx="1"/>
+                <rect x="10" y="10" width="6" height="6" rx="1"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+
+          <!-- Transactions (active) -->
+          <li>
+            <a href="transactions.html" class="sidebar-item active">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h12M3 9h8M3 12h5"/>
+                <polyline points="13 10 15 12 17 10"/>
+                <line x1="15" y1="6" x2="15" y2="12"/>
+              </svg>
+              Transactions
+            </a>
+          </li>
+
+          <!-- Watches -->
+          <li>
+            <a href="#" class="sidebar-item">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 2C5.134 2 2 5.134 2 9s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7z"/>
+                <circle cx="9" cy="9" r="2.5"/>
+              </svg>
+              Watches
+            </a>
+          </li>
+
+          <!-- Points -->
+          <li>
+            <a href="#" class="sidebar-item">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="9,2 11.5,7 17,7.5 13,11.5 14.5,17 9,14 3.5,17 5,11.5 1,7.5 6.5,7"/>
+              </svg>
+              Points
+            </a>
+          </li>
+
+        </ul>
+      </div>
+
+      <!-- SYSTEM section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">System</div>
+        <ul class="sidebar-nav">
+
+          <!-- Errors -->
+          <li>
+            <a href="#" class="sidebar-item">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="9" r="7"/>
+                <line x1="9" y1="6" x2="9" y2="9.5"/>
+                <circle cx="9" cy="12" r="0.75" fill="currentColor" stroke="none"/>
+              </svg>
+              Errors
+            </a>
+          </li>
+
+          <!-- Settings -->
+          <li>
+            <a href="#" class="sidebar-item">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="9" r="2.5"/>
+                <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.42 1.42M13.36 13.36l1.42 1.42M3.22 14.78l1.42-1.42M13.36 4.64l1.42-1.42"/>
+              </svg>
+              Settings
+            </a>
+          </li>
+
+        </ul>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-row">
+          <button class="logout-btn" type="button">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 2H2.5a1 1 0 00-1 1v8a1 1 0 001 1H5"/>
+              <polyline points="9,10 12,7 9,4"/>
+              <line x1="12" y1="7" x2="5" y2="7"/>
+            </svg>
+            Logout
+          </button>
+          <span class="network-badge network-testnet">
+            <span style="width:6px;height:6px;background:currentColor;border-radius:50%;display:inline-block;"></span>
+            TESTNET
+          </span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===== Main Content ===== -->
+    <main class="main-content">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <div class="page-title">Transactions</div>
+          <div class="page-subtitle">Full transaction history</div>
+        </div>
+      </div>
+
+      <!-- Page Body -->
+      <div class="page-body">
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+
+          <!-- Chain -->
+          <select class="form-select" aria-label="Filter by chain">
+            <option value="">All Chains</option>
+            <option value="BTC">BTC</option>
+            <option value="BSC">BSC</option>
+            <option value="SOL">SOL</option>
+          </select>
+
+          <!-- Token -->
+          <select class="form-select" aria-label="Filter by token">
+            <option value="">All Tokens</option>
+            <option value="BTC">BTC</option>
+            <option value="BNB">BNB</option>
+            <option value="SOL">SOL</option>
+            <option value="USDC">USDC</option>
+            <option value="USDT">USDT</option>
+          </select>
+
+          <!-- Status -->
+          <select class="form-select" aria-label="Filter by status">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+          </select>
+
+          <!-- Tier -->
+          <select class="form-select" aria-label="Filter by tier">
+            <option value="">All Tiers</option>
+            <option value="0">Tier 0</option>
+            <option value="1">Tier 1</option>
+            <option value="2">Tier 2</option>
+            <option value="3">Tier 3</option>
+            <option value="4">Tier 4</option>
+            <option value="5">Tier 5</option>
+            <option value="6">Tier 6</option>
+            <option value="7">Tier 7</option>
+            <option value="8">Tier 8</option>
+          </select>
+
+          <div class="toolbar-separator"></div>
+
+          <!-- Min USD -->
+          <input
+            class="form-input"
+            type="number"
+            placeholder="Min $"
+            min="0"
+            step="0.01"
+            aria-label="Minimum USD value"
+          >
+
+          <!-- Max USD -->
+          <input
+            class="form-input"
+            type="number"
+            placeholder="Max $"
+            min="0"
+            step="0.01"
+            aria-label="Maximum USD value"
+          >
+
+          <!-- Page Size -->
+          <div class="page-size-control" style="margin-left: auto;" role="group" aria-label="Page size">
+            <button class="page-size-btn" type="button">25</button>
+            <button class="page-size-btn active" type="button">50</button>
+            <button class="page-size-btn" type="button">100</button>
+          </div>
+
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th class="col-timestamp">Timestamp</th>
+                  <th class="col-address">Address</th>
+                  <th class="col-chain">Chain</th>
+                  <th class="col-token">Token</th>
+                  <th class="col-amount" style="text-align:right;">Amount</th>
+                  <th class="col-usd" style="text-align:right;">USD Value</th>
+                  <th class="col-tier" style="text-align:center;">Tier</th>
+                  <th class="col-points" style="text-align:right;">Points</th>
+                  <th class="col-txhash">TX Hash</th>
+                  <th class="col-watch">Watch</th>
+                  <th class="col-status">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+
+                <!-- Row 1: BTC confirmed -->
+                <tr>
+                  <td class="col-timestamp text-muted text-sm">2026-02-20 12:15</td>
+                  <td class="col-address">
+                    <span class="mono truncate" style="display:block;max-width:150px;" title="bc1q7k8jnm9slzp82mf4">bc1q7k8...2mf4</span>
+                  </td>
+                  <td class="col-chain">
+                    <span class="badge badge-btc">BTC</span>
+                  </td>
+                  <td class="col-token text-sm text-secondary">BTC</td>
+                  <td class="col-amount mono" style="text-align:right;">0.00168841</td>
+                  <td class="col-usd mono" style="text-align:right;">$100.00</td>
+                  <td class="col-tier" style="text-align:center;">
+                    <span class="tier-badge">4</span>
+                  </td>
+                  <td class="col-points" style="text-align:right;">
+                    <span class="points-value">13,000</span>
+                  </td>
+                  <td class="col-txhash">
+                    <a href="#" class="mono text-accent text-sm" title="abc12345678901234567890f89">abc12...f89</a>
+                  </td>
+                  <td class="col-watch">
+                    <span class="text-sm text-muted mono">w-001</span>
+                  </td>
+                  <td class="col-status">
+                    <span class="badge badge-confirmed">CONFIRMED</span>
+                  </td>
+                </tr>
+
+                <!-- Row 2: BSC USDC pending -->
+                <tr>
+                  <td class="col-timestamp text-muted text-sm">2026-02-20 11:42</td>
+                  <td class="col-address">
+                    <span class="mono truncate" style="display:block;max-width:150px;" title="0xF278CF59F82eDcf871d630F28EcC8056f25C1cdb">0xF278...cdb</span>
+                  </td>
+                  <td class="col-chain">
+                    <span class="badge badge-bsc">BSC</span>
+                  </td>
+                  <td class="col-token text-sm text-secondary">USDC</td>
+                  <td class="col-amount mono" style="text-align:right;">50.00</td>
+                  <td class="col-usd mono" style="text-align:right;">$50.00</td>
+                  <td class="col-tier" style="text-align:center;">
+                    <span class="tier-badge">3</span>
+                  </td>
+                  <td class="col-points" style="text-align:right;">
+                    <span class="points-value">6,000</span>
+                  </td>
+                  <td class="col-txhash">
+                    <a href="#" class="mono text-accent text-sm" title="0xdef4567890abcdef1234567890321">0xdef4...321</a>
+                  </td>
+                  <td class="col-watch">
+                    <span class="text-sm text-muted mono">w-002</span>
+                  </td>
+                  <td class="col-status">
+                    <span class="badge badge-pending">PENDING</span>
+                  </td>
+                </tr>
+
+                <!-- Row 3: SOL confirmed -->
+                <tr>
+                  <td class="col-timestamp text-muted text-sm">2026-02-20 10:30</td>
+                  <td class="col-address">
+                    <span class="mono truncate" style="display:block;max-width:150px;" title="3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx">3Cy3Y...Snx</span>
+                  </td>
+                  <td class="col-chain">
+                    <span class="badge badge-sol">SOL</span>
+                  </td>
+                  <td class="col-token text-sm text-secondary">SOL</td>
+                  <td class="col-amount mono" style="text-align:right;">1.50</td>
+                  <td class="col-usd mono" style="text-align:right;">$225.00</td>
+                  <td class="col-tier" style="text-align:center;">
+                    <span class="tier-badge">5</span>
+                  </td>
+                  <td class="col-points" style="text-align:right;">
+                    <span class="points-value">31,500</span>
+                  </td>
+                  <td class="col-txhash">
+                    <a href="#" class="mono text-accent text-sm" title="5xYz1234567890abcdefghijkabc:SOL">5xYz...abc</a>
+                  </td>
+                  <td class="col-watch">
+                    <span class="text-sm text-muted mono">w-003</span>
+                  </td>
+                  <td class="col-status">
+                    <span class="badge badge-confirmed">CONFIRMED</span>
+                  </td>
+                </tr>
+
+                <!-- Row 4: BSC BNB confirmed -->
+                <tr>
+                  <td class="col-timestamp text-muted text-sm">2026-02-20 09:15</td>
+                  <td class="col-address">
+                    <span class="mono truncate" style="display:block;max-width:150px;" title="0xf785bD075874b8423D3583728a981399f31e95aA">0xf785...5aA</span>
+                  </td>
+                  <td class="col-chain">
+                    <span class="badge badge-bsc">BSC</span>
+                  </td>
+                  <td class="col-token text-sm text-secondary">BNB</td>
+                  <td class="col-amount mono" style="text-align:right;">0.50</td>
+                  <td class="col-usd mono" style="text-align:right;">$310.00</td>
+                  <td class="col-tier" style="text-align:center;">
+                    <span class="tier-badge">6</span>
+                  </td>
+                  <td class="col-points" style="text-align:right;">
+                    <span class="points-value">46,500</span>
+                  </td>
+                  <td class="col-txhash">
+                    <a href="#" class="mono text-accent text-sm" title="0x789abcdef1234567890abcdef654">0x789a...654</a>
+                  </td>
+                  <td class="col-watch">
+                    <span class="text-sm text-muted mono">w-004</span>
+                  </td>
+                  <td class="col-status">
+                    <span class="badge badge-confirmed">CONFIRMED</span>
+                  </td>
+                </tr>
+
+                <!-- Row 5: SOL USDC confirmed -->
+                <tr>
+                  <td class="col-timestamp text-muted text-sm">2026-02-19 22:00</td>
+                  <td class="col-address">
+                    <span class="mono truncate" style="display:block;max-width:150px;" title="3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx">3Cy3Y...Snx</span>
+                  </td>
+                  <td class="col-chain">
+                    <span class="badge badge-sol">SOL</span>
+                  </td>
+                  <td class="col-token text-sm text-secondary">USDC</td>
+                  <td class="col-amount mono" style="text-align:right;">20.00</td>
+                  <td class="col-usd mono" style="text-align:right;">$20.00</td>
+                  <td class="col-tier" style="text-align:center;">
+                    <span class="tier-badge">2</span>
+                  </td>
+                  <td class="col-points" style="text-align:right;">
+                    <span class="points-value">2,200</span>
+                  </td>
+                  <td class="col-txhash">
+                    <a href="#" class="mono text-accent text-sm" title="5xYz1234567890abcdefghijkabc:USDC">5xYz...abc</a>
+                  </td>
+                  <td class="col-watch">
+                    <span class="text-sm text-muted mono">w-003</span>
+                  </td>
+                  <td class="col-status">
+                    <span class="badge badge-confirmed">CONFIRMED</span>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination">
+            <span class="pagination-info">Showing 1–50 of 147 transactions</span>
+            <div class="pagination-controls">
+              <button class="pagination-btn active" type="button" aria-label="Page 1" aria-current="page">1</button>
+              <button class="pagination-btn" type="button" aria-label="Page 2">2</button>
+              <button class="pagination-btn" type="button" aria-label="Page 3">3</button>
+              <button class="pagination-btn" type="button" aria-label="Next page">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="5,2 10,7 5,12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <!-- end .table-wrapper -->
+
+      </div>
+      <!-- end .page-body -->
+    </main>
+
+  </div>
+  <!-- end .layout -->
+</body>
+</html>

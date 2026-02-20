@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Watches</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Design Tokens -->
+  <link rel="stylesheet" href="../styles/tokens.css">
+
+  <!-- Component Styles -->
+  <link rel="stylesheet" href="../styles/components.css">
+
+  <!-- Page-specific styles -->
+  <style>
+    .page-header-flex {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .filter-bar {
+      display: flex;
+      gap: var(--space-6);
+      padding: var(--space-6) var(--space-8);
+      border-bottom: 1px solid var(--color-border-subtle);
+      background: var(--color-bg-primary);
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .filter-group-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      white-space: nowrap;
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .page-body-scrollable {
+      overflow-x: auto;
+    }
+
+    .sidebar-footer-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-5);
+      margin: var(--space-0) var(--space-2);
+      border-radius: var(--radius-md);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-normal);
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+
+    .sidebar-footer-item:hover {
+      background: var(--color-sidebar-hover);
+      color: var(--color-text-primary);
+    }
+
+    .sidebar-footer-item .icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer-item.logout {
+      color: var(--color-error);
+    }
+
+    .sidebar-footer-item.logout:hover {
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .footer-badge {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-sidebar-border);
+      display: flex;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">P</div>
+        Poller
+      </div>
+
+      <!-- Monitor Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">Monitor</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"></path>
+              <path d="M12 7v5l4 2"></path>
+            </svg>
+            Overview
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            Transactions
+          </li>
+          <li class="sidebar-item active">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 0 15.528 15H15.5a3.5 3.5 0 1 1 0-7h.5"></path>
+              <path d="M9 7H3.5a3.5 3.5 0 1 0 0 7h.5"></path>
+              <circle cx="9" cy="10.5" r="1.5"></circle>
+              <circle cx="15" cy="10.5" r="1.5"></circle>
+            </svg>
+            Watches
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+            Points
+          </li>
+        </ul>
+      </div>
+
+      <!-- System Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">System</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            Errors
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <path d="M12 19v2M12 3v2M19 12h2M3 12h2M17.66 17.66l1.41 1.41M5.93 5.93l1.41 1.41M17.66 6.34l1.41-1.41M5.93 18.07l1.41-1.41"></path>
+            </svg>
+            Settings
+          </li>
+        </ul>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item logout">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Logout
+        </div>
+        <div class="footer-badge">
+          <span class="network-badge network-testnet">
+            <span style="width: 6px; height: 6px; background: currentColor; border-radius: 50%; display: inline-block;"></span>
+            TESTNET
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Page Header -->
+      <div class="page-header">
+        <div class="page-header-flex">
+          <h1 class="page-title">Watches</h1>
+          <p class="page-subtitle">Active and historical address watches</p>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-group-label">Status</span>
+          <div class="filter-chips">
+            <button class="filter-chip active">All</button>
+            <button class="filter-chip">Active</button>
+            <button class="filter-chip">Completed</button>
+            <button class="filter-chip">Expired</button>
+            <button class="filter-chip">Cancelled</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-group-label">Chain</span>
+          <div class="filter-chips">
+            <button class="filter-chip active">All</button>
+            <button class="filter-chip">BTC</button>
+            <button class="filter-chip">BSC</button>
+            <button class="filter-chip">SOL</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page Body -->
+      <div class="page-body page-body-scrollable">
+        <!-- Watches Table -->
+        <div class="table-wrapper">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Chain</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Time Remaining</th>
+                <th>Polls</th>
+                <th>Last Poll Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Row 1 -->
+              <tr>
+                <td><span class="mono">bc1q7k8...</span><span class="mono" style="color: var(--color-text-muted);">2mf4</span></td>
+                <td><span class="badge badge-btc">BTC</span></td>
+                <td><span class="badge badge-active">ACTIVE</span></td>
+                <td>2026-02-20 12:00</td>
+                <td><span class="countdown">18:42</span></td>
+                <td>12</td>
+                <td>1 new tx, 1 pending</td>
+              </tr>
+
+              <!-- Row 2 -->
+              <tr>
+                <td><span class="mono">0xF278...</span><span class="mono" style="color: var(--color-text-muted);">cdb</span></td>
+                <td><span class="badge badge-bsc">BSC</span></td>
+                <td><span class="badge badge-active">ACTIVE</span></td>
+                <td>2026-02-20 11:30</td>
+                <td><span class="countdown">04:15</span></td>
+                <td>180</td>
+                <td>0 new, 0 pending</td>
+              </tr>
+
+              <!-- Row 3 -->
+              <tr>
+                <td><span class="mono">3Cy3Y...</span><span class="mono" style="color: var(--color-text-muted);">Snx</span></td>
+                <td><span class="badge badge-sol">SOL</span></td>
+                <td><span class="badge badge-completed">COMPLETED</span></td>
+                <td>2026-02-20 10:00</td>
+                <td>—</td>
+                <td>120</td>
+                <td>0 new, all confirmed</td>
+              </tr>
+
+              <!-- Row 4 -->
+              <tr>
+                <td><span class="mono">tb1qga...</span><span class="mono" style="color: var(--color-text-muted);">hfg</span></td>
+                <td><span class="badge badge-btc">BTC</span></td>
+                <td><span class="badge badge-expired">EXPIRED</span></td>
+                <td>2026-02-20 08:00</td>
+                <td>—</td>
+                <td>30</td>
+                <td>0 new, 1 pending</td>
+              </tr>
+
+              <!-- Row 5 -->
+              <tr>
+                <td><span class="mono">0x60Af...</span><span class="mono" style="color: var(--color-text-muted);">DA9</span></td>
+                <td><span class="badge badge-bsc">BSC</span></td>
+                <td><span class="badge badge-completed">COMPLETED</span></td>
+                <td>2026-02-19 22:00</td>
+                <td>—</td>
+                <td>360</td>
+                <td>0 new, all confirmed</td>
+              </tr>
+
+              <!-- Row 6 -->
+              <tr>
+                <td><span class="mono">5frqx...</span><span class="mono" style="color: var(--color-text-muted);">cTA</span></td>
+                <td><span class="badge badge-sol">SOL</span></td>
+                <td><span class="badge badge-cancelled">CANCELLED</span></td>
+                <td>2026-02-19 20:00</td>
+                <td>—</td>
+                <td>45</td>
+                <td>0 new, 0 pending</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

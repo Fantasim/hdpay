@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Pending Points</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Design Tokens -->
+  <link rel="stylesheet" href="../styles/tokens.css">
+
+  <!-- Component Styles -->
+  <link rel="stylesheet" href="../styles/components.css">
+
+  <!-- Page-specific styles -->
+  <style>
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-6);
+      margin-bottom: var(--space-8);
+    }
+
+    .summary-card {
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .summary-card-label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .summary-card-value {
+      font-size: var(--font-size-3xl);
+      font-weight: var(--font-weight-semibold);
+      font-family: var(--font-mono);
+      color: var(--color-text-primary);
+      letter-spacing: var(--tracking-tight);
+    }
+
+    .summary-card-meta {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      margin-top: var(--space-2);
+    }
+
+    .table-wrapper {
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .table th {
+      background: var(--color-bg-surface);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      font-weight: var(--font-weight-medium);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      border-bottom: 1px solid var(--color-border-subtle);
+      white-space: nowrap;
+    }
+
+    .table td {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--color-border-subtle);
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+    }
+
+    .table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table tr:hover td {
+      background: var(--color-bg-surface-hover);
+    }
+
+    .address-mono {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+    }
+
+    .points-value {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-medium);
+      text-align: right;
+    }
+
+    .points-success {
+      color: var(--color-success);
+    }
+
+    .points-muted {
+      color: var(--color-text-muted);
+    }
+
+    .points-warning {
+      color: var(--color-warning);
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .sidebar-footer-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+      font-size: var(--font-size-sm);
+    }
+
+    .sidebar-footer-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .sidebar-footer-logout {
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: color var(--transition-base);
+    }
+
+    .sidebar-footer-logout:hover {
+      color: var(--color-text-primary);
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .grid-cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    @media (max-width: 1200px) {
+      .grid-cols-3 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .grid-cols-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">P</div>
+        <span>Poller</span>
+      </div>
+
+      <!-- MONITOR Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">MONITOR</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Overview</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"></path>
+            </svg>
+            <span>Transactions</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="1"></circle>
+              <path d="M12 1v6m0 6v6"></path>
+              <path d="M4.22 4.22l4.24 4.24m3.08-3.08l4.24 4.24M4.22 19.78l4.24-4.24m3.08 3.08l4.24-4.24"></path>
+              <path d="M1 12h6m6 0h6"></path>
+            </svg>
+            <span>Watches</span>
+          </li>
+          <li class="sidebar-item active">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+            </svg>
+            <span>Points</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- SYSTEM Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">SYSTEM</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>Errors</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon nav-icon" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+            <span>Settings</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item">
+          <svg class="icon nav-icon sidebar-footer-logout" viewBox="0 0 24 24">
+            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+          <span class="sidebar-footer-logout">Logout</span>
+        </div>
+        <div class="sidebar-footer-item">
+          <span class="network-badge network-testnet">
+            <span style="width: 4px; height: 4px; background: currentColor; border-radius: 50%; display: inline-block;"></span>
+            TESTNET
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Page Header -->
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Points</h1>
+          <p class="page-subtitle">Accounts with unclaimed and pending points</p>
+        </div>
+      </header>
+
+      <!-- Page Body -->
+      <div class="page-body">
+        <!-- Summary Cards -->
+        <div class="summary-cards grid-cols-3">
+          <!-- Total Unclaimed -->
+          <div class="summary-card">
+            <div class="summary-card-label">Total Unclaimed</div>
+            <div class="summary-card-value">45,000</div>
+            <div class="summary-card-meta">across 3 accounts</div>
+          </div>
+
+          <!-- Total Pending -->
+          <div class="summary-card">
+            <div class="summary-card-label">Total Pending</div>
+            <div class="summary-card-value">6,000</div>
+            <div class="summary-card-meta">1 unconfirmed tx</div>
+          </div>
+
+          <!-- All-Time Awarded -->
+          <div class="summary-card">
+            <div class="summary-card-label">All-Time Awarded</div>
+            <div class="summary-card-value">598,000</div>
+            <div class="summary-card-meta">since inception</div>
+          </div>
+        </div>
+
+        <!-- Points Table -->
+        <div class="table-wrapper">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Chain</th>
+                <th>Unclaimed</th>
+                <th>Pending</th>
+                <th>TX Count</th>
+                <th>Last TX</th>
+                <th>All-Time Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Row 1: BTC with unclaimed -->
+              <tr>
+                <td>
+                  <span class="address-mono">bc1q7k8...2mf4</span>
+                </td>
+                <td>
+                  <span class="badge badge-btc">BTC</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-success">13,000</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-center">3</td>
+                <td>2026-02-20 12:15</td>
+                <td class="text-right">
+                  <span class="points-value">25,000</span>
+                </td>
+              </tr>
+
+              <!-- Row 2: BSC with pending -->
+              <tr>
+                <td>
+                  <span class="address-mono">0xF278...cdb</span>
+                </td>
+                <td>
+                  <span class="badge badge-bsc">BSC</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-success">6,000</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-warning">6,000</span>
+                </td>
+                <td class="text-center">5</td>
+                <td>2026-02-20 11:42</td>
+                <td class="text-right">
+                  <span class="points-value">48,000</span>
+                </td>
+              </tr>
+
+              <!-- Row 3: SOL with unclaimed -->
+              <tr>
+                <td>
+                  <span class="address-mono">3Cy3Y...Snx</span>
+                </td>
+                <td>
+                  <span class="badge badge-sol">SOL</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-success">26,000</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-center">8</td>
+                <td>2026-02-20 10:30</td>
+                <td class="text-right">
+                  <span class="points-value">152,000</span>
+                </td>
+              </tr>
+
+              <!-- Row 4: BSC no activity -->
+              <tr>
+                <td>
+                  <span class="address-mono">0xf785...5aA</span>
+                </td>
+                <td>
+                  <span class="badge badge-bsc">BSC</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-center">2</td>
+                <td>2026-02-19 14:00</td>
+                <td class="text-right">
+                  <span class="points-value">93,000</span>
+                </td>
+              </tr>
+
+              <!-- Row 5: BTC no activity -->
+              <tr>
+                <td>
+                  <span class="address-mono">tb1qga...hfg</span>
+                </td>
+                <td>
+                  <span class="badge badge-btc">BTC</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-right">
+                  <span class="points-value points-muted">0</span>
+                </td>
+                <td class="text-center">1</td>
+                <td>2026-02-18 09:30</td>
+                <td class="text-right">
+                  <span class="points-value">500</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

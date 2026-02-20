@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Component Gallery</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <link rel="stylesheet" href="../styles/components.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    .gallery { max-width: 1000px; margin: 0 auto; padding: var(--space-12) var(--space-8); }
+    .gallery h1 { font-size: var(--font-size-3xl); font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-tight); margin-bottom: var(--space-2); }
+    .gallery > p { color: var(--color-text-secondary); margin-bottom: var(--space-10); }
+    .gallery-section { margin-bottom: var(--space-12); }
+    .gallery-section h2 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border-subtle); }
+    .gallery-section h3 { font-size: var(--font-size-base); font-weight: var(--font-weight-medium); color: var(--color-text-secondary); margin-bottom: var(--space-3); margin-top: var(--space-6); }
+    .gallery-row { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-4); }
+    .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-bottom: var(--space-4); }
+    .color-swatch { width: 100%; height: 48px; border-radius: var(--radius-md); border: 1px solid var(--color-border-subtle); }
+    .color-info { font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1); }
+    .color-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text-primary); }
+  </style>
+</head>
+<body>
+  <div class="gallery">
+    <h1>Poller — Component Gallery</h1>
+    <p>All reusable components for the Poller dashboard. Matches HDPay's design system (dark Linear-inspired theme).</p>
+
+    <!-- ===== COLORS ===== -->
+    <div class="gallery-section">
+      <h2>Colors</h2>
+
+      <h3>Backgrounds</h3>
+      <div class="gallery-grid">
+        <div><div class="color-swatch" style="background:var(--color-bg-primary)"></div><div class="color-name">Primary</div><div class="color-info">#0f1117</div></div>
+        <div><div class="color-swatch" style="background:var(--color-bg-secondary)"></div><div class="color-name">Secondary</div><div class="color-info">#13151c</div></div>
+        <div><div class="color-swatch" style="background:var(--color-bg-surface)"></div><div class="color-name">Surface</div><div class="color-info">#1a1d27</div></div>
+        <div><div class="color-swatch" style="background:var(--color-bg-elevated)"></div><div class="color-name">Elevated</div><div class="color-info">#1e2130</div></div>
+      </div>
+
+      <h3>Chain Colors</h3>
+      <div class="gallery-grid">
+        <div><div class="color-swatch" style="background:var(--color-btc)"></div><div class="color-name">BTC</div><div class="color-info">#f7931a</div></div>
+        <div><div class="color-swatch" style="background:var(--color-bsc)"></div><div class="color-name">BSC</div><div class="color-info">#F0B90B</div></div>
+        <div><div class="color-swatch" style="background:var(--color-sol)"></div><div class="color-name">SOL</div><div class="color-info">#9945FF</div></div>
+        <div><div class="color-swatch" style="background:var(--color-accent)"></div><div class="color-name">Accent</div><div class="color-info">#5e6ad2</div></div>
+      </div>
+
+      <h3>Status Colors</h3>
+      <div class="gallery-grid">
+        <div><div class="color-swatch" style="background:var(--color-success)"></div><div class="color-name">Success</div><div class="color-info">#4ade80</div></div>
+        <div><div class="color-swatch" style="background:var(--color-error)"></div><div class="color-name">Error</div><div class="color-info">#ef4444</div></div>
+        <div><div class="color-swatch" style="background:var(--color-warning)"></div><div class="color-name">Warning</div><div class="color-info">#f59e0b</div></div>
+        <div><div class="color-swatch" style="background:var(--color-info)"></div><div class="color-name">Info</div><div class="color-info">#60a5fa</div></div>
+      </div>
+    </div>
+
+    <!-- ===== TYPOGRAPHY ===== -->
+    <div class="gallery-section">
+      <h2>Typography</h2>
+      <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+        <div class="text-4xl font-semibold">36px — Heading XL (Inter Semibold)</div>
+        <div class="text-3xl font-semibold">28px — Heading Large</div>
+        <div class="text-2xl font-semibold">22px — Heading</div>
+        <div class="text-xl font-medium">18px — Subheading</div>
+        <div class="text-lg font-medium">16px — Large Body</div>
+        <div class="text-base">14px — Body (default)</div>
+        <div class="text-sm text-secondary">13px — Small</div>
+        <div class="text-xs text-muted">12px — Caption (minimum)</div>
+        <div class="font-mono text-base">14px — Monospace (JetBrains Mono)</div>
+        <div class="font-mono text-sm text-secondary">13px — Monospace Small</div>
+      </div>
+    </div>
+
+    <!-- ===== BUTTONS ===== -->
+    <div class="gallery-section">
+      <h2>Buttons</h2>
+      <div class="gallery-row">
+        <button class="btn btn-primary">Primary</button>
+        <button class="btn btn-secondary">Secondary</button>
+        <button class="btn btn-ghost">Ghost</button>
+        <button class="btn btn-danger">Danger</button>
+        <button class="btn btn-primary" disabled>Disabled</button>
+      </div>
+      <h3>Sizes</h3>
+      <div class="gallery-row">
+        <button class="btn btn-primary btn-sm">Small</button>
+        <button class="btn btn-primary">Default</button>
+        <button class="btn btn-primary btn-lg">Large</button>
+      </div>
+    </div>
+
+    <!-- ===== FORM INPUTS ===== -->
+    <div class="gallery-section">
+      <h2>Form Inputs</h2>
+      <div style="max-width:400px">
+        <div class="form-group">
+          <label class="form-label">Text Input</label>
+          <input class="form-input" type="text" placeholder="Enter text...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monospace Input</label>
+          <input class="form-input form-input-mono" type="text" value="bc1q7k89me2ae95dmlp3yfl4q9ynpux8mxjujuf2fr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Select</label>
+          <select class="form-select">
+            <option>All Chains</option>
+            <option>BTC</option>
+            <option>BSC</option>
+            <option>SOL</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">With Hint</label>
+          <input class="form-input" type="number" value="30">
+          <div class="form-hint">Timeout in minutes (1-120)</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">With Error</label>
+          <input class="form-input" type="text" value="not-an-address" style="border-color:var(--color-error)">
+          <div class="form-error">Invalid address format</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BADGES ===== -->
+    <div class="gallery-section">
+      <h2>Badges</h2>
+
+      <h3>Chain Badges</h3>
+      <div class="gallery-row">
+        <span class="badge badge-btc">BTC</span>
+        <span class="badge badge-bsc">BSC</span>
+        <span class="badge badge-sol">SOL</span>
+      </div>
+
+      <h3>Watch Status Badges</h3>
+      <div class="gallery-row">
+        <span class="badge badge-active">ACTIVE</span>
+        <span class="badge badge-completed">COMPLETED</span>
+        <span class="badge badge-expired">EXPIRED</span>
+        <span class="badge badge-cancelled">CANCELLED</span>
+      </div>
+
+      <h3>Transaction Status Badges</h3>
+      <div class="gallery-row">
+        <span class="badge badge-pending">PENDING</span>
+        <span class="badge badge-confirmed">CONFIRMED</span>
+      </div>
+
+      <h3>General Badges</h3>
+      <div class="gallery-row">
+        <span class="badge badge-default">Default</span>
+        <span class="badge badge-accent">Accent</span>
+        <span class="badge badge-success">Success</span>
+        <span class="badge badge-error">Error</span>
+        <span class="badge badge-warning">Warning</span>
+        <span class="badge badge-info">Info</span>
+      </div>
+
+      <h3>Network Badge</h3>
+      <div class="gallery-row">
+        <span class="network-badge network-mainnet">MAINNET</span>
+        <span class="network-badge network-testnet">TESTNET</span>
+      </div>
+    </div>
+
+    <!-- ===== STAT CARDS ===== -->
+    <div class="gallery-section">
+      <h2>Stat Cards</h2>
+      <div class="grid grid-cols-4 gap-4">
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Active Watches</span>
+            <span class="stat-value">5</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">USD Received</span>
+            <span class="stat-value stat-value-mono">$4,540.50</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Points Awarded</span>
+            <span class="stat-value stat-value-mono">598,000</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <span class="stat-label">Largest TX</span>
+            <span class="stat-value stat-value-mono">$500.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CARDS ===== -->
+    <div class="gallery-section">
+      <h2>Cards</h2>
+      <div class="card" style="max-width:500px">
+        <div class="card-header">
+          <span class="card-title">Card Title</span>
+          <button class="btn btn-sm btn-secondary">Action</button>
+        </div>
+        <div class="card-body">
+          <p class="text-sm text-secondary">Card body content goes here. This is a standard card component with header, body, and footer sections.</p>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-ghost btn-sm">Cancel</button>
+          <button class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TIME RANGE SELECTOR ===== -->
+    <div class="gallery-section">
+      <h2>Time Range Selector</h2>
+      <div class="time-range">
+        <button class="time-range-btn">Today</button>
+        <button class="time-range-btn active">This Week</button>
+        <button class="time-range-btn">This Month</button>
+        <button class="time-range-btn">This Quarter</button>
+        <button class="time-range-btn">All Time</button>
+      </div>
+    </div>
+
+    <!-- ===== FILTER CHIPS ===== -->
+    <div class="gallery-section">
+      <h2>Filter Chips</h2>
+      <div class="gallery-row">
+        <span class="filter-chip active">All</span>
+        <span class="filter-chip">Active</span>
+        <span class="filter-chip">Completed</span>
+        <span class="filter-chip">Expired</span>
+        <span class="filter-chip">Cancelled</span>
+      </div>
+    </div>
+
+    <!-- ===== TABLE ===== -->
+    <div class="gallery-section">
+      <h2>Table</h2>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Chain</th>
+              <th>Token</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Points</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">bc1q7k8...2mf4</td>
+              <td><span class="badge badge-btc">BTC</span></td>
+              <td>BTC</td>
+              <td class="text-right mono">0.00168841</td>
+              <td class="text-right mono">13,000</td>
+              <td><span class="badge badge-confirmed">CONFIRMED</span></td>
+            </tr>
+            <tr>
+              <td class="mono">0xF278...cdb</td>
+              <td><span class="badge badge-bsc">BSC</span></td>
+              <td>USDC</td>
+              <td class="text-right mono">50.00</td>
+              <td class="text-right mono">6,000</td>
+              <td><span class="badge badge-pending">PENDING</span></td>
+            </tr>
+            <tr>
+              <td class="mono">3Cy3Y...Snx</td>
+              <td><span class="badge badge-sol">SOL</span></td>
+              <td>SOL</td>
+              <td class="text-right mono">1.50</td>
+              <td class="text-right mono">31,500</td>
+              <td><span class="badge badge-confirmed">CONFIRMED</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== PAGINATION ===== -->
+    <div class="gallery-section">
+      <h2>Pagination</h2>
+      <div class="table-wrapper">
+        <div class="pagination">
+          <span class="pagination-info">Showing 1-50 of 147 transactions</span>
+          <div class="pagination-controls">
+            <button class="pagination-btn" disabled>&lt;</button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <button class="pagination-btn">&gt;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ALERTS ===== -->
+    <div class="gallery-section">
+      <h2>Alerts</h2>
+      <div style="display:flex;flex-direction:column;gap:var(--space-3);max-width:600px">
+        <div class="alert alert-info">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8"/></svg>
+          Watch created successfully. Polling will begin shortly.
+        </div>
+        <div class="alert alert-success">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8"/></svg>
+          Points claimed: 13,000 pts for 2 addresses.
+        </div>
+        <div class="alert alert-warning">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8"/></svg>
+          Provider rate limited, rotating to next provider.
+        </div>
+        <div class="alert alert-error">
+          <svg class="alert-icon" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="9" r="8"/></svg>
+          Invalid username or password.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CHART PLACEHOLDER ===== -->
+    <div class="gallery-section">
+      <h2>Chart Placeholder</h2>
+      <div class="card" style="max-width:500px">
+        <div class="card-title mb-4">USD Received Over Time</div>
+        <div class="chart-placeholder">ECharts bar chart will render here</div>
+      </div>
+    </div>
+
+    <!-- ===== SEVERITY INDICATORS ===== -->
+    <div class="gallery-section">
+      <h2>Severity Indicators</h2>
+      <div class="gallery-row">
+        <span class="flex items-center gap-2"><span class="severity-dot severity-error"></span> Error</span>
+        <span class="flex items-center gap-2"><span class="severity-dot severity-warning"></span> Warning</span>
+        <span class="flex items-center gap-2"><span class="severity-dot severity-info"></span> Info</span>
+      </div>
+    </div>
+
+    <!-- ===== CHAIN DOTS ===== -->
+    <div class="gallery-section">
+      <h2>Chain Dots</h2>
+      <div class="gallery-row">
+        <span class="flex items-center gap-2"><span class="chain-dot chain-dot-btc"></span> BTC</span>
+        <span class="flex items-center gap-2"><span class="chain-dot chain-dot-bsc"></span> BSC</span>
+        <span class="flex items-center gap-2"><span class="chain-dot chain-dot-sol"></span> SOL</span>
+      </div>
+    </div>
+
+    <!-- ===== COUNTDOWN ===== -->
+    <div class="gallery-section">
+      <h2>Countdown Timer</h2>
+      <div class="gallery-row">
+        <span class="countdown">18:42</span>
+        <span class="text-sm text-muted">remaining</span>
+      </div>
+    </div>
+
+    <!-- ===== LOADING ===== -->
+    <div class="gallery-section">
+      <h2>Loading Spinner</h2>
+      <div class="gallery-row">
+        <div class="spinner"></div>
+        <span class="text-sm text-muted">Loading...</span>
+      </div>
+    </div>
+
+    <!-- ===== EMPTY STATE ===== -->
+    <div class="gallery-section">
+      <h2>Empty State</h2>
+      <div class="card">
+        <div class="empty-state" style="padding:var(--space-10) var(--space-8)">
+          <div class="empty-state-title">No transactions yet</div>
+          <div class="empty-state-text">Transactions will appear here once watches detect incoming payments.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

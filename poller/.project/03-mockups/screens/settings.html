@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Settings</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Design Tokens -->
+  <link rel="stylesheet" href="../styles/tokens.css">
+
+  <!-- Component Styles -->
+  <link rel="stylesheet" href="../styles/components.css">
+
+  <!-- Page-specific styles -->
+  <style>
+    .sidebar-footer-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-5);
+      margin: var(--space-0) var(--space-2);
+      border-radius: var(--radius-md);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-normal);
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+
+    .sidebar-footer-item:hover {
+      background: var(--color-sidebar-hover);
+      color: var(--color-text-primary);
+    }
+
+    .sidebar-footer-item .icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer-item.logout {
+      color: var(--color-error);
+    }
+
+    .sidebar-footer-item.logout:hover {
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .footer-badge {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-sidebar-border);
+      display: flex;
+      justify-content: center;
+    }
+
+    .page-header-flex {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    /* Tiers table — narrow inline inputs */
+    .tier-input {
+      width: 80px;
+      height: 30px;
+      padding: var(--space-1) var(--space-2);
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-primary);
+      text-align: right;
+      transition: border-color var(--transition-base);
+    }
+
+    .tier-input:focus {
+      outline: none;
+      border-color: var(--color-border-focus);
+      box-shadow: var(--shadow-focus);
+    }
+
+    .tier-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-surface-active);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .tier-row-zero td {
+      opacity: 0.55;
+    }
+
+    /* IP Allowlist — add row */
+    .add-ip-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .add-ip-row .form-input {
+      flex: 1;
+    }
+
+    .add-ip-row .form-input-ip {
+      width: 200px;
+      flex: none;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+    }
+
+    /* Watch Defaults — two columns */
+    .form-row-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+    }
+
+    /* System Info grid */
+    .sysinfo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    .sysinfo-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-4);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+    }
+
+    .sysinfo-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .sysinfo-value {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-primary);
+    }
+
+    .sysinfo-value.mono {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+    }
+
+    /* IP table mono addresses */
+    .table td.ip-cell {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      color: var(--color-accent-text);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">P</div>
+        Poller
+      </div>
+
+      <!-- Monitor Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">Monitor</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            Overview
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            Transactions
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 8v4l3 3"></path>
+            </svg>
+            Watches
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            Points
+          </li>
+        </ul>
+      </div>
+
+      <!-- System Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">System</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            Errors
+          </li>
+          <li class="sidebar-item active">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+            </svg>
+            Settings
+          </li>
+        </ul>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item logout">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Logout
+        </div>
+        <div class="footer-badge">
+          <span class="network-badge network-testnet">
+            <span style="width: 6px; height: 6px; background: currentColor; border-radius: 50%; display: inline-block;"></span>
+            TESTNET
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Page Header -->
+      <div class="page-header">
+        <div class="page-header-flex">
+          <h1 class="page-title">Settings</h1>
+          <p class="page-subtitle">Configuration and system management</p>
+        </div>
+      </div>
+
+      <!-- Page Body -->
+      <div class="page-body">
+
+        <!-- ===== Section 1: Points Tier Editor ===== -->
+        <div class="settings-section">
+          <div class="settings-section-title">Points Tiers</div>
+          <div class="settings-section-desc">Configure USD-to-points conversion tiers. Changes apply to new transactions only.</div>
+
+          <div class="table-wrapper">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tier</th>
+                  <th>Min USD</th>
+                  <th>Max USD</th>
+                  <th>Multiplier</th>
+                  <th>Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Tier 0 — zero multiplier, visually dimmed -->
+                <tr class="tier-row-zero">
+                  <td><span class="tier-number">0</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="0.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="1.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="0.0"></td>
+                  <td class="text-muted">$0.50 → 0 pts</td>
+                </tr>
+                <!-- Tier 1 -->
+                <tr>
+                  <td><span class="tier-number">1</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="1.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="12.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.0"></td>
+                  <td class="text-muted">$5.00 → 500 pts</td>
+                </tr>
+                <!-- Tier 2 -->
+                <tr>
+                  <td><span class="tier-number">2</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="12.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="30.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.1"></td>
+                  <td class="text-muted">$20.00 → 2,200 pts</td>
+                </tr>
+                <!-- Tier 3 -->
+                <tr>
+                  <td><span class="tier-number">3</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="30.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="60.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.2"></td>
+                  <td class="text-muted">$50.00 → 6,000 pts</td>
+                </tr>
+                <!-- Tier 4 -->
+                <tr>
+                  <td><span class="tier-number">4</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="60.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="120.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.3"></td>
+                  <td class="text-muted">$100.00 → 13,000 pts</td>
+                </tr>
+                <!-- Tier 5 -->
+                <tr>
+                  <td><span class="tier-number">5</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="120.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="240.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.4"></td>
+                  <td class="text-muted">$200.00 → 28,000 pts</td>
+                </tr>
+                <!-- Tier 6 -->
+                <tr>
+                  <td><span class="tier-number">6</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="240.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="600.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="1.5"></td>
+                  <td class="text-muted">$500.00 → 75,000 pts</td>
+                </tr>
+                <!-- Tier 7 -->
+                <tr>
+                  <td><span class="tier-number">7</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="600.00"></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="1200.00"></td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="2.0"></td>
+                  <td class="text-muted">$1,000 → 200,000 pts</td>
+                </tr>
+                <!-- Tier 8 -->
+                <tr>
+                  <td><span class="tier-number">8</span></td>
+                  <td><input class="tier-input" type="number" step="0.01" min="0" value="1200.00"></td>
+                  <td>
+                    <input class="tier-input" type="text" value="∞" disabled style="opacity: 0.5; cursor: not-allowed;">
+                  </td>
+                  <td><input class="tier-input" type="number" step="0.1" min="0" value="3.0"></td>
+                  <td class="text-muted">$2,000 → 600,000 pts</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-4">
+            <button class="btn btn-primary">Save Tiers</button>
+          </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ===== Section 2: IP Allowlist ===== -->
+        <div class="settings-section">
+          <div class="settings-section-title">IP Allowlist</div>
+          <div class="settings-section-desc">Manage which external IPs can access the API. Localhost and private networks are always allowed.</div>
+
+          <div class="table-wrapper">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>IP Address</th>
+                  <th>Description</th>
+                  <th>Added</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="ip-cell">203.0.113.50</td>
+                  <td class="text-secondary">Game Server (prod)</td>
+                  <td class="text-muted">2026-02-18</td>
+                  <td>
+                    <button class="btn btn-sm btn-danger">Remove</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="ip-cell">198.51.100.22</td>
+                  <td class="text-secondary">Game Server (staging)</td>
+                  <td class="text-muted">2026-02-19</td>
+                  <td>
+                    <button class="btn btn-sm btn-danger">Remove</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="ip-cell">192.168.1.100</td>
+                  <td class="text-secondary">Local dev</td>
+                  <td class="text-muted">2026-02-20</td>
+                  <td>
+                    <button class="btn btn-sm btn-danger">Remove</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add IP row -->
+          <div class="add-ip-row">
+            <input class="form-input form-input-ip" type="text" placeholder="203.0.113.50">
+            <input class="form-input" type="text" placeholder="Optional label">
+            <button class="btn btn-sm btn-primary">Add</button>
+          </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ===== Section 3: Watch Defaults ===== -->
+        <div class="settings-section">
+          <div class="settings-section-title">Watch Defaults</div>
+          <div class="settings-section-desc">Default values for new watches.</div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label">Default Timeout (minutes)</label>
+              <input class="form-input" type="number" min="1" max="120" value="30">
+              <div class="form-hint">How long watches stay active (1–120 min)</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Active Watches</label>
+              <input class="form-input" type="number" min="1" value="100">
+              <div class="form-hint">Maximum concurrent watches allowed</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary">Save Defaults</button>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ===== Section 4: System Info ===== -->
+        <div class="settings-section">
+          <div class="settings-section-title">System Information</div>
+          <div class="settings-section-desc">Read-only system status.</div>
+
+          <div class="sysinfo-grid">
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Uptime</div>
+              <div class="sysinfo-value mono">2d 14h 32m</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Version</div>
+              <div class="sysinfo-value mono">v1.0.0</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Network</div>
+              <div class="sysinfo-value">
+                <span class="network-badge network-testnet">
+                  <span style="width: 6px; height: 6px; background: currentColor; border-radius: 50%; display: inline-block;"></span>
+                  TESTNET
+                </span>
+              </div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Active Watches</div>
+              <div class="sysinfo-value">5</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Database Size</div>
+              <div class="sysinfo-value">4.2 MB</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Start Date</div>
+              <div class="sysinfo-value mono">2026-02-01 00:00 UTC</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Total Transactions</div>
+              <div class="sysinfo-value">147</div>
+            </div>
+            <div class="sysinfo-item">
+              <div class="sysinfo-label">Total Points Awarded</div>
+              <div class="sysinfo-value">598,000</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end page-body -->
+    </main>
+  </div>
+</body>
+</html>

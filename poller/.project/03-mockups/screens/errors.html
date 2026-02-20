@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poller — Errors</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Design Tokens -->
+  <link rel="stylesheet" href="../styles/tokens.css">
+
+  <!-- Component Styles -->
+  <link rel="stylesheet" href="../styles/components.css">
+
+  <!-- Page-specific styles -->
+  <style>
+    .page-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+
+    .card {
+      margin-bottom: var(--space-8);
+    }
+
+    .card:last-child {
+      margin-bottom: 0;
+    }
+
+    .error-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .error-badge {
+      flex-shrink: 0;
+    }
+
+    .error-details {
+      flex: 1;
+    }
+
+    .table td {
+      vertical-align: middle;
+    }
+
+    .hash-link {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      color: var(--color-accent-text);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .hash-link:hover {
+      color: var(--color-accent-hover);
+    }
+
+    .address-mono {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+      word-break: break-all;
+    }
+
+    .severity-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .resolved-badge {
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">P</div>
+        <span>Poller</span>
+      </div>
+
+      <!-- MONITOR Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">MONITOR</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Overview</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="12 1 22 5 22 19 12 23 2 19 2 5 12 1"></polyline>
+              <polyline points="12 12.5 2 8.25"></polyline>
+              <polyline points="12 12.5 22 8.25"></polyline>
+              <polyline points="12 12.5 12 23"></polyline>
+            </svg>
+            <span>Transactions</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <path d="M12 1v6m0 6v6"></path>
+              <path d="M4.22 4.22l4.24 4.24m2.12 2.12l4.24 4.24"></path>
+              <path d="M1 12h6m6 0h6"></path>
+              <path d="M4.22 19.78l4.24-4.24m2.12-2.12l4.24-4.24"></path>
+              <path d="M12 17v6"></path>
+              <path d="M19.78 19.78l-4.24-4.24m-2.12-2.12l-4.24-4.24"></path>
+            </svg>
+            <span>Watches</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9L3 6m0 0l3-3m-3 3h18"></path>
+              <path d="M18 15l3 3m0 0l-3 3m3-3H3"></path>
+            </svg>
+            <span>Points</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- SYSTEM Section -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">SYSTEM</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item active">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>Errors</span>
+          </li>
+          <li class="sidebar-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <path d="M12 1v6m0 6v6"></path>
+              <path d="M4.22 4.22l4.24 4.24m2.12 2.12l4.24 4.24"></path>
+              <path d="M1 12h6m6 0h6"></path>
+              <path d="M4.22 19.78l4.24-4.24m2.12-2.12l4.24-4.24"></path>
+              <path d="M12 17v6"></path>
+              <path d="M19.78 19.78l-4.24-4.24m-2.12-2.12l-4.24-4.24"></path>
+            </svg>
+            <span>Settings</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3);">
+          <button class="btn btn-ghost btn-sm" style="flex: 1;">
+            Logout
+          </button>
+        </div>
+        <span class="network-badge network-testnet" style="display: flex; justify-content: center;">
+          <span style="width: 6px; height: 6px; background: currentColor; border-radius: 50%; display: inline-block;"></span>
+          TESTNET
+        </span>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content">
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Errors</h1>
+          <p class="page-subtitle">System health, discrepancies, and error log</p>
+        </div>
+      </div>
+
+      <!-- Page Body -->
+      <div class="page-body">
+        <!-- Section 1: Discrepancies -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Discrepancies</h2>
+              <p class="card-subtitle">Auto-detected integrity issues</p>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">Type</th>
+                  <th style="width: 25%;">Address</th>
+                  <th style="width: 12%;">Chain</th>
+                  <th style="width: 35%;">Details</th>
+                  <th style="width: 13%;">Detected</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Row 1 -->
+                <tr>
+                  <td>
+                    <span class="badge badge-error">POINTS_MISMATCH</span>
+                  </td>
+                  <td>
+                    <span class="address-mono">bc1q7k8...2mf4</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-btc">BTC</span>
+                  </td>
+                  <td>
+                    <span>Calculated: 13,000, Stored: 12,500</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-20 10:00</span>
+                  </td>
+                </tr>
+                <!-- Row 2 -->
+                <tr>
+                  <td>
+                    <span class="badge badge-warning">UNCLAIMED_EXCEEDS_TOTAL</span>
+                  </td>
+                  <td>
+                    <span class="address-mono">0xF278...cdb</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-bsc">BSC</span>
+                  </td>
+                  <td>
+                    <span>Unclaimed: 6,000, Total: 5,000</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-20 09:30</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: Stale Pending Transactions -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Stale Pending Transactions</h2>
+              <p class="card-subtitle">Pending for more than 24 hours</p>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width: 25%;">TX Hash</th>
+                  <th style="width: 12%;">Chain</th>
+                  <th style="width: 25%;">Address</th>
+                  <th style="width: 20%;">Detected At</th>
+                  <th style="width: 18%;">Hours Pending</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Row 1 -->
+                <tr>
+                  <td>
+                    <a href="#" class="hash-link">0xabc...def</a>
+                  </td>
+                  <td>
+                    <span class="badge badge-bsc">BSC</span>
+                  </td>
+                  <td>
+                    <span class="address-mono">0x123...789</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-19 08:00</span>
+                  </td>
+                  <td>
+                    <span class="text-error">28h</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 3: System Errors -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">System Errors</h2>
+              <p class="card-subtitle">Provider failures and runtime issues</p>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width: 10%;">Severity</th>
+                  <th style="width: 12%;">Category</th>
+                  <th style="width: 40%;">Message</th>
+                  <th style="width: 22%;">Timestamp</th>
+                  <th style="width: 16%;">Resolved</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Row 1: ERROR -->
+                <tr>
+                  <td>
+                    <div class="severity-indicator">
+                      <span class="severity-dot severity-error"></span>
+                      <span>ERROR</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge badge-default">PROVIDER</span>
+                  </td>
+                  <td>
+                    <span>BscScan API returned 502 for 3 consecutive requests</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-20 10:30</span>
+                  </td>
+                  <td>
+                    <span class="text-error">No</span>
+                  </td>
+                </tr>
+                <!-- Row 2: WARNING -->
+                <tr>
+                  <td>
+                    <div class="severity-indicator">
+                      <span class="severity-dot severity-warning"></span>
+                      <span>WARNING</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge badge-default">PRICE</span>
+                  </td>
+                  <td>
+                    <span>CoinGecko rate limited, using stale cache (3m old)</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-20 09:15</span>
+                  </td>
+                  <td>
+                    <span class="text-success">Yes</span>
+                  </td>
+                </tr>
+                <!-- Row 3: ERROR -->
+                <tr>
+                  <td>
+                    <div class="severity-indicator">
+                      <span class="severity-dot severity-error"></span>
+                      <span>ERROR</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge badge-default">RECOVERY</span>
+                  </td>
+                  <td>
+                    <span>Pending TX <span class="mono">0xdef...</span> still unconfirmed after 3 retries</span>
+                  </td>
+                  <td>
+                    <span class="text-muted">2026-02-20 08:00</span>
+                  </td>
+                  <td>
+                    <span class="text-error">No</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
