@@ -4,6 +4,33 @@
 
 ### 2026-02-20
 
+#### Added (Phase 6: Frontend Setup & Auth)
+- SvelteKit project scaffolded at `web/poller/` with adapter-static (SPA mode, `fallback: 'index.html'`)
+- Tailwind CSS v4 via `@tailwindcss/vite` plugin, Vite dev proxy `/api` → `localhost:8081`
+- shadcn-svelte initialized (Slate base, dark theme): button, card, input, label, badge, separator components
+- Design system ported from mockup tokens into `app.css` — dark-only theme, Linear-inspired palette (`web/poller/src/app.css`)
+- TypeScript types: 25+ interfaces matching all backend models exactly (`web/poller/src/lib/types.ts`)
+- Constants file: chains, colors, statuses, error codes, nav items, explorer URLs (`web/poller/src/lib/constants.ts`)
+- API client: fetch wrapper with auto 401→/login redirect, 20 endpoint functions (`web/poller/src/lib/utils/api.ts`)
+- Auth store: login/logout/checkSession with Svelte writable stores (`web/poller/src/lib/stores/auth.ts`)
+- Login page matching mockup: centered card, brand icon, error display, network badge (`web/poller/src/routes/login/+page.svelte`)
+- Sidebar component: 240px fixed, 6 nav items with inline SVG icons, active state, logout, network badge (`web/poller/src/lib/components/layout/Sidebar.svelte`)
+- Header component: title, optional subtitle, actions snippet slot (`web/poller/src/lib/components/layout/Header.svelte`)
+- Root layout with auth gating: session check, redirect to /login, loading spinner, ModeWatcher (`web/poller/src/routes/+layout.svelte`)
+- Formatting utilities: truncateAddress, formatUsd, formatPoints, formatDate, formatRelativeTime, copyToClipboard (`web/poller/src/lib/utils/formatting.ts`)
+- 6 stub route pages: overview, transactions, watches, points, errors, settings
+
+#### Added (Phase 5: API Layer)
+- Chi v5 router with Dependencies struct, layered middleware, route groups (`internal/poller/api/router.go`)
+- JSON response helpers: envelope, paginated list, error response (`internal/poller/httputil/response.go`)
+- IP allowlist middleware: cache with DB refresh, private IP bypass (`internal/poller/api/middleware/ipallow.go`)
+- Session auth middleware: bcrypt, crypto/rand tokens, HttpOnly cookies, 1h expiry (`internal/poller/api/middleware/session.go`)
+- CORS middleware: Allow-Origin *, preflight 204 (`internal/poller/api/middleware/cors.go`)
+- 17 API endpoints: health, auth (login/logout), watch (create/cancel/list), points (get/pending/claim), admin (allowlist CRUD, settings, tiers, watch-defaults), dashboard (stats/transactions/charts/errors) (`internal/poller/api/handlers/`)
+- Dashboard aggregate queries: stats, daily, charts by chain/token/tier (`internal/poller/pollerdb/dashboard.go`)
+- 4 discrepancy check methods: points mismatch, unclaimed>total, orphaned txs, stale pending (`internal/poller/pollerdb/discrepancy.go`)
+- API tests: 40 new tests (21 handler integration + 19 middleware unit)
+
 #### Added (Phase 4: Watch Engine)
 - Watcher orchestrator: central `Watcher` struct managing one goroutine per active watch, with `sync.WaitGroup` for graceful shutdown (`internal/poller/watcher/watcher.go`)
 - Watch creation: validate chain/address, duplicate rejection (`ERROR_ALREADY_WATCHING`), max watch limit (`ERROR_MAX_WATCHES`), UUID generation, context.Background() with timeout per watch

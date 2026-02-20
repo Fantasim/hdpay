@@ -14,7 +14,7 @@
     "discovery_file": null
   },
   "current_phase": "building",
-  "current_build_phase": 4,
+  "current_build_phase": 6,
   "phases": {
     "brainstorm": { "status": "skipped", "file": "00-brainstorm.md", "started_at": null, "completed_at": null },
     "market": { "status": "skipped", "file": "01-market-analysis.md", "started_at": null, "completed_at": null },
@@ -25,14 +25,14 @@
   },
   "build": {
     "total_phases": 8,
-    "current_phase_index": 4,
+    "current_phase_index": 6,
     "phases": [
       { "name": "Foundation", "status": "completed", "file": "04-build-plan/phases/phase-01/PLAN.md" },
       { "name": "Core Services", "status": "completed", "file": "04-build-plan/phases/phase-02/PLAN.md" },
       { "name": "Blockchain Providers", "status": "completed", "file": "04-build-plan/phases/phase-03/PLAN.md" },
       { "name": "Watch Engine", "status": "completed", "file": "04-build-plan/phases/phase-04/PLAN.md" },
-      { "name": "API Layer", "status": "pending", "file": "04-build-plan/phases/phase-05/PLAN.md" },
-      { "name": "Frontend Setup & Auth", "status": "pending", "file": "04-build-plan/phases/phase-06/PLAN.md" },
+      { "name": "API Layer", "status": "completed", "file": "04-build-plan/phases/phase-05/PLAN.md" },
+      { "name": "Frontend Setup & Auth", "status": "completed", "file": "04-build-plan/phases/phase-06/PLAN.md" },
       { "name": "Dashboard Pages", "status": "pending", "file": "04-build-plan/phases/phase-07/PLAN.md" },
       { "name": "Embedding & Polish", "status": "pending", "file": "04-build-plan/phases/phase-08/PLAN.md" }
     ]
@@ -66,13 +66,14 @@
     "logging_parameterization": "HDPay's logging.Setup() parameterized via SetupWithPrefix(). Poller uses 'poller-' prefix for log files. Original Setup() remains backward-compatible.",
     "sol_base58_lib": "Use mr-tron/base58 (already in go.mod) for SOL address validation — returns errors on invalid input, unlike btcutil/base58.",
     "btc_network_validation": "btcutil.DecodeAddress alone doesn't reject cross-network addresses. Must add decoded.IsForNet(params) check.",
-    "pricer_token_type": "Pricer.GetTokenPrice uses plain string for token param (not models.Token) since values come from various sources."
+    "pricer_token_type": "Pricer.GetTokenPrice uses plain string for token param (not models.Token) since values come from various sources.",
+    "frontend_independent": "web/poller/ is a fully standalone SvelteKit project, not sharing code with HDPay's web/. Shares visual design language only."
   },
-  "session_count": 6,
+  "session_count": 8,
   "last_session": {
-    "id": 6,
+    "id": 8,
     "date": "2026-02-20",
-    "summary": "Phase 4 (Watch Engine) completed. Watcher orchestrator (goroutine-per-watch, context timeouts, WaitGroup shutdown). Poll loop with tx detection, confirmation tracking, points calculation. Startup recovery (expire stale, retry pending). main.go full integration (providers, pricer, calculator, watcher, recovery, shutdown). 31 tests, 71% coverage, 0 races.",
+    "summary": "Phase 6 (Frontend Setup & Auth) completed. SvelteKit project at web/poller/ with adapter-static, Tailwind v4, shadcn-svelte. Design system ported from mockups. Login page, sidebar, header, auth store, API client (20 endpoints), types, constants, formatting utils, 6 stub route pages. Build passes.",
     "phase": "building"
   },
   "pending_questions": false,
