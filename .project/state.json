@@ -57,7 +57,7 @@
   },
   "build": {
     "total_phases": 6,
-    "current_phase_index": 1,
+    "current_phase_index": 6,
     "phases": [
       { "name": "Foundation: Schema, Error Types & Circuit Breaker", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-01/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-01/SUMMARY.md" },
       { "name": "Scanner Resilience", "status": "completed", "plan_file": "v2/04-build-plan/phases/phase-02/PLAN.md", "summary_file": "v2/04-build-plan/phases/phase-02/SUMMARY.md" },
@@ -72,7 +72,7 @@
     "router": "Chi v5",
     "database": "SQLite (modernc.org/sqlite)",
     "logging": "slog",
-    "config": "envconfig",
+    "config": "envconfig + godotenv",
     "rate_limiting": "golang.org/x/time/rate",
     "btc_crypto": "btcsuite/btcd, go-bip39",
     "evm_crypto": "go-ethereum v1.17.0",
@@ -110,13 +110,23 @@
     "v2_build_phases": "6 phases: Foundation (schema+types+circuit breaker) → Scanner Resilience → TX Safety Core → TX Safety Advanced → Provider Health + Fallback → Security Tests + Infrastructure",
     "v2_circuit_breaker": "Circuit breaker pattern: threshold=3 consecutive fails, 30s cooldown, 1 half-open request. Applied per-provider.",
     "v2_transient_errors": "TransientError wrapper with optional RetryAfter duration. IsTransient() for retry decisions.",
-    "v2_tx_state_tracking": "tx_state table tracks individual TX lifecycle: pending→broadcasting→confirming→confirmed|failed|uncertain"
+    "v2_tx_state_tracking": "tx_state table tracks individual TX lifecycle: pending→broadcasting→confirming→confirmed|failed|uncertain",
+    "post_v2_async_send": "Send execute returns 202 Accepted immediately, sweep runs in background with SSE progress + polling fallback. context.Background() for sweep goroutines.",
+    "post_v2_tx_reconciler": "Startup reconciler checks all non-terminal tx_state rows against blockchain. TXs pending >1h marked 'uncertain'. Re-launches polling for recent pending TXs.",
+    "post_v2_sol_fee_payer": "SOL token sweeps use Solana's native fee payer mechanism — single address pays all TX fees, no gas pre-seeding needed (unlike BSC).",
+    "post_v2_security_audit": "21 security fixes: SOL blockhash staleness (10s cache TTL), typed CONFIRM modal + 3s countdown, full destination address display, network badge at send, BTC fee safety margin (2%), UTXO thresholds tightened (5%/3%), BSC per-TX gas check, scanner completion race fix, double-click protection, rate limiter Burst(1).",
+    "post_v2_network_coexistence": "Migration 007 adds network column to all core tables. db.New(path, network). All queries auto-filter by active network. Auto-detect existing data via BTC address prefix.",
+    "post_v2_default_testnet": "Default network changed to testnet. Network is env-only (HDPAY_NETWORK), not editable from Settings UI. Safer default for new installations.",
+    "post_v2_string_balance_formatting": "formatRawBalance uses string-based decimal placement instead of parseFloat() to avoid JavaScript precision loss for values > 2^53.",
+    "post_v2_bscscan_v2_api": "BscScan migrated from V1 to V2 API with explicit chainid parameter (V1 deprecated).",
+    "post_v2_bsc_key_zeroing": "ZeroECDSAKey() helper with defer at all BSC signing callsites. Private keys zeroed immediately after use.",
+    "post_v2_config_validation": "Config.Validate() at boot checks Network and Port values. Fail fast on invalid configuration."
   },
-  "session_count": 18,
+  "session_count": 23,
   "last_session": {
-    "id": 18,
+    "id": 23,
     "date": "2026-02-19",
-    "summary": "V2 Build Phase 6 complete (final): Security Tests & Infrastructure — 55 new tests (security middleware, scanner providers, TX SSE hub), server hardening (IdleTimeout, MaxHeaderBytes), DB connection pool, price stale-but-serve, graceful shutdown. ALL V2 PHASES COMPLETE.",
+    "summary": "Network mainnet/testnet coexistence: Migration 007 adds network column to all core tables, db.New(path, network), auto-filter queries by active network. Default changed to testnet, env-only setting, read-only badge in UI.",
     "phase": "building"
   },
   "pending_questions": false,
