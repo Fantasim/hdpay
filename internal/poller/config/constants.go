@@ -93,6 +93,13 @@ const (
 	APITimeout           = 30 * time.Second
 )
 
+// Dashboard Date Ranges (in days, negative for past)
+const (
+	DateRangeWeekDays    = -7
+	DateRangeMonthDays   = -30
+	DateRangeQuarterDays = -90
+)
+
 // Provider Error Categories (for system_errors table)
 const (
 	ErrorCategoryProvider = "provider"

@@ -42,6 +42,7 @@ func LoginHandler(sessions *middleware.SessionStore) http.HandlerFunc {
 			Value:    token,
 			Path:     "/",
 			HttpOnly: true,
+			Secure:   true,
 			SameSite: http.SameSiteStrictMode,
 		})
 
@@ -65,6 +66,7 @@ func LogoutHandler(sessions *middleware.SessionStore) http.HandlerFunc {
 			Path:     "/",
 			MaxAge:   -1,
 			HttpOnly: true,
+			Secure:   true,
 			SameSite: http.SameSiteStrictMode,
 		})
 

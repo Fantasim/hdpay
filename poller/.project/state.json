@@ -34,7 +34,7 @@
       { "name": "API Layer", "status": "completed", "file": "04-build-plan/phases/phase-05/PLAN.md" },
       { "name": "Frontend Setup & Auth", "status": "completed", "file": "04-build-plan/phases/phase-06/PLAN.md" },
       { "name": "Dashboard Pages", "status": "completed", "file": "04-build-plan/phases/phase-07/PLAN.md" },
-      { "name": "Embedding & Polish", "status": "pending", "file": "04-build-plan/phases/phase-08/PLAN.md" }
+      { "name": "Embedding & Polish", "status": "completed", "file": "04-build-plan/phases/phase-08/PLAN.md" }
     ]
   },
   "tech_stack": {
@@ -71,11 +71,11 @@
     "echarts_integration": "svelte-echarts@1.0.0 with tree-shaking via echarts/core subpaths. theme='dark' for built-in dark palette. ChartWrapper component wraps all charts.",
     "shared_badge_helper": "chainBadgeClass() extracted to formatting.ts to avoid duplication across pages."
   },
-  "session_count": 9,
+  "session_count": 10,
   "last_session": {
-    "id": 9,
+    "id": 10,
     "date": "2026-02-20",
-    "summary": "Phase 7 (Dashboard Pages) completed. All 6 pages built: Overview (8 stats cards + 7 charts), Transactions (11-col table, 6 filters, server-side pagination), Watches (filter chips, live countdown timers), Points (3 summary cards + table), Errors (3 sections: discrepancies, stale pending, system errors), Settings (tier editor, IP allowlist, watch defaults, system info). ECharts with tree-shaking, shared ChartWrapper, chainBadgeClass extracted to utils. Build passes.",
+    "summary": "Phase 8 (Embedding & Polish) completed — FINAL PHASE. Single 21MB binary with embedded SvelteKit frontend. Security fixes (API key leak, cookie Secure flag). Constants audit + utility dedup. pollerdb test coverage 47.6% to 77.3%. All 8 build phases done.",
     "phase": "building"
   },
   "pending_questions": false,

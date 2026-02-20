@@ -110,10 +110,27 @@ export function formatTimestamp(dateStr: string | null): string {
 }
 
 /**
+ * Get CSS class for a badge (e.g. "badge badge-btc", "badge badge-active").
+ * Works for chains, statuses, and other badge types.
+ */
+export function badgeClass(value: string): string {
+	return `badge badge-${value.toLowerCase()}`;
+}
+
+/**
  * Get CSS class for a chain badge (e.g. "badge badge-btc").
+ * @deprecated Use badgeClass() instead.
  */
 export function chainBadgeClass(chain: string): string {
-	return `badge badge-${chain.toLowerCase()}`;
+	return badgeClass(chain);
+}
+
+/**
+ * Abbreviate a number with "k" suffix for chart axes (e.g. 1500 -> "1k").
+ */
+export function abbreviateNumber(n: number, prefix: string = ''): string {
+	const abbreviated = n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
+	return `${prefix}${abbreviated}`;
 }
 
 /**

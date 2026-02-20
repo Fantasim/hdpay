@@ -4,6 +4,23 @@
 
 ### 2026-02-20
 
+#### Added (Phase 8: Embedding & Polish)
+- Go `embed.FS` directive for SvelteKit build output (`web/poller/embed.go`)
+- SPA handler wired into Chi router via `r.NotFound()` with immutable asset caching (`internal/poller/api/router.go`)
+- `StaticFS` field in router Dependencies, wired from `cmd/poller/main.go` with `fs.Sub()` prefix stripping
+- Makefile `build-poller-frontend` target, chained into `build-poller` for single-command build
+- Dashboard DB tests: 8 test functions covering all dashboard queries (`internal/poller/pollerdb/dashboard_test.go`)
+- Discrepancy + transaction DB tests: 7 test functions (`internal/poller/pollerdb/discrepancy_test.go`)
+- `badgeClass()` generic badge helper and `abbreviateNumber()` chart formatter (`web/poller/src/lib/utils/formatting.ts`)
+
+#### Changed (Phase 8: Embedding & Polish)
+- **SECURITY**: Helius provider no longer logs RPC URL containing API key — logs `hasAPIKey` boolean instead (`internal/poller/provider/sol.go`)
+- **SECURITY**: Session cookies now set `Secure: true` on both login and logout (`internal/poller/api/handlers/auth.go`)
+- Dashboard handler uses `pollerconfig.DateRangeWeekDays/MonthDays/QuarterDays` constants instead of hardcoded `-7/-30/-90` (`internal/poller/api/handlers/dashboard.go`)
+- Watches page imports shared `badgeClass()` instead of inline `statusBadgeClass()` (`web/poller/src/routes/watches/+page.svelte`)
+- Makefile `clean` target now removes `web/poller/build` and `web/poller/.svelte-kit`
+- pollerdb test coverage improved from 47.6% to 77.3%
+
 #### Added (Phase 7: Dashboard Pages)
 - Overview page (`/`): 8 stats cards (2x4 grid), time range selector, 7 ECharts chart components (`web/poller/src/routes/+page.svelte`)
 - Transactions page (`/transactions`): 11-column table, 6 filters, page size control (25/50/100), server-side pagination (`web/poller/src/routes/transactions/+page.svelte`)

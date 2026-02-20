@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/Fantasim/hdpay/internal/poller/provider"
 	"github.com/Fantasim/hdpay/internal/poller/watcher"
 	"github.com/Fantasim/hdpay/internal/price"
+	webpoller "github.com/Fantasim/hdpay/web/poller"
 )
 
 func main() {
@@ -112,6 +114,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Extract the embedded SPA build directory (strip the "build/" prefix from the embed FS).
+	staticFS, err := fs.Sub(webpoller.StaticFiles, "build")
+	if err != nil {
+		slog.Error("failed to access embedded static files", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("embedded SPA loaded")
+
 	// Build API router with all dependencies.
 	deps := &pollerapi.Dependencies{
 		DB:         db,
@@ -121,6 +131,7 @@ func main() {
 		Sessions:   sessions,
 		Config:     cfg,
 		Pricer:     pricer,
+		StaticFS:   staticFS,
 	}
 	router := pollerapi.NewRouter(deps)
 

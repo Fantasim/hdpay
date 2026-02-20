@@ -150,7 +150,7 @@ func NewHeliusProvider(client *http.Client, network, apiKey string) *SolanaRPCPr
 
 	slog.Info("helius provider created",
 		"network", network,
-		"rpcURL", rpcURL,
+		"hasAPIKey", apiKey != "",
 	)
 
 	return &SolanaRPCProvider{

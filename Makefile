@@ -30,8 +30,12 @@ build-frontend:
 dev-poller:
 	$(GO) run $(LDFLAGS) ./cmd/poller
 
-# Build Poller binary
-build-poller:
+# Build Poller frontend only
+build-poller-frontend:
+	cd web/poller && npm run build
+
+# Build Poller binary (frontend + Go with embedded SPA)
+build-poller: build-poller-frontend
 	$(GO) build $(LDFLAGS) -o bin/poller ./cmd/poller
 
 # ── Tests ──────────────────────────────────────────────
@@ -65,4 +69,4 @@ lint:
 clean:
 	rm -f hdpay
 	rm -f bin/poller
-	rm -rf web/build web/.svelte-kit
+	rm -rf web/build web/.svelte-kit web/poller/build web/poller/.svelte-kit

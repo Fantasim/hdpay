@@ -308,11 +308,11 @@ func resolveDateRange(timeRange string) (dateFrom, dateTo string, err error) {
 	case "today":
 		dateFrom = dateTo
 	case "week":
-		dateFrom = now.AddDate(0, 0, -7).Format("2006-01-02")
+		dateFrom = now.AddDate(0, 0, pollerconfig.DateRangeWeekDays).Format("2006-01-02")
 	case "month":
-		dateFrom = now.AddDate(0, 0, -30).Format("2006-01-02")
+		dateFrom = now.AddDate(0, 0, pollerconfig.DateRangeMonthDays).Format("2006-01-02")
 	case "quarter":
-		dateFrom = now.AddDate(0, 0, -90).Format("2006-01-02")
+		dateFrom = now.AddDate(0, 0, pollerconfig.DateRangeQuarterDays).Format("2006-01-02")
 	case "all":
 		dateFrom = ""
 		dateTo = ""

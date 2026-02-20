@@ -1,8 +1,10 @@
 package api
 
 import (
+	"io/fs"
 	"log/slog"
 
+	hdhandlers "github.com/Fantasim/hdpay/internal/api/handlers"
 	hdmiddleware "github.com/Fantasim/hdpay/internal/api/middleware"
 	"github.com/Fantasim/hdpay/internal/poller/api/handlers"
 	pollermw "github.com/Fantasim/hdpay/internal/poller/api/middleware"
@@ -23,6 +25,7 @@ type Dependencies struct {
 	Sessions   *pollermw.SessionStore
 	Config     *pollerconfig.Config
 	Pricer     *points.Pricer
+	StaticFS   fs.FS // Embedded SvelteKit build (nil in dev mode)
 }
 
 // NewRouter creates and configures the Chi router with all middleware and routes.
@@ -80,6 +83,12 @@ func NewRouter(deps *Dependencies) chi.Router {
 			r.Get("/errors", handlers.DashboardErrorsHandler(deps.DB))
 		})
 	})
+
+	// Embedded SPA: serve static files with client-side routing fallback.
+	if deps.StaticFS != nil {
+		slog.Info("embedded SPA enabled, serving static files with fallback")
+		r.NotFound(hdhandlers.SPAHandler(deps.StaticFS))
+	}
 
 	return r
 }

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import { listWatches } from '$lib/utils/api';
-	import { truncateAddress, formatTimestamp, formatCountdown, chainBadgeClass } from '$lib/utils/formatting';
+	import { truncateAddress, formatTimestamp, formatCountdown, badgeClass } from '$lib/utils/formatting';
 	import { SUPPORTED_CHAINS, WATCH_STATUSES } from '$lib/constants';
 	import type { Watch, WatchStatus } from '$lib/types';
 
@@ -47,10 +47,6 @@
 		void tick;
 		if (watch.status !== 'ACTIVE') return '\u2014';
 		return formatCountdown(watch.expires_at);
-	}
-
-	function statusBadgeClass(status: WatchStatus): string {
-		return `badge badge-${status.toLowerCase()}`;
 	}
 
 	onMount(() => {
@@ -140,10 +136,10 @@
 									</span>
 								</td>
 								<td>
-									<span class={chainBadgeClass(watch.chain)}>{watch.chain}</span>
+									<span class={badgeClass(watch.chain)}>{watch.chain}</span>
 								</td>
 								<td>
-									<span class={statusBadgeClass(watch.status)}>{watch.status}</span>
+									<span class={badgeClass(watch.status)}>{watch.status}</span>
 								</td>
 								<td class="text-sm">{formatTimestamp(watch.started_at)}</td>
 								<td>

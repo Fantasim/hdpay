@@ -4,9 +4,9 @@
 
 ## Current Position
 - **Version:** V1
-- **Phase:** Building (Phase 8 of 8 next — final phase)
-- **Status:** Phase 7 (Dashboard Pages) complete. All 6 pages built with charts, tables, filters, forms. ECharts integrated with tree-shaking.
-- **Last session:** 2026-02-20 — Phase 7 Dashboard Pages built
+- **Phase:** Building — ALL 8 PHASES COMPLETE
+- **Status:** V1 build finished. Single 21MB binary with embedded SvelteKit frontend. Security hardened, test coverage boosted.
+- **Last session:** 2026-02-20 — Phase 8 Embedding & Polish completed (final phase)
 
 ## Build Progress
 
@@ -19,9 +19,9 @@
 | 5 | API Layer | **DONE** | 1 |
 | 6 | Frontend Setup & Auth | **DONE** | 1 |
 | 7 | Dashboard Pages | **DONE** | 1 |
-| 8 | Embedding & Polish | **NEXT** | ~1 |
+| 8 | Embedding & Polish | **DONE** | 1 |
 
-**Total estimate: 10-13 sessions (7 done)**
+**Total: 10 sessions (all 8 phases complete)**
 
 ## Phase 7 Deliverables (Complete)
 
@@ -42,11 +42,13 @@
 ### Dependencies Added
 - `echarts`, `svelte-echarts@1.0.0`, `@tanstack/table-core`
 
-## Phase 8: Embedding & Polish (Next)
-- Go binary with `go:embed` for SPA serving
-- SvelteKit build output embedded in Go binary
-- Final integration testing
-- Polish and cleanup
+## Phase 8: Embedding & Polish (Complete)
+- Single 21MB Go binary with embedded SvelteKit frontend via `go:embed`
+- SPA handler with immutable asset caching and client-side routing fallback
+- Security fixes: Helius API key leak, cookie Secure flag
+- Constants audit: date range values extracted to config
+- Utility dedup: shared `badgeClass()` replacing inline duplicates
+- Test coverage boost: pollerdb 47.6% → 77.3%
 
 ## Key Decisions
 - **Module structure**: Poller lives inside HDPay's Go module (`cmd/poller/` + `internal/poller/`). Full access to HDPay's `internal/` packages. Two binaries from one module.
@@ -81,7 +83,9 @@
 | Deployment | Single Go binary with embedded SPA (go:embed) |
 
 ## Next Actions
-- Run `/cf-next` to start Phase 8: Embedding & Polish (final phase)
+- All V1 build phases complete!
+- Run `/cf-save` to save the final session state
+- Run `/cf-new-version` to start planning V2
 
 ## Files Reference
 | File | Purpose |
@@ -107,3 +111,4 @@
 | 7 | 2026-02-20 | building | Phase 5 API Layer completed. Chi router, middleware, 17 endpoints, dashboard DB, 40 tests. |
 | 8 | 2026-02-20 | building | Phase 6 Frontend Setup & Auth completed. SvelteKit project, design system, login, sidebar, auth, API client, 6 stub routes. |
 | 9 | 2026-02-20 | building | Phase 7 Dashboard Pages completed. All 6 pages (overview+charts, transactions, watches, points, errors, settings). ECharts integrated. |
+| 10 | 2026-02-20 | building | Phase 8 Embedding & Polish completed (FINAL). 21MB binary, security fixes, constants/dedup audit, pollerdb coverage 77.3%. |
