@@ -115,6 +115,7 @@ type SolanaRPCProvider struct {
 	client  *http.Client
 	rpcURL  string
 	network string
+	name    string
 }
 
 // NewSolanaRPCProvider creates a Solana RPC provider for the given network.
@@ -133,17 +134,18 @@ func NewSolanaRPCProvider(client *http.Client, network string) *SolanaRPCProvide
 		client:  client,
 		rpcURL:  rpcURL,
 		network: network,
+		name:    "solana-rpc",
 	}
 }
 
 // NewHeliusProvider creates a Helius-backed Solana RPC provider.
+// API key is optional; without it, Helius serves as a no-key public endpoint.
 func NewHeliusProvider(client *http.Client, network, apiKey string) *SolanaRPCProvider {
 	rpcURL := hdconfig.HeliusMainnetRPCURL
 	if apiKey != "" {
 		rpcURL += "?api-key=" + apiKey
 	}
-	// Helius doesn't have a separate devnet endpoint in our constants,
-	// so fall back to Solana devnet for testnet mode.
+	// Helius doesn't have a separate devnet endpoint — fall back to Solana devnet.
 	if network == "testnet" {
 		rpcURL = hdconfig.SolanaDevnetRPCURL
 	}
@@ -157,10 +159,97 @@ func NewHeliusProvider(client *http.Client, network, apiKey string) *SolanaRPCPr
 		client:  client,
 		rpcURL:  rpcURL,
 		network: network,
+		name:    "helius",
 	}
 }
 
-func (p *SolanaRPCProvider) Name() string { return "solana-rpc" }
+// NewAnkrSolanaProvider creates an Ankr-backed Solana RPC provider.
+// No API key required; guaranteed ~30 req/s, no monthly cap.
+func NewAnkrSolanaProvider(client *http.Client, network string) *SolanaRPCProvider {
+	rpcURL := hdconfig.AnkrSolanaMainnetURL
+	if network == "testnet" {
+		rpcURL = hdconfig.AnkrSolanaDevnetURL
+	}
+
+	slog.Info("ankr solana provider created",
+		"network", network,
+		"rpcURL", rpcURL,
+	)
+
+	return &SolanaRPCProvider{
+		client:  client,
+		rpcURL:  rpcURL,
+		network: network,
+		name:    "ankr-solana",
+	}
+}
+
+// NewDRPCSolanaProvider creates a dRPC-backed Solana RPC provider.
+// No API key required; generous 210M CU/month free tier.
+// Falls back to Solana devnet for testnet (no dRPC devnet endpoint).
+func NewDRPCSolanaProvider(client *http.Client, network string) *SolanaRPCProvider {
+	rpcURL := hdconfig.DRPCSolanaURL
+	if network == "testnet" {
+		rpcURL = hdconfig.SolanaDevnetRPCURL
+	}
+
+	slog.Info("drpc solana provider created",
+		"network", network,
+		"rpcURL", rpcURL,
+	)
+
+	return &SolanaRPCProvider{
+		client:  client,
+		rpcURL:  rpcURL,
+		network: network,
+		name:    "drpc-solana",
+	}
+}
+
+// NewOnFinalitySolanaProvider creates an OnFinality-backed Solana RPC provider.
+// No API key required; no documented monthly cap.
+// Falls back to Solana devnet for testnet (no OnFinality devnet endpoint).
+func NewOnFinalitySolanaProvider(client *http.Client, network string) *SolanaRPCProvider {
+	rpcURL := hdconfig.OnFinalitySolanaURL
+	if network == "testnet" {
+		rpcURL = hdconfig.SolanaDevnetRPCURL
+	}
+
+	slog.Info("onfinality solana provider created",
+		"network", network,
+		"rpcURL", rpcURL,
+	)
+
+	return &SolanaRPCProvider{
+		client:  client,
+		rpcURL:  rpcURL,
+		network: network,
+		name:    "onfinality-solana",
+	}
+}
+
+// NewAlchemySolanaProvider creates an Alchemy-backed Solana RPC provider.
+// Requires API key from alchemy.com (free tier: 30M CU/month, 25 RPS).
+// The API key is embedded in the URL path (/v2/{api_key}).
+func NewAlchemySolanaProvider(client *http.Client, network, apiKey string) *SolanaRPCProvider {
+	rpcURL := fmt.Sprintf(hdconfig.AlchemySolanaMainnetURLFmt, apiKey)
+	if network == "testnet" {
+		rpcURL = fmt.Sprintf(hdconfig.AlchemySolanaDevnetURLFmt, apiKey)
+	}
+
+	slog.Info("alchemy solana provider created",
+		"network", network,
+	)
+
+	return &SolanaRPCProvider{
+		client:  client,
+		rpcURL:  rpcURL,
+		network: network,
+		name:    "alchemy-solana",
+	}
+}
+
+func (p *SolanaRPCProvider) Name() string { return p.name }
 func (p *SolanaRPCProvider) Chain() string { return "SOL" }
 
 // FetchTransactions detects incoming SOL and SPL token transfers for an address since cutoffUnix.

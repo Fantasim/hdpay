@@ -42,42 +42,59 @@ type BSCRPCPollerProvider struct {
 // api.bscscan.com was shut down Dec 18, 2025; this implementation uses only
 // go-ethereum ethclient and requires no external API key.
 // Rate limiting is handled externally by ProviderSet.
+//
+// On startup, tries a prioritised list of mainnet RPC URLs and uses the first that responds.
+// This provider maintains per-address balance state (lastKnownBal) for native BNB change
+// detection, so only one instance should be created per pool.
 func NewBSCRPCPollerProvider(network string) (*BSCRPCPollerProvider, error) {
-	rpcURL := hdconfig.BscRPCMainnetURL
 	if network == "testnet" {
-		rpcURL = hdconfig.BscRPCTestnetURL
-	}
-
-	slog.Info("bsc rpc poller provider connecting",
-		"rpcURL", rpcURL,
-		"network", network,
-	)
-
-	client, err := ethclient.Dial(rpcURL)
-	if err != nil {
-		// Try the Ankr fallback immediately if the primary fails.
-		slog.Warn("primary BSC RPC failed, trying Ankr fallback",
-			"primary", rpcURL,
-			"fallback", hdconfig.BscRPCMainnetURL2,
-			"error", err,
+		rpcURL := hdconfig.BscRPCTestnetURL
+		slog.Info("bsc rpc poller provider connecting",
+			"rpcURL", rpcURL,
+			"network", network,
 		)
-		if network != "testnet" {
-			client, err = ethclient.Dial(hdconfig.BscRPCMainnetURL2)
-			if err != nil {
-				return nil, fmt.Errorf("dial BSC RPC (primary + fallback): %w", err)
-			}
-			rpcURL = hdconfig.BscRPCMainnetURL2
-		} else {
+		client, err := ethclient.Dial(rpcURL)
+		if err != nil {
 			return nil, fmt.Errorf("dial BSC RPC %s: %w", rpcURL, err)
 		}
+		slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
+		return &BSCRPCPollerProvider{client: client, network: network}, nil
 	}
 
-	slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
+	// Mainnet: try each URL in priority order until one connects.
+	// Multiple official dataseed nodes + Ankr + LlamaNodes + dRPC for maximum resilience.
+	mainnetURLs := []string{
+		hdconfig.BscRPCMainnetURL,  // bsc-dataseed.binance.org (official)
+		hdconfig.BscRPCMainnetURL2, // rpc.ankr.com/bsc (reliable, 30 req/s)
+		hdconfig.LlamaNodesBSCURL,  // bsc.llamarpc.com (50 req/s, no key)
+		hdconfig.BscRPCMainnetURL3, // bsc-dataseed.nariox.org
+		hdconfig.BscRPCMainnetURL4, // bsc-dataseed.defibit.io
+		hdconfig.BscRPCMainnetURL5, // bsc-dataseed.ninicoin.io
+		hdconfig.BscRPCMainnetURL6, // bsc-dataseed-public.bnbchain.org
+		hdconfig.DRPCBSCURL,        // bsc.drpc.org (generous free tier)
+	}
 
-	return &BSCRPCPollerProvider{
-		client:  client,
-		network: network,
-	}, nil
+	for i, rpcURL := range mainnetURLs {
+		slog.Info("bsc rpc poller provider connecting",
+			"rpcURL", rpcURL,
+			"attempt", i+1,
+			"total", len(mainnetURLs),
+		)
+
+		client, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			slog.Warn("bsc rpc url failed, trying next",
+				"rpcURL", rpcURL,
+				"error", err,
+			)
+			continue
+		}
+
+		slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
+		return &BSCRPCPollerProvider{client: client, network: network}, nil
+	}
+
+	return nil, fmt.Errorf("dial BSC RPC: all %d mainnet URLs failed", len(mainnetURLs))
 }
 
 func (p *BSCRPCPollerProvider) Name() string  { return "bscrpc-poller" }

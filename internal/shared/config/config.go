@@ -18,8 +18,12 @@ type Config struct {
 	LogDir       string `envconfig:"HDPAY_LOG_DIR" default:"./logs"`
 	Network      string `envconfig:"HDPAY_NETWORK" default:"testnet"`
 
-	BscScanAPIKey string `envconfig:"HDPAY_BSCSCAN_API_KEY"`
-	HeliusAPIKey  string `envconfig:"HDPAY_HELIUS_API_KEY"`
+	// Deprecated: BscScan API was shut down Dec 18, 2025. This field is no longer used.
+	BscScanAPIKey     string `envconfig:"HDPAY_BSCSCAN_API_KEY"`
+	HeliusAPIKey      string `envconfig:"HDPAY_HELIUS_API_KEY"`
+	NodeRealAPIKey    string `envconfig:"HDPAY_NODEREAL_API_KEY"`
+	AlchemyAPIKey     string `envconfig:"HDPAY_ALCHEMY_API_KEY"`
+	BlockCypherAPIKey string `envconfig:"HDPAY_BLOCKCYPHER_API_KEY"`
 
 	BTCFeeRate       int    `envconfig:"HDPAY_BTC_FEE_RATE" default:"10"`
 	BSCGasPreSeedWei string `envconfig:"HDPAY_BSC_GAS_PRESEED_WEI" default:"5000000000000000"`

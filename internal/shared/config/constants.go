@@ -77,12 +77,14 @@ const (
 const (
 	BlockstreamMainnetURL = "https://blockstream.info/api"
 	MempoolMainnetURL     = "https://mempool.space/api"
+	BitapsMainnetURL      = "https://api.bitaps.com/btc/v1/blockchain"
 )
 
 // Provider URLs — BTC Testnet
 const (
 	BlockstreamTestnetURL = "https://blockstream.info/testnet/api"
 	MempoolTestnetURL     = "https://mempool.space/testnet/api"
+	BitapsTestnetURL      = "https://api.bitaps.com/btc/testnet/v1/blockchain"
 )
 
 // Provider URLs — BSC
@@ -92,15 +94,34 @@ const (
 	BscScanAPIURL     = "https://api.bscscan.com/api" // DEPRECATED
 	BscRPCMainnetURL  = "https://bsc-dataseed.binance.org"
 	BscRPCMainnetURL2 = "https://rpc.ankr.com/bsc"
+	BscRPCMainnetURL3 = "https://bsc-dataseed.nariox.org"
+	BscRPCMainnetURL4 = "https://bsc-dataseed.defibit.io"
+	BscRPCMainnetURL5 = "https://bsc-dataseed.ninicoin.io"
+	BscRPCMainnetURL6 = "https://bsc-dataseed-public.bnbchain.org"
+	LlamaNodesBSCURL  = "https://bsc.llamarpc.com"
+	DRPCBSCURL        = "https://bsc.drpc.org"
+	NodeRealBSCRPCURL = "https://bsc.nodereal.io"
 	BscRPCTestnetURL  = "https://data-seed-prebsc-1-s1.binance.org:8545"
 	BscScanTestnetURL = "https://api-testnet.bscscan.com/api" // DEPRECATED
+	// NodeReal BSCTrace — Etherscan-compatible API (official replacement for deprecated BscScan).
+	// Requires free API key from nodereal.io. API key is embedded in the URL path.
+	// Full URL format: NodeRealBSCTraceBaseURL + "/" + apiKey + "/bsctrace/api"
+	NodeRealBSCTraceBaseURL = "https://open-platform.nodereal.io"
 )
 
 // Provider URLs — Solana
 const (
-	SolanaMainnetRPCURL = "https://api.mainnet-beta.solana.com"
-	HeliusMainnetRPCURL = "https://mainnet.helius-rpc.com"
-	SolanaDevnetRPCURL  = "https://api.devnet.solana.com"
+	SolanaMainnetRPCURL      = "https://api.mainnet-beta.solana.com"
+	HeliusMainnetRPCURL      = "https://mainnet.helius-rpc.com"
+	SolanaDevnetRPCURL       = "https://api.devnet.solana.com"
+	AnkrSolanaMainnetURL     = "https://rpc.ankr.com/solana"
+	AnkrSolanaDevnetURL      = "https://rpc.ankr.com/solana_devnet"
+	DRPCSolanaURL            = "https://solana.drpc.org"
+	OnFinalitySolanaURL      = "https://solana.api.onfinality.io/public"
+	// Alchemy Solana RPC — requires API key from alchemy.com.
+	// API key is embedded in the URL path: /v2/{api_key}
+	AlchemySolanaMainnetURLFmt = "https://solana-mainnet.g.alchemy.com/v2/%s"
+	AlchemySolanaDevnetURLFmt  = "https://solana-devnet.g.alchemy.com/v2/%s"
 )
 
 // Solana Program IDs
@@ -116,8 +137,16 @@ const (
 	RateLimitBlockstream    = 5  // nginx heavylimitzone = 5r/s (was incorrectly set to 10)
 	RateLimitMempool        = 3  // nginx 200r/m ≈ 3.3r/s (was incorrectly set to 10)
 	RateLimitBlockchainInfo = 5
+	RateLimitBitaps         = 5  // community estimate; no official rate limit docs
+	RateLimitBSCRPC         = 10 // conservative for public BSC JSON-RPC nodes
+	RateLimitLlamaNodes     = 50 // 50 req/s; no key, no registration required
+	RateLimitDRPC           = 50 // conservative; actual free tier capacity is ~2,100 CUPS
+	RateLimitNodeReal       = 10 // 150 CUPS free tier ≈ 10 req/s for non-trivial calls
 	RateLimitSolanaRPC      = 10
 	RateLimitHelius         = 10
+	RateLimitAnkrSOL        = 30 // ~1,800 req/min guaranteed = 30 req/s
+	RateLimitAlchemy        = 25 // 25 RPS on free tier
+	RateLimitOnFinality     = 10 // conservative; no official docs
 	RateLimitCoinGecko      = 30 // requests per minute — Demo plan = 30 RPM (was 10)
 )
 
@@ -126,10 +155,17 @@ const (
 const (
 	KnownMonthlyLimitBlockstream = int64(500_000)   // free unauthenticated tier
 	KnownMonthlyLimitMempool     = int64(0)          // no monthly cap, only per-minute rate
+	KnownMonthlyLimitBitaps      = int64(0)          // no documented monthly cap
 	KnownMonthlyLimitHelius      = int64(1_000_000)  // credits/month (1 credit per std RPC call)
 	KnownMonthlyLimitSolanaRPC   = int64(0)          // no monthly cap
 	KnownMonthlyLimitCoinGecko   = int64(10_000)     // Demo plan: 10K calls/month
 	KnownMonthlyLimitBSCRPC      = int64(0)          // public RPC — no monthly cap
+	KnownMonthlyLimitLlamaNodes  = int64(0)          // no documented monthly cap
+	KnownMonthlyLimitDRPC        = int64(0)          // no cap on no-key tier
+	KnownMonthlyLimitNodeReal    = int64(10_000_000) // 10M CU/month free tier
+	KnownMonthlyLimitAnkrSOL     = int64(0)          // no documented monthly cap
+	KnownMonthlyLimitAlchemy     = int64(30_000_000) // 30M CU/month free tier
+	KnownMonthlyLimitOnFinality  = int64(0)          // no documented monthly cap
 )
 
 // Transaction — General

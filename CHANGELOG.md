@@ -1,5 +1,36 @@
 # Changelog
 
+## Provider Audit & Expansion — 2026-02-23
+
+#### Added
+- **BTC**: Bitaps as 3rd provider in wallet scanner and poller (free, no-key, Esplora-like REST API)
+- **BSC scanner**: LlamaNodes, dRPC, NodeReal MegaNode, and 4 additional BNB Chain dataseed nodes added to round-robin pool (up from 2 to 8 total RPC endpoints)
+- **BSC scanner**: NodeReal BSCTrace optional batch provider (`HDPAY_NODEREAL_API_KEY`) — restores 20-address batch balance queries lost when BscScan shut down Dec 18, 2025 (`internal/shared/scanner/bsc_nodereal.go`)
+- **SOL scanner**: Ankr, dRPC, OnFinality added as no-key providers (up from 2 to 5); Alchemy support added as optional key-based provider (`HDPAY_ALCHEMY_API_KEY`)
+- **SOL poller**: Ankr, dRPC, OnFinality, Alchemy added to `initProviderSets` in `cmd/poller/main.go`
+- **BSC poller**: Expanded fallback URL list from 2 to 8 endpoints for `BSCRPCPollerProvider` initialization
+- New API key config fields: `NodeRealAPIKey`, `AlchemyAPIKey`, `BlockCypherAPIKey` in both wallet and poller config
+- Updated `.env.wallet.example` and `.env.poller.example` with all optional API keys, inline documentation, and removed deprecated `BSCSCAN_API_KEY`
+
+#### Changed
+- `NewBSCRPCProvider` signature changed from `(rl, network)` to `(rl, name, rpcURL)` to support multi-instance rotation with named providers
+- Fixed BSC poller using wrong `RateLimitSolanaRPC` constant; now correctly uses `RateLimitBSCRPC`
+- `setup.go` now loops over all BSC RPC URLs, skipping any that fail to connect
+- `bsc_rpc_test.go` updated to set `name: "BSCRPC"` on directly-constructed structs
+
+#### Provider Count Summary
+
+| Chain | Before | After |
+|-------|--------|-------|
+| BTC scanner | 2 | 3 |
+| BTC poller | 2 | 3 |
+| BSC scanner | 2 active | up to 9 (8 RPC + optional NodeReal batch) |
+| BSC poller | 2 | 8 (failover chain) |
+| SOL scanner | 2 | 5 no-key + up to 2 key-based |
+| SOL poller | 1–2 | 4 no-key + up to 2 key-based |
+
+---
+
 ## Poller Robustness Audit — 18 Fixes — 2026-02-23
 
 #### Fixed (Critical Safety)

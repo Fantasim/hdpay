@@ -46,6 +46,7 @@ func newBSCRPCTestProvider(t *testing.T, handler http.HandlerFunc) (*BSCRPCProvi
 
 	rl := NewRateLimiter("test", 100, 0)
 	provider := &BSCRPCProvider{
+		name:   "BSCRPC",
 		client: client,
 		rl:     rl,
 		rpcURL: server.URL,
@@ -308,7 +309,7 @@ func TestBSCRPCProvider_TokenMalformedResponse(t *testing.T) {
 }
 
 func TestBSCRPCProvider_Metadata(t *testing.T) {
-	provider := &BSCRPCProvider{}
+	provider := &BSCRPCProvider{name: "BSCRPC"}
 	if provider.Name() != "BSCRPC" {
 		t.Errorf("expected name BSCRPC, got %s", provider.Name())
 	}

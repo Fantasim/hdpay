@@ -19,8 +19,12 @@ type Config struct {
 	StartDate           int64  `envconfig:"POLLER_START_DATE" required:"true"`
 	AdminUsername       string `envconfig:"POLLER_ADMIN_USERNAME" required:"true"`
 	AdminPassword       string `envconfig:"POLLER_ADMIN_PASSWORD" required:"true"`
-	BscScanAPIKey       string `envconfig:"POLLER_BSCSCAN_API_KEY"`
-	HeliusAPIKey        string `envconfig:"POLLER_HELIUS_API_KEY"`
+	// Deprecated: BscScan API was shut down Dec 18, 2025. This field is no longer used.
+	BscScanAPIKey     string `envconfig:"POLLER_BSCSCAN_API_KEY"`
+	HeliusAPIKey      string `envconfig:"POLLER_HELIUS_API_KEY"`
+	NodeRealAPIKey    string `envconfig:"POLLER_NODEREAL_API_KEY"`
+	AlchemyAPIKey     string `envconfig:"POLLER_ALCHEMY_API_KEY"`
+	BlockCypherAPIKey string `envconfig:"POLLER_BLOCKCYPHER_API_KEY"`
 	MaxActiveWatches    int    `envconfig:"POLLER_MAX_ACTIVE_WATCHES" default:"100"`
 	DefaultWatchTimeout int    `envconfig:"POLLER_DEFAULT_WATCH_TIMEOUT_MIN" default:"30"`
 	TiersFile           string `envconfig:"POLLER_TIERS_FILE" default:"./tiers.json"`

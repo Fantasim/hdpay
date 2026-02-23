@@ -22,18 +22,15 @@ type BSCRPCProvider struct {
 	client *ethclient.Client
 	rl     *RateLimiter
 	rpcURL string
+	name   string
 }
 
 // NewBSCRPCProvider creates a provider that connects to a BSC JSON-RPC endpoint.
-func NewBSCRPCProvider(rl *RateLimiter, network string) (*BSCRPCProvider, error) {
-	rpcURL := config.BscRPCMainnetURL
-	if network == string(models.NetworkTestnet) {
-		rpcURL = config.BscRPCTestnetURL
-	}
-
+// name is used for logging and metrics; rpcURL is the full JSON-RPC endpoint URL.
+func NewBSCRPCProvider(rl *RateLimiter, name, rpcURL string) (*BSCRPCProvider, error) {
 	slog.Info("bsc rpc provider connecting",
+		"name", name,
 		"rpcURL", rpcURL,
-		"network", network,
 	)
 
 	client, err := ethclient.Dial(rpcURL)
@@ -41,16 +38,17 @@ func NewBSCRPCProvider(rl *RateLimiter, network string) (*BSCRPCProvider, error)
 		return nil, fmt.Errorf("dial BSC RPC %s: %w", rpcURL, err)
 	}
 
-	slog.Info("bsc rpc provider connected", "rpcURL", rpcURL)
+	slog.Info("bsc rpc provider connected", "name", name, "rpcURL", rpcURL)
 
 	return &BSCRPCProvider{
 		client: client,
 		rl:     rl,
 		rpcURL: rpcURL,
+		name:   name,
 	}, nil
 }
 
-func (p *BSCRPCProvider) Name() string              { return "BSCRPC" }
+func (p *BSCRPCProvider) Name() string              { return p.name }
 func (p *BSCRPCProvider) Chain() models.Chain        { return models.ChainBSC }
 func (p *BSCRPCProvider) MaxBatchSize() int          { return 1 }
 func (p *BSCRPCProvider) RecordSuccess()             { p.rl.RecordSuccess() }
@@ -60,7 +58,7 @@ func (p *BSCRPCProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 // Close closes the underlying ethclient connection.
 func (p *BSCRPCProvider) Close() {
 	p.client.Close()
-	slog.Info("bsc rpc provider closed", "rpcURL", p.rpcURL)
+	slog.Info("bsc rpc provider closed", "name", p.name, "rpcURL", p.rpcURL)
 }
 
 // FetchNativeBalances fetches BNB balance for each address using eth_getBalance.
