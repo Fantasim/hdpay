@@ -1,1 +1,0 @@
-You have I believe a lot of informations to answer all your questions in /home/louis/dev/hdpay/poller/.project/custom
