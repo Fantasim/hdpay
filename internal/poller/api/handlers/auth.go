@@ -42,8 +42,8 @@ func LoginHandler(sessions *middleware.SessionStore) http.HandlerFunc {
 			Value:    token,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
+			Secure:   false, // localhost-only app, no HTTPS
+			SameSite: http.SameSiteLaxMode,
 		})
 
 		slog.Info("admin login via API", "remoteAddr", r.RemoteAddr)
@@ -66,8 +66,8 @@ func LogoutHandler(sessions *middleware.SessionStore) http.HandlerFunc {
 			Path:     "/",
 			MaxAge:   -1,
 			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
+			Secure:   false, // localhost-only app, no HTTPS
+			SameSite: http.SameSiteLaxMode,
 		})
 
 		slog.Info("admin logout via API", "remoteAddr", r.RemoteAddr)

@@ -567,12 +567,12 @@ func TestAdminUpdateTiers(t *testing.T) {
 	td := setupTestDeps(t)
 	cookie := loginAndGetCookie(t, td)
 
-	// Valid update: 2 tiers.
+	// Valid update: 2 tiers (wrapped in {tiers: [...]}).
 	tiers := []models.Tier{
 		{MinUSD: 0, MaxUSD: ptrFloat(10), Multiplier: 1.0},
 		{MinUSD: 10, MaxUSD: nil, Multiplier: 2.0},
 	}
-	body, _ := json.Marshal(tiers)
+	body, _ := json.Marshal(map[string]interface{}{"tiers": tiers})
 
 	req := httptest.NewRequest("PUT", "/api/admin/tiers", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -598,7 +598,7 @@ func TestAdminUpdateTiers_Invalid(t *testing.T) {
 	cookie := loginAndGetCookie(t, td)
 
 	// Only 1 tier — should fail validation.
-	body := `[{"min_usd":0,"max_usd":null,"multiplier":1.0}]`
+	body := `{"tiers":[{"min_usd":0,"max_usd":null,"multiplier":1.0}]}`
 	req := httptest.NewRequest("PUT", "/api/admin/tiers", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "127.0.0.1:12345"

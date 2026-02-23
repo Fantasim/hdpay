@@ -25,7 +25,7 @@ export interface APIErrorResponse {
 
 export interface PaginationMeta {
 	page: number;
-	pageSize: number;
+	page_size: number;
 	total: number;
 }
 

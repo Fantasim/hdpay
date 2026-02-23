@@ -1,5 +1,20 @@
 # Changelog
 
+## Poller Bug Fixes — 2026-02-23
+
+#### Fixed
+- Cookie `Secure: true` blocking login on HTTP localhost (cookie was silently discarded by browsers, causing all authenticated pages to return 401)
+- `SameSiteStrictMode` changed to `SameSiteLaxMode` for login/logout cookies
+- `GetSettingsHandler` response missing `db_path`, `tiers_file`, `default_watch_timeout_min` fields; `start_date` sent as RFC3339 string instead of Unix timestamp
+- `HealthHandler` response missing `uptime` and `version` fields expected by frontend
+- `UpdateTiersHandler` expecting flat `[]Tier` array but frontend sends `{tiers: [...]}`
+- `UpdateWatchDefaultsHandler` JSON tag `default_watch_timeout` not matching frontend's `default_watch_timeout_min`
+- `PaginationMeta.pageSize` in frontend not matching backend's `page_size` snake_case JSON, breaking transaction pagination
+
+#### Added
+- `Version` constant in poller config (`1.0.0`)
+- `formatUptime()` helper and `serverStartTime` for health endpoint uptime tracking
+
 ## Restructure — 2026-02-20
 
 #### Changed

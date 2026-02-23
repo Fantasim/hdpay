@@ -78,9 +78,9 @@
 		fetchData();
 	}
 
-	let totalPages = $derived(meta ? Math.ceil(meta.total / meta.pageSize) : 0);
-	let showFrom = $derived(meta ? (meta.page - 1) * meta.pageSize + 1 : 0);
-	let showTo = $derived(meta ? Math.min(meta.page * meta.pageSize, meta.total) : 0);
+	let totalPages = $derived(meta ? Math.ceil(meta.total / meta.page_size) : 0);
+	let showFrom = $derived(meta ? (meta.page - 1) * meta.page_size + 1 : 0);
+	let showTo = $derived(meta ? Math.min(meta.page * meta.page_size, meta.total) : 0);
 
 	let pageNumbers = $derived.by(() => {
 		if (!totalPages) return [];

@@ -2,6 +2,9 @@ package config
 
 import "time"
 
+// Version
+const Version = "1.0.0"
+
 // Polling Intervals
 const (
 	PollIntervalBTC = 60 * time.Second
