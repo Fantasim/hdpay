@@ -243,18 +243,19 @@ func (w *Watcher) processTransaction(ctx context.Context, watch *models.Watch, r
 		// Fetch price and calculate points.
 		usdPrice, priceErr := w.pricer.GetTokenPrice(ctx, raw.Token)
 		if priceErr != nil {
-			slog.Warn("price fetch failed for confirmed tx, inserting as PENDING",
+			slog.Warn("price fetch failed for confirmed tx, inserting as PENDING for price retry",
 				"txHash", raw.TxHash,
 				"token", raw.Token,
+				"confirmations", raw.Confirmations,
 				"error", priceErr,
 			)
-			// Fall back to PENDING — will be confirmed with price on next recheck.
+			// Insert as PENDING so recheckPending will retry with price later.
+			// We preserve the confirmation count so it won't need re-verification.
 			tx.Status = models.TxStatusPending
 			tx.Confirmations = raw.Confirmations
 			if _, err := w.db.InsertTransaction(tx); err != nil {
 				return fmt.Errorf("failed to insert pending tx: %w", err)
 			}
-			// Estimate pending points with 0 (no price available).
 			return nil
 		}
 
@@ -404,24 +405,13 @@ func (w *Watcher) recheckPending(ctx context.Context, watch *models.Watch, ps *p
 		calcResult := w.calculator.Calculate(usdValue)
 		confirmedAt := time.Now().UTC().Format(time.RFC3339)
 
-		if err := w.db.UpdateToConfirmed(
+		// Atomically confirm tx and move points in a single DB transaction.
+		if err := w.db.ConfirmTxAndMovePoints(
 			tx.TxHash, confirmations, tx.BlockNumber, confirmedAt,
 			usdValue, usdPrice, calcResult.TierIndex, calcResult.Multiplier, calcResult.Points,
+			tx.Address, watch.Chain, tx.Points,
 		); err != nil {
-			slog.Error("failed to update tx to confirmed",
-				"txHash", tx.TxHash,
-				"error", err,
-			)
-			lastErr = err
-			continue
-		}
-
-		// Move points from pending to unclaimed.
-		// Old pending points were estimated — remove them and add confirmed points.
-		if err := w.db.MovePendingToUnclaimed(
-			tx.Address, watch.Chain, tx.Points, calcResult.Points,
-		); err != nil {
-			slog.Error("failed to move pending to unclaimed",
+			slog.Error("failed to confirm tx and move points",
 				"txHash", tx.TxHash,
 				"address", tx.Address,
 				"error", err,

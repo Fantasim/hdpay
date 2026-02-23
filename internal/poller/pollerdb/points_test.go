@@ -2,6 +2,8 @@ package pollerdb
 
 import (
 	"testing"
+
+	"github.com/Fantasim/hdpay/internal/poller/models"
 )
 
 func TestGetOrCreatePoints(t *testing.T) {
@@ -215,5 +217,135 @@ func TestListWithPending(t *testing.T) {
 	}
 	if accounts[0].Address != "addr2" {
 		t.Errorf("Address = %q, want addr2", accounts[0].Address)
+	}
+}
+
+func TestMovePendingToUnclaimed_FloorsAtZero(t *testing.T) {
+	db := newTestDB(t)
+	db.GetOrCreatePoints("addr1", "BTC")
+
+	// Add 100 pending, then move with 200 pending estimate (more than available).
+	db.AddPending("addr1", "BTC", 100)
+	if err := db.MovePendingToUnclaimed("addr1", "BTC", 200, 300); err != nil {
+		t.Fatalf("MovePendingToUnclaimed() error = %v", err)
+	}
+
+	p, _ := db.GetOrCreatePoints("addr1", "BTC")
+	if p.Pending != 0 {
+		t.Errorf("Pending = %d, want 0 (should floor at 0, not go to -100)", p.Pending)
+	}
+	if p.Unclaimed != 300 {
+		t.Errorf("Unclaimed = %d, want 300", p.Unclaimed)
+	}
+}
+
+func TestFixNegativePending(t *testing.T) {
+	db := newTestDB(t)
+	db.GetOrCreatePoints("addr1", "BTC")
+	db.GetOrCreatePoints("addr2", "BSC")
+
+	// Manually force a negative pending for testing (bypassing the floor).
+	db.Conn().Exec("UPDATE points SET pending = -50 WHERE address = 'addr1' AND chain = 'BTC'")
+
+	fixed, err := db.FixNegativePending()
+	if err != nil {
+		t.Fatalf("FixNegativePending() error = %v", err)
+	}
+	if fixed != 1 {
+		t.Errorf("fixed = %d, want 1", fixed)
+	}
+
+	p, _ := db.GetOrCreatePoints("addr1", "BTC")
+	if p.Pending != 0 {
+		t.Errorf("Pending = %d, want 0 after fix", p.Pending)
+	}
+}
+
+func TestConfirmTxAndMovePoints_Atomic(t *testing.T) {
+	db := newTestDB(t)
+	db.GetOrCreatePoints("addr1", "BTC")
+	db.AddPending("addr1", "BTC", 100)
+
+	// Insert a pending tx.
+	tx := &models.Transaction{
+		WatchID:     "watch1",
+		TxHash:      "tx123",
+		Chain:       "BTC",
+		Address:     "addr1",
+		Token:       "BTC",
+		AmountRaw:   "100000",
+		AmountHuman: "0.001",
+		Decimals:    8,
+		Status:      models.TxStatusPending,
+		DetectedAt:  "2026-01-01T00:00:00Z",
+	}
+	if _, err := db.InsertTransaction(tx); err != nil {
+		t.Fatalf("InsertTransaction() error = %v", err)
+	}
+
+	blockNum := int64(100)
+	err := db.ConfirmTxAndMovePoints(
+		"tx123", 6, &blockNum, "2026-01-01T01:00:00Z",
+		50.0, 50000.0, 3, 1.5, 200,
+		"addr1", "BTC", 100,
+	)
+	if err != nil {
+		t.Fatalf("ConfirmTxAndMovePoints() error = %v", err)
+	}
+
+	// Verify tx is confirmed.
+	confirmed, _ := db.GetByTxHash("tx123")
+	if confirmed.Status != models.TxStatusConfirmed {
+		t.Errorf("tx status = %s, want CONFIRMED", confirmed.Status)
+	}
+	if confirmed.Points != 200 {
+		t.Errorf("tx points = %d, want 200", confirmed.Points)
+	}
+
+	// Verify points moved.
+	p, _ := db.GetOrCreatePoints("addr1", "BTC")
+	if p.Pending != 0 {
+		t.Errorf("Pending = %d, want 0", p.Pending)
+	}
+	if p.Unclaimed != 200 {
+		t.Errorf("Unclaimed = %d, want 200", p.Unclaimed)
+	}
+	if p.Total != 200 {
+		t.Errorf("Total = %d, want 200", p.Total)
+	}
+}
+
+func TestClaimPoints_Concurrent(t *testing.T) {
+	db := newTestDB(t)
+	db.GetOrCreatePoints("addr1", "BTC")
+	db.AddUnclaimed("addr1", "BTC", 10000)
+
+	// Run 10 concurrent claims — only one should get 10000, rest should get 0.
+	results := make(chan int, 10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			claimed, err := db.ClaimPoints("addr1", "BTC")
+			if err != nil {
+				t.Errorf("ClaimPoints() error = %v", err)
+				results <- 0
+				return
+			}
+			results <- claimed
+		}()
+	}
+
+	totalClaimed := 0
+	for i := 0; i < 10; i++ {
+		totalClaimed += <-results
+	}
+
+	if totalClaimed != 10000 {
+		t.Errorf("total claimed across 10 goroutines = %d, want exactly 10000 (no double-claiming)", totalClaimed)
+	}
+
+	// Verify account is at 0.
+	p, _ := db.GetOrCreatePoints("addr1", "BTC")
+	if p.Unclaimed != 0 {
+		t.Errorf("Unclaimed = %d, want 0", p.Unclaimed)
 	}
 }

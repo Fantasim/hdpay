@@ -249,4 +249,91 @@ func TestLastDetectedAt(t *testing.T) {
 	}
 }
 
+func TestCountByWatchID_SingleQuery(t *testing.T) {
+	db := newTestDB(t)
+	seedWatch(t, db, "w1")
+
+	// Insert mixed statuses.
+	db.InsertTransaction(&models.Transaction{
+		WatchID: "w1", TxHash: "p1", Chain: "BTC", Address: "a1", Token: "BTC",
+		AmountRaw: "100", AmountHuman: "0.000001", Decimals: 8,
+		Status: models.TxStatusPending, DetectedAt: "2026-01-01",
+	})
+	db.InsertTransaction(&models.Transaction{
+		WatchID: "w1", TxHash: "p2", Chain: "BTC", Address: "a1", Token: "BTC",
+		AmountRaw: "200", AmountHuman: "0.000002", Decimals: 8,
+		Status: models.TxStatusPending, DetectedAt: "2026-01-01",
+	})
+	db.InsertTransaction(&models.Transaction{
+		WatchID: "w1", TxHash: "c1", Chain: "BTC", Address: "a1", Token: "BTC",
+		AmountRaw: "300", AmountHuman: "0.000003", Decimals: 8,
+		Status: models.TxStatusConfirmed, DetectedAt: "2026-01-01", ConfirmedAt: ptr("2026-01-01"),
+	})
+
+	total, pending, err := db.CountByWatchID("w1")
+	if err != nil {
+		t.Fatalf("CountByWatchID() error = %v", err)
+	}
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+	if pending != 2 {
+		t.Errorf("pending = %d, want 2", pending)
+	}
+
+	// No transactions watch.
+	total, pending, err = db.CountByWatchID("nonexistent")
+	if err != nil {
+		t.Fatalf("CountByWatchID() error = %v", err)
+	}
+	if total != 0 || pending != 0 {
+		t.Errorf("nonexistent watch: total=%d pending=%d, want 0/0", total, pending)
+	}
+}
+
+func TestConfirmTxAndMovePoints_AtomicWithWatch(t *testing.T) {
+	db := newTestDB(t)
+	seedWatch(t, db, "w1")
+	db.GetOrCreatePoints("addr1", "BTC")
+	db.AddPending("addr1", "BTC", 150)
+
+	db.InsertTransaction(&models.Transaction{
+		WatchID: "w1", TxHash: "atomic1", Chain: "BTC", Address: "addr1", Token: "BTC",
+		AmountRaw: "100", AmountHuman: "0.001", Decimals: 8,
+		Points: 150,
+		Status: models.TxStatusPending, DetectedAt: "2026-01-01",
+	})
+
+	blockNum := int64(500)
+	err := db.ConfirmTxAndMovePoints(
+		"atomic1", 6, &blockNum, "2026-01-01T01:00:00Z",
+		75.0, 75000.0, 4, 1.3, 300,
+		"addr1", "BTC", 150,
+	)
+	if err != nil {
+		t.Fatalf("ConfirmTxAndMovePoints() error = %v", err)
+	}
+
+	// Verify transaction confirmed.
+	tx, _ := db.GetByTxHash("atomic1")
+	if tx.Status != models.TxStatusConfirmed {
+		t.Errorf("Status = %s, want CONFIRMED", tx.Status)
+	}
+	if tx.Points != 300 {
+		t.Errorf("Points = %d, want 300", tx.Points)
+	}
+
+	// Verify points account updated atomically.
+	p, _ := db.GetOrCreatePoints("addr1", "BTC")
+	if p.Pending != 0 {
+		t.Errorf("Pending = %d, want 0", p.Pending)
+	}
+	if p.Unclaimed != 300 {
+		t.Errorf("Unclaimed = %d, want 300", p.Unclaimed)
+	}
+	if p.Total != 300 {
+		t.Errorf("Total = %d, want 300", p.Total)
+	}
+}
+
 func ptr(s string) *string { return &s }

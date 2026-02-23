@@ -64,10 +64,11 @@ func (d *DB) AddPending(address, chain string, points int) error {
 }
 
 // MovePendingToUnclaimed moves points from pending to unclaimed+total when a tx confirms.
+// Uses MAX(pending - ?, 0) to prevent negative pending from price estimate drift.
 func (d *DB) MovePendingToUnclaimed(address, chain string, pendingPoints, confirmedPoints int) error {
 	_, err := d.conn.Exec(`
 		UPDATE points
-		SET pending = pending - ?,
+		SET pending = MAX(pending - ?, 0),
 		    unclaimed = unclaimed + ?,
 		    total = total + ?,
 		    updated_at = CURRENT_TIMESTAMP
@@ -87,10 +88,17 @@ func (d *DB) MovePendingToUnclaimed(address, chain string, pendingPoints, confir
 	return nil
 }
 
-// ClaimPoints resets unclaimed to 0 for the given address+chain. Returns the amount claimed.
+// ClaimPoints atomically resets unclaimed to 0 for the given address+chain.
+// Returns the amount claimed. Uses a single UPDATE + SELECT to avoid TOCTOU races.
 func (d *DB) ClaimPoints(address, chain string) (int, error) {
+	tx, err := d.conn.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin claim tx for %s/%s: %w", address, chain, err)
+	}
+	defer tx.Rollback()
+
 	var unclaimed int
-	err := d.conn.QueryRow(`
+	err = tx.QueryRow(`
 		SELECT unclaimed FROM points WHERE address = ? AND chain = ?`,
 		address, chain,
 	).Scan(&unclaimed)
@@ -105,7 +113,7 @@ func (d *DB) ClaimPoints(address, chain string) (int, error) {
 		return 0, nil
 	}
 
-	_, err = d.conn.Exec(`
+	_, err = tx.Exec(`
 		UPDATE points SET unclaimed = 0, updated_at = CURRENT_TIMESTAMP
 		WHERE address = ? AND chain = ?`,
 		address, chain,
@@ -114,12 +122,32 @@ func (d *DB) ClaimPoints(address, chain string) (int, error) {
 		return 0, fmt.Errorf("failed to claim points for %s/%s: %w", address, chain, err)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit claim for %s/%s: %w", address, chain, err)
+	}
+
 	slog.Info("points claimed",
 		"address", address,
 		"chain", chain,
 		"pointsClaimed", unclaimed,
 	)
 	return unclaimed, nil
+}
+
+// FixNegativePending resets any negative pending balances to 0.
+// This can happen from pre-atomic-fix data where pending was decremented without a floor.
+func (d *DB) FixNegativePending() (int64, error) {
+	result, err := d.conn.Exec(`
+		UPDATE points SET pending = 0, updated_at = CURRENT_TIMESTAMP
+		WHERE pending < 0`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fix negative pending: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	if n > 0 {
+		slog.Info("fixed negative pending balances", "count", n)
+	}
+	return n, nil
 }
 
 // ListWithUnclaimed returns all points accounts with unclaimed > 0.

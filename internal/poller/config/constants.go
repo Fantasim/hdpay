@@ -5,11 +5,12 @@ import "time"
 // Version
 const Version = "1.0.0"
 
-// Polling Intervals
+// Polling Intervals — BSC/SOL at 15s balances API efficiency against detection latency.
+// BSC block time ~3s, SOL ~0.4s — polling faster than 10s wastes free-tier API quota.
 const (
 	PollIntervalBTC = 60 * time.Second
-	PollIntervalBSC = 5 * time.Second
-	PollIntervalSOL = 5 * time.Second
+	PollIntervalBSC = 15 * time.Second
+	PollIntervalSOL = 15 * time.Second
 )
 
 // Confirmation Thresholds
@@ -114,4 +115,12 @@ const (
 	ErrorSeverityWarn     = "warn"
 	ErrorSeverityError    = "error"
 	ErrorSeverityCritical = "critical"
+)
+
+// Supported Chains — single source of truth for chain iteration.
+var SupportedChains = []string{"BTC", "BSC", "SOL"}
+
+// Claim
+const (
+	MaxClaimBatchSize = 500 // max addresses per claim request
 )

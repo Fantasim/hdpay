@@ -1,5 +1,37 @@
 # Changelog
 
+## Poller Robustness Audit — 18 Fixes — 2026-02-23
+
+#### Fixed (Critical Safety)
+- **ClaimPoints TOCTOU race condition**: Wrapped SELECT+UPDATE in a single `BEGIN/COMMIT` transaction to prevent double-claiming under contention (`internal/poller/pollerdb/points.go`)
+- **Crash between confirm+points-move loses points**: New `ConfirmTxAndMovePoints()` atomic method wraps both `UpdateToConfirmed` and `MovePendingToUnclaimed` in a single DB transaction (`internal/poller/pollerdb/transactions.go`, `internal/poller/watcher/poll.go`, `internal/poller/watcher/recovery.go`)
+- **Pending points can go negative**: `MovePendingToUnclaimed` now uses `MAX(pending - ?, 0)` SQL floor (`internal/poller/pollerdb/points.go`)
+- **No instance lock prevents dual-run corruption**: Added PID file lock with stale-PID detection at startup (`cmd/poller/main.go`)
+
+#### Fixed (Optimization)
+- **BSC/SOL poll intervals too aggressive (5s)**: Increased to 15s — 66% API load reduction with minimal latency impact (`internal/poller/config/constants.go`)
+- **CountByWatchID makes 2 queries**: Merged into single query with conditional aggregation (`internal/poller/pollerdb/transactions.go`)
+- **No local price cache in Pricer**: Added 60s TTL in-memory cache with `sync.RWMutex` to reduce CoinGecko API calls (`internal/poller/points/pricer.go`)
+- **No limit on claim batch size**: Added `MaxClaimBatchSize=500` constant and validation (`internal/poller/api/handlers/points.go`, `internal/poller/config/constants.go`)
+- **Hardcoded chain list in claim handler**: Replaced with `SupportedChains` constant (`internal/poller/config/constants.go`)
+
+#### Fixed (Recovery)
+- **Recovery doesn't fix negative pending balances**: Added `FixNegativePending()` recovery step at startup (`internal/poller/watcher/recovery.go`, `internal/poller/pollerdb/points.go`)
+- **Price failure logging insufficient**: Improved log context when price fetch fails during recheck (`internal/poller/watcher/poll.go`)
+
+#### Added
+- `ConfirmTxAndMovePoints()` atomic DB method
+- `FixNegativePending()` DB method + recovery step
+- `SupportedChains` and `MaxClaimBatchSize` constants
+- PID file instance lock (`acquirePIDLock`/`isProcessAlive`)
+- Safety boundary documentation on `SetMaxOpenConns(1)` (`internal/poller/pollerdb/db.go`)
+- 10 new tests: `TestMovePendingToUnclaimed_FloorsAtZero`, `TestFixNegativePending`, `TestConfirmTxAndMovePoints_Atomic`, `TestClaimPoints_Concurrent` (10 goroutines racing), `TestCountByWatchID_SingleQuery`, `TestConfirmTxAndMovePoints_AtomicWithWatch`, `TestClaimPoints_BatchLimit`, `TestClaimPoints_MultiChain`, `TestGetPendingPoints_Empty`
+
+#### Changed
+- `PollIntervalBSC` and `PollIntervalSOL` from 5s to 15s
+- `recheckPending` in poll.go uses atomic `ConfirmTxAndMovePoints` instead of two separate DB calls
+- Recovery startup uses `ConfirmTxAndMovePoints` and adds negative-pending fix step
+
 ## Provider Fixes + API Usage Counters — 2026-02-23
 
 #### Fixed

@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,6 +56,14 @@ func main() {
 		"maxActiveWatches", cfg.MaxActiveWatches,
 		"defaultWatchTimeout", cfg.DefaultWatchTimeout,
 	)
+
+	// Instance lock: prevent two pollers from running against the same database.
+	pidFile := filepath.Join(filepath.Dir(cfg.DBPath), "poller.pid")
+	if err := acquirePIDLock(pidFile); err != nil {
+		slog.Error("instance lock failed — another poller may be running", "pidFile", pidFile, "error", err)
+		os.Exit(1)
+	}
+	defer os.Remove(pidFile)
 
 	// Open database and run migrations.
 	db, err := pollerdb.New(cfg.DBPath)
@@ -235,4 +246,32 @@ func initProviderSets(httpClient *http.Client, cfg *pollerconfig.Config) map[str
 	)
 
 	return sets
+}
+
+// acquirePIDLock creates a PID file to prevent multiple poller instances.
+// If the file exists and the process is still running, returns an error.
+func acquirePIDLock(pidFile string) error {
+	data, err := os.ReadFile(pidFile)
+	if err == nil {
+		// PID file exists — check if process is still alive.
+		pidStr := strings.TrimSpace(string(data))
+		pid, parseErr := strconv.Atoi(pidStr)
+		if parseErr == nil {
+			process, findErr := os.FindProcess(pid)
+			if findErr == nil {
+				// On Unix, FindProcess always succeeds. Send signal 0 to check if alive.
+				if err := process.Signal(syscall.Signal(0)); err == nil {
+					return fmt.Errorf("another poller is running (PID %d)", pid)
+				}
+			}
+		}
+		slog.Info("stale PID file found, overwriting", "pidFile", pidFile, "stalePID", pidStr)
+	}
+
+	// Write our PID.
+	dir := filepath.Dir(pidFile)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create PID directory: %w", err)
+	}
+	return os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644)
 }

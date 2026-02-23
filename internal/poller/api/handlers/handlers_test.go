@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -758,6 +759,87 @@ func TestCORSPreflight(t *testing.T) {
 
 	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Error("expected CORS header Access-Control-Allow-Origin: *")
+	}
+}
+
+func TestClaimPoints_BatchLimit(t *testing.T) {
+	td := setupTestDeps(t)
+
+	// Build a request with more addresses than MaxClaimBatchSize.
+	addrs := make([]string, pollerconfig.MaxClaimBatchSize+1)
+	for i := range addrs {
+		addrs[i] = fmt.Sprintf("addr%d", i)
+	}
+	body, _ := json.Marshal(map[string]interface{}{"addresses": addrs})
+	req := httptest.NewRequest("POST", "/api/points/claim", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for batch > max, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestClaimPoints_MultiChain(t *testing.T) {
+	td := setupTestDeps(t)
+
+	// Seed points on multiple chains for same address.
+	for _, chain := range []string{"BTC", "BSC", "SOL"} {
+		td.db.GetOrCreatePoints("multiaddr", chain)
+		td.db.AddUnclaimed("multiaddr", chain, 1000)
+	}
+
+	body := `{"addresses":["multiaddr"]}`
+	req := httptest.NewRequest("POST", "/api/points/claim", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&resp)
+	data := resp["data"].(map[string]interface{})
+
+	total := data["total_claimed"].(float64)
+	if total != 3000 {
+		t.Errorf("expected 3000 total (1000 per chain × 3), got %v", total)
+	}
+
+	claimed := data["claimed"].([]interface{})
+	if len(claimed) != 3 {
+		t.Errorf("expected 3 claim entries, got %d", len(claimed))
+	}
+}
+
+func TestGetPendingPoints_Empty(t *testing.T) {
+	td := setupTestDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/points/pending", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&resp)
+	data, ok := resp["data"].([]interface{})
+	if !ok {
+		t.Fatal("expected data array")
+	}
+	if len(data) != 0 {
+		t.Errorf("expected empty array, got %d items", len(data))
 	}
 }
 

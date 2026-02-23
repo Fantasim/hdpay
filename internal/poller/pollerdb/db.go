@@ -53,7 +53,10 @@ func New(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
-	// SQLite single writer.
+	// SAFETY BOUNDARY: Single-writer mode prevents TOCTOU race conditions in
+	// ClaimPoints (points.go) and ConfirmTxAndMovePoints (transactions.go).
+	// Both use BEGIN/COMMIT transactions that assume no concurrent writers.
+	// Do NOT increase MaxOpenConns without auditing all point-modifying code paths.
 	conn.SetMaxOpenConns(1)
 	conn.SetMaxIdleConns(1)
 

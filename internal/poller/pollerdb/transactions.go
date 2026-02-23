@@ -190,23 +190,77 @@ func (d *DB) ListPendingByWatchID(watchID string) ([]models.Transaction, error) 
 		ORDER BY detected_at ASC`, watchID)
 }
 
-// CountByWatchID returns the total and pending transaction counts for a watch.
+// CountByWatchID returns the total and pending transaction counts for a watch
+// in a single query using conditional aggregation.
 func (d *DB) CountByWatchID(watchID string) (total int, pending int, err error) {
 	err = d.conn.QueryRow(`
-		SELECT COUNT(*) FROM transactions WHERE watch_id = ?`, watchID,
-	).Scan(&total)
+		SELECT COUNT(*) AS total,
+		       COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending
+		FROM transactions WHERE watch_id = ?`, watchID,
+	).Scan(&total, &pending)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to count transactions for watch %s: %w", watchID, err)
 	}
 
-	err = d.conn.QueryRow(`
-		SELECT COUNT(*) FROM transactions WHERE watch_id = ? AND status = 'PENDING'`, watchID,
-	).Scan(&pending)
+	return total, pending, nil
+}
+
+// ConfirmTxAndMovePoints atomically confirms a transaction and moves its points
+// from pending to unclaimed in a single database transaction. This prevents the
+// crash-between-two-operations bug where a tx is marked CONFIRMED but points
+// remain stuck in the pending bucket.
+func (d *DB) ConfirmTxAndMovePoints(
+	txHash string, confirmations int, blockNumber *int64, confirmedAt string,
+	usdValue, usdPrice float64, tier int, multiplier float64, points int,
+	address, chain string, pendingPoints int,
+) error {
+	dbTx, err := d.conn.Begin()
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to count pending transactions for watch %s: %w", watchID, err)
+		return fmt.Errorf("failed to begin confirm+move tx for %s: %w", txHash, err)
+	}
+	defer dbTx.Rollback()
+
+	// Step 1: Update transaction to CONFIRMED.
+	_, err = dbTx.Exec(`
+		UPDATE transactions
+		SET status = 'CONFIRMED', confirmations = ?, block_number = ?,
+		    confirmed_at = ?, usd_value = ?, usd_price = ?,
+		    tier = ?, multiplier = ?, points = ?
+		WHERE tx_hash = ?`,
+		confirmations, blockNumber, confirmedAt, usdValue, usdPrice, tier, multiplier, points, txHash,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to confirm transaction %s: %w", txHash, err)
 	}
 
-	return total, pending, nil
+	// Step 2: Move points from pending to unclaimed.
+	_, err = dbTx.Exec(`
+		UPDATE points
+		SET pending = MAX(pending - ?, 0),
+		    unclaimed = unclaimed + ?,
+		    total = total + ?,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE address = ? AND chain = ?`,
+		pendingPoints, points, points, address, chain,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to move pending to unclaimed for %s/%s: %w", address, chain, err)
+	}
+
+	if err := dbTx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit confirm+move for %s: %w", txHash, err)
+	}
+
+	slog.Info("transaction confirmed and points moved (atomic)",
+		"txHash", txHash,
+		"confirmations", confirmations,
+		"usdValue", usdValue,
+		"points", points,
+		"address", address,
+		"chain", chain,
+		"pendingRemoved", pendingPoints,
+	)
+	return nil
 }
 
 // LastDetectedAt returns the most recent detected_at timestamp for a given address.

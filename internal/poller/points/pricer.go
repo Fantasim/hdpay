@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/Fantasim/hdpay/internal/poller/config"
@@ -12,15 +13,22 @@ import (
 
 // Pricer wraps HDPay's PriceService with Poller-specific behavior:
 //   - Stablecoins (USDC, USDT) short-circuit to $1.00
+//   - Local cache (PriceCacheDuration TTL) to avoid redundant CoinGecko calls
 //   - Retries on failure (configurable count + delay)
 type Pricer struct {
-	ps *price.PriceService
+	ps        *price.PriceService
+	mu        sync.RWMutex
+	cache     map[string]float64
+	cacheTime time.Time
 }
 
 // NewPricer creates a Pricer backed by HDPay's CoinGecko PriceService.
 func NewPricer(ps *price.PriceService) *Pricer {
 	slog.Info("poller pricer initialized")
-	return &Pricer{ps: ps}
+	return &Pricer{
+		ps:    ps,
+		cache: make(map[string]float64),
+	}
 }
 
 // GetTokenPrice returns the USD price for a token symbol.
@@ -42,6 +50,20 @@ func (p *Pricer) GetTokenPrice(ctx context.Context, token string) (float64, erro
 		return 0, err
 	}
 
+	// Check local cache first.
+	p.mu.RLock()
+	if time.Since(p.cacheTime) < config.PriceCacheDuration {
+		if usd, ok := p.cache[priceKey]; ok {
+			p.mu.RUnlock()
+			slog.Debug("price cache hit",
+				"token", token,
+				"price", usd,
+			)
+			return usd, nil
+		}
+	}
+	p.mu.RUnlock()
+
 	// Retry loop.
 	var lastErr error
 	for attempt := 1; attempt <= config.PriceRetryCount; attempt++ {
@@ -53,6 +75,12 @@ func (p *Pricer) GetTokenPrice(ctx context.Context, token string) (float64, erro
 
 		prices, fetchErr := p.ps.GetPrices(ctx)
 		if fetchErr == nil {
+			// Update local cache with all fetched prices.
+			p.mu.Lock()
+			p.cache = prices
+			p.cacheTime = time.Now()
+			p.mu.Unlock()
+
 			if usd, ok := prices[priceKey]; ok {
 				slog.Debug("token price fetched",
 					"token", token,

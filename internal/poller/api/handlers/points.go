@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -173,6 +174,12 @@ func ClaimPointsHandler(db *pollerdb.DB) http.HandlerFunc {
 			return
 		}
 
+		if len(req.Addresses) > pollerconfig.MaxClaimBatchSize {
+			httputil.Error(w, http.StatusBadRequest, pollerconfig.ErrorInvalidRequest,
+				fmt.Sprintf("Too many addresses: max %d per request", pollerconfig.MaxClaimBatchSize))
+			return
+		}
+
 		resp := claimResponse{
 			Claimed: []claimEntry{},
 			Skipped: []string{},
@@ -181,7 +188,7 @@ func ClaimPointsHandler(db *pollerdb.DB) http.HandlerFunc {
 		for _, addr := range req.Addresses {
 			claimed := false
 			// An address can exist on multiple chains — try all.
-			for _, chain := range []string{"BTC", "BSC", "SOL"} {
+			for _, chain := range pollerconfig.SupportedChains {
 				points, err := db.ClaimPoints(addr, chain)
 				if err != nil {
 					slog.Error("claim points failed", "address", addr, "chain", chain, "error", err)

@@ -15,6 +15,7 @@ import (
 // Steps:
 // 1. Expire all ACTIVE watches from a previous run (crash recovery)
 // 2. Re-check all PENDING transactions on-chain with retries
+// 3. Reconcile points: fix any address with negative pending (from pre-fix data)
 func (w *Watcher) RunRecovery(ctx context.Context) error {
 	slog.Info("starting watcher recovery")
 
@@ -24,6 +25,14 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 		return fmt.Errorf("recovery: failed to expire active watches: %w", err)
 	}
 	slog.Info("recovery: expired stale active watches", "count", expired)
+
+	// Step 1b: Fix any negative pending balances from pre-atomic-fix data.
+	fixedPending, err := w.db.FixNegativePending()
+	if err != nil {
+		slog.Warn("recovery: failed to fix negative pending balances", "error", err)
+	} else if fixedPending > 0 {
+		slog.Info("recovery: fixed negative pending balances", "count", fixedPending)
+	}
 
 	// Step 2: Re-check all pending transactions.
 	pending, err := w.db.ListPending()
@@ -129,25 +138,17 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 			calcResult := w.calculator.Calculate(usdValue)
 			confirmedAt := time.Now().UTC().Format(time.RFC3339)
 
-			if err := w.db.UpdateToConfirmed(
+			// Atomically confirm tx and move points in a single DB transaction.
+			if err := w.db.ConfirmTxAndMovePoints(
 				tx.TxHash, confirmations, tx.BlockNumber, confirmedAt,
 				usdValue, usdPrice, calcResult.TierIndex, calcResult.Multiplier, calcResult.Points,
+				tx.Address, tx.Chain, tx.Points,
 			); err != nil {
-				slog.Error("recovery: failed to update tx to confirmed",
+				slog.Error("recovery: failed to confirm tx and move points",
 					"txHash", tx.TxHash,
 					"error", err,
 				)
 				break
-			}
-
-			// Move points from pending to unclaimed.
-			if err := w.db.MovePendingToUnclaimed(
-				tx.Address, tx.Chain, tx.Points, calcResult.Points,
-			); err != nil {
-				slog.Error("recovery: failed to move pending to unclaimed",
-					"txHash", tx.TxHash,
-					"error", err,
-				)
 			}
 
 			slog.Info("recovery: pending tx confirmed",
