@@ -8,12 +8,14 @@
 		updateWatchDefaults,
 		getAllowlist,
 		addAllowlistIP,
-		removeAllowlistIP
+		removeAllowlistIP,
+		getProviderStats
 	} from '$lib/utils/api';
 	import { formatNumber } from '$lib/utils/formatting';
 	import type {
 		AdminSettings,
 		HealthResponse,
+		ProviderMetrics,
 		Tier,
 		IPAllowlistEntry
 	} from '$lib/types';
@@ -22,6 +24,7 @@
 	let settings: AdminSettings | null = $state(null);
 	let health: HealthResponse | null = $state(null);
 	let allowlist: IPAllowlistEntry[] = $state([]);
+	let providerStats: Record<string, ProviderMetrics[]> = $state({});
 	let loading = $state(true);
 
 	// Editable tier state
@@ -42,14 +45,16 @@
 	async function fetchData(): Promise<void> {
 		loading = true;
 		try {
-			const [settingsRes, healthRes, allowlistRes] = await Promise.all([
+			const [settingsRes, healthRes, allowlistRes, statsRes] = await Promise.all([
 				getSettings(),
 				getHealth(),
-				getAllowlist()
+				getAllowlist(),
+				getProviderStats().catch(() => null)
 			]);
 			settings = settingsRes.data;
 			health = healthRes.data;
 			allowlist = allowlistRes.data ?? [];
+			providerStats = statsRes?.data?.chains ?? {};
 
 			// Initialize editable state
 			editTiers = settings.tiers.map((t) => ({ ...t }));
@@ -60,6 +65,15 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function providerChains(): string[] {
+		return Object.keys(providerStats).sort();
+	}
+
+	function monthlyPct(used: number, limit: number): number {
+		if (limit <= 0) return 0;
+		return Math.min(100, (used / limit) * 100);
 	}
 
 	async function saveTiers(): Promise<void> {
@@ -356,6 +370,71 @@
 				</div>
 			</div>
 		</div>
+
+		<hr class="section-divider" />
+
+		<!-- Section 5: Provider Usage -->
+		<div class="settings-section">
+			<div class="settings-section-title">Provider Usage</div>
+			<div class="settings-section-desc">
+				Client-side API call counters. Resets daily/weekly/monthly. Restarts on process restart.
+			</div>
+
+			{#if providerChains().length > 0}
+				{#each providerChains() as chain}
+					{@const chainProviders = providerStats[chain] ?? []}
+					{#if chainProviders.length > 0}
+						<div class="provider-chain-group">
+							<div class="provider-chain-label">{chain}</div>
+							<div class="table-wrapper">
+								<table class="table">
+									<thead>
+										<tr>
+											<th>Provider</th>
+											<th>Today Req</th>
+											<th>Today 429s</th>
+											<th>Month Req</th>
+											<th>Monthly Limit</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each chainProviders as p}
+											<tr>
+												<td class="provider-name-cell">{p.name}</td>
+												<td class="mono">{p.daily.requests.toLocaleString()}</td>
+												<td class:warn-cell={p.daily.hits429 > 0}>
+													{p.daily.hits429 > 0 ? p.daily.hits429.toLocaleString() : '—'}
+												</td>
+												<td class="mono">{p.monthly.requests.toLocaleString()}</td>
+												<td>
+													{#if p.knownMonthlyLimit > 0}
+														<div class="limit-cell">
+															<span class="mono">{p.knownMonthlyLimit.toLocaleString()}</span>
+															<div class="mini-progress-track">
+																<div
+																	class="mini-progress-fill"
+																	class:mini-warn={monthlyPct(p.monthly.requests, p.knownMonthlyLimit) > 70}
+																	class:mini-danger={monthlyPct(p.monthly.requests, p.knownMonthlyLimit) > 90}
+																	style="width: {monthlyPct(p.monthly.requests, p.knownMonthlyLimit)}%"
+																></div>
+															</div>
+														</div>
+													{:else}
+														<span class="text-muted">—</span>
+													{/if}
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					{/if}
+				{/each}
+			{:else}
+				<div class="empty-hint">No provider data yet. Watches must be active to generate calls.</div>
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -628,6 +707,64 @@
 	.network-mainnet {
 		background: var(--color-success-muted);
 		color: var(--color-success);
+	}
+
+	/* Provider Usage */
+	.provider-chain-group {
+		margin-bottom: 1rem;
+	}
+
+	.provider-chain-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.5rem;
+	}
+
+	.provider-name-cell {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		color: var(--color-accent-text);
+	}
+
+	.warn-cell {
+		color: var(--color-warning);
+		font-weight: 500;
+	}
+
+	.mono {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+	}
+
+	.limit-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.mini-progress-track {
+		height: 3px;
+		background: var(--color-bg-elevated);
+		border-radius: 2px;
+		overflow: hidden;
+		width: 80px;
+	}
+
+	.mini-progress-fill {
+		height: 100%;
+		background: var(--color-success);
+		border-radius: 2px;
+	}
+
+	.mini-progress-fill.mini-warn {
+		background: var(--color-warning);
+	}
+
+	.mini-progress-fill.mini-danger {
+		background: var(--color-error);
 	}
 
 	/* Buttons */

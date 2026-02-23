@@ -45,6 +45,9 @@ func NewMempoolProvider(client *http.Client, rl *RateLimiter, network string) *M
 func (p *MempoolProvider) Name() string              { return "Mempool" }
 func (p *MempoolProvider) Chain() models.Chain        { return models.ChainBTC }
 func (p *MempoolProvider) MaxBatchSize() int          { return 1 }
+func (p *MempoolProvider) RecordSuccess()             { p.rl.RecordSuccess() }
+func (p *MempoolProvider) RecordFailure(is429 bool)   { p.rl.RecordFailure(is429) }
+func (p *MempoolProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 
 // FetchNativeBalances fetches BTC balance for each address (one API call per address).
 // Continues on per-address errors instead of early-returning, annotating failed results.

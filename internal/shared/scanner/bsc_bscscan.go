@@ -66,6 +66,9 @@ func NewBscScanProvider(client *http.Client, rl *RateLimiter, apiKey string, net
 func (p *BscScanProvider) Name() string              { return "BscScan" }
 func (p *BscScanProvider) Chain() models.Chain        { return models.ChainBSC }
 func (p *BscScanProvider) MaxBatchSize() int          { return config.ScanBatchSizeBscScan }
+func (p *BscScanProvider) RecordSuccess()             { p.rl.RecordSuccess() }
+func (p *BscScanProvider) RecordFailure(is429 bool)   { p.rl.RecordFailure(is429) }
+func (p *BscScanProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 
 // FetchNativeBalances fetches BNB balances using BscScan balancemulti (up to 20 addresses).
 func (p *BscScanProvider) FetchNativeBalances(ctx context.Context, addresses []models.Address) ([]BalanceResult, error) {

@@ -38,7 +38,7 @@ func TestBTCUTXOFetcher_FetchUTXOs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	utxos, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -91,7 +91,7 @@ func TestBTCUTXOFetcher_FiltersUnconfirmed(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	utxos, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -114,7 +114,7 @@ func TestBTCUTXOFetcher_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	utxos, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -133,7 +133,7 @@ func TestBTCUTXOFetcher_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	_, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -148,7 +148,7 @@ func TestBTCUTXOFetcher_RateLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	_, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -195,7 +195,7 @@ func TestBTCUTXOFetcher_FetchAllUTXOs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	addresses := []models.Address{
@@ -225,7 +225,7 @@ func TestBTCUTXOFetcher_MalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(server.Client(), []string{server.URL}, []*scanner.RateLimiter{rl})
 
 	_, err := fetcher.FetchUTXOs(context.Background(), "bc1qtest", 0)
@@ -238,7 +238,7 @@ func TestBTCUTXOFetcher_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately.
 
-	rl := scanner.NewRateLimiter("test", 100)
+	rl := scanner.NewRateLimiter("test", 100, 0)
 	fetcher := NewBTCUTXOFetcher(http.DefaultClient, []string{"http://localhost:1"}, []*scanner.RateLimiter{rl})
 
 	_, err := fetcher.FetchUTXOs(ctx, "bc1qtest", 0)
@@ -263,8 +263,8 @@ func TestBTCUTXOFetcher_RoundRobin(t *testing.T) {
 	}))
 	defer server2.Close()
 
-	rl1 := scanner.NewRateLimiter("provider1", 100)
-	rl2 := scanner.NewRateLimiter("provider2", 100)
+	rl1 := scanner.NewRateLimiter("provider1", 100, 0)
+	rl2 := scanner.NewRateLimiter("provider2", 100, 0)
 	fetcher := NewBTCUTXOFetcher(
 		http.DefaultClient,
 		[]string{server1.URL, server2.URL},

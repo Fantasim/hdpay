@@ -10,6 +10,7 @@ import (
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
 	"github.com/Fantasim/hdpay/internal/poller/points"
 	"github.com/Fantasim/hdpay/internal/poller/pollerdb"
+	"github.com/Fantasim/hdpay/internal/poller/provider"
 	"github.com/Fantasim/hdpay/internal/poller/watcher"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -17,14 +18,15 @@ import (
 
 // Dependencies holds all service references needed by the API layer.
 type Dependencies struct {
-	DB         *pollerdb.DB
-	Watcher    *watcher.Watcher
-	Calculator *points.PointsCalculator
-	Allowlist  *pollermw.IPAllowlist
-	Sessions   *pollermw.SessionStore
-	Config     *pollerconfig.Config
-	Pricer     *points.Pricer
-	StaticFS   fs.FS // Embedded SvelteKit build (nil in dev mode)
+	DB           *pollerdb.DB
+	Watcher      *watcher.Watcher
+	Calculator   *points.PointsCalculator
+	Allowlist    *pollermw.IPAllowlist
+	Sessions     *pollermw.SessionStore
+	Config       *pollerconfig.Config
+	Pricer       *points.Pricer
+	ProviderSets map[string]*provider.ProviderSet // BTC/BSC/SOL provider metric sources
+	StaticFS     fs.FS                            // Embedded SvelteKit build (nil in dev mode)
 }
 
 // NewRouter creates and configures the Chi router with all middleware and routes.
@@ -70,6 +72,7 @@ func NewRouter(deps *Dependencies) chi.Router {
 			r.Get("/settings", handlers.GetSettingsHandler(deps.Config, deps.Watcher, deps.Calculator))
 			r.Put("/tiers", handlers.UpdateTiersHandler(deps.Config, deps.Calculator))
 			r.Put("/watch-defaults", handlers.UpdateWatchDefaultsHandler(deps.Watcher))
+			r.Get("/provider-stats", handlers.GetProviderStatsHandler(deps.ProviderSets))
 		})
 
 		// Dashboard — IP-restricted + session required.

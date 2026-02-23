@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Fantasim/hdpay/internal/shared/scanner"
 	"github.com/Fantasim/hdpay/internal/wallet/db"
 	"github.com/go-chi/chi/v5"
 )
@@ -30,7 +31,7 @@ func setupProviderHealthDB(t *testing.T) *db.DB {
 
 func setupProviderHealthRouter(database *db.DB) http.Handler {
 	r := chi.NewRouter()
-	r.Get("/api/health/providers", GetProviderHealth(database))
+	r.Get("/api/health/providers", GetProviderHealth(database, func() []scanner.MetricsSnapshot { return nil }))
 	return r
 }
 

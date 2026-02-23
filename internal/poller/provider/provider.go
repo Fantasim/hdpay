@@ -59,13 +59,18 @@ type ProviderSet struct {
 
 // NewProviderSet creates a ProviderSet for a specific chain.
 // Each provider gets its own rate limiter and circuit breaker from HDPay's scanner package.
-func NewProviderSet(chain string, providers []Provider, rpsPerProvider []int) *ProviderSet {
+// monthlyLimits must be the same length as providers (use 0 for no documented cap).
+func NewProviderSet(chain string, providers []Provider, rpsPerProvider []int, monthlyLimits []int64) *ProviderSet {
 	wrapped := make([]wrappedProvider, len(providers))
 	for i, p := range providers {
 		rps := rpsPerProvider[i]
+		monthlyLimit := int64(0)
+		if i < len(monthlyLimits) {
+			monthlyLimit = monthlyLimits[i]
+		}
 		wrapped[i] = wrappedProvider{
 			provider:       p,
-			rateLimiter:    scanner.NewRateLimiter(p.Name(), rps),
+			rateLimiter:    scanner.NewRateLimiter(p.Name(), rps, monthlyLimit),
 			circuitBreaker: scanner.NewCircuitBreaker(hdconfig.CircuitBreakerThreshold, hdconfig.CircuitBreakerCooldown),
 		}
 	}
@@ -181,6 +186,7 @@ func (ps *ProviderSet) executeFetch(ctx context.Context, fn func(Provider) ([]Ra
 		result, err := fn(wp.provider)
 		if err != nil {
 			wp.circuitBreaker.RecordFailure()
+			wp.rateLimiter.RecordFailure(false) // BSC RPC doesn't return 429s
 			slog.Warn("provider call failed, rotating",
 				"chain", ps.chain,
 				"provider", wp.provider.Name(),
@@ -198,6 +204,7 @@ func (ps *ProviderSet) executeFetch(ctx context.Context, fn func(Provider) ([]Ra
 		}
 
 		wp.circuitBreaker.RecordSuccess()
+		wp.rateLimiter.RecordSuccess()
 
 		slog.Debug("provider call succeeded",
 			"chain", ps.chain,
@@ -223,6 +230,20 @@ func (ps *ProviderSet) ProviderCount() int {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	return len(ps.providers)
+}
+
+// Stats returns usage metric snapshots for all providers in this set.
+// Used by the admin provider-stats endpoint.
+func (ps *ProviderSet) Stats() []scanner.MetricsSnapshot {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	out := make([]scanner.MetricsSnapshot, len(ps.providers))
+	for i, wp := range ps.providers {
+		snap := wp.rateLimiter.Stats()
+		snap.Name = wp.provider.Name()
+		out[i] = snap
+	}
+	return out
 }
 
 // NewHTTPClient creates a configured HTTP client for provider use.

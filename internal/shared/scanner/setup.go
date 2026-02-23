@@ -29,8 +29,8 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 	scanner := New(database, cfg, hub)
 
 	// BTC providers.
-	btcRL1 := NewRateLimiter("Blockstream", config.RateLimitBlockstream)
-	btcRL2 := NewRateLimiter("Mempool", config.RateLimitMempool)
+	btcRL1 := NewRateLimiter("Blockstream", config.RateLimitBlockstream, config.KnownMonthlyLimitBlockstream)
+	btcRL2 := NewRateLimiter("Mempool", config.RateLimitMempool, config.KnownMonthlyLimitMempool)
 	btcPool := NewPool(models.ChainBTC,
 		NewBlockstreamProvider(httpClient, btcRL1, cfg.Network),
 		NewMempoolProvider(httpClient, btcRL2, cfg.Network),
@@ -38,30 +38,23 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 	btcPool.SetDB(database)
 	scanner.RegisterPool(models.ChainBTC, btcPool)
 
-	// BSC providers.
-	bscRL1 := NewRateLimiter("BscScan", config.RateLimitBscScan)
-	bscRL2 := NewRateLimiter("BSCRPC", config.RateLimitBlockstream) // ~10 rps for public RPC
+	// BSC providers — BscScan API was shut down Dec 18, 2025; RPC-only from here.
+	bscRL := NewRateLimiter("BSCRPC", config.RateLimitSolanaRPC, config.KnownMonthlyLimitBSCRPC)
 
-	bscScanProvider := NewBscScanProvider(httpClient, bscRL1, cfg.BscScanAPIKey, cfg.Network)
-
-	bscRPCProvider, err := NewBSCRPCProvider(bscRL2, cfg.Network)
+	bscRPCProvider, err := NewBSCRPCProvider(bscRL, cfg.Network)
 	if err != nil {
-		slog.Warn("BSC RPC provider failed to connect, using BscScan only",
+		slog.Error("BSC RPC provider failed to connect — BSC scanning disabled",
 			"error", err,
 		)
-		// Fallback: use only BscScan.
-		bscPool := NewPool(models.ChainBSC, bscScanProvider)
-		bscPool.SetDB(database)
-		scanner.RegisterPool(models.ChainBSC, bscPool)
 	} else {
-		bscPool := NewPool(models.ChainBSC, bscScanProvider, bscRPCProvider)
+		bscPool := NewPool(models.ChainBSC, bscRPCProvider)
 		bscPool.SetDB(database)
 		scanner.RegisterPool(models.ChainBSC, bscPool)
 	}
 
 	// SOL providers.
-	solRL1 := NewRateLimiter("SolanaPublicRPC", config.RateLimitSolanaRPC)
-	solRL2 := NewRateLimiter("Helius", config.RateLimitHelius)
+	solRL1 := NewRateLimiter("SolanaPublicRPC", config.RateLimitSolanaRPC, config.KnownMonthlyLimitSolanaRPC)
+	solRL2 := NewRateLimiter("Helius", config.RateLimitHelius, config.KnownMonthlyLimitHelius)
 
 	solanaRPCURL := config.SolanaMainnetRPCURL
 	heliusRPCURL := config.HeliusMainnetRPCURL

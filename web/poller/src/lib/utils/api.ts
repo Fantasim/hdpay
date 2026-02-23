@@ -15,6 +15,7 @@ import type {
 	IPAllowlistEntry,
 	PendingPointsWithTransactions,
 	PointsWithTransactions,
+	ProviderStatsResponse,
 	Tier,
 	TimeRange,
 	Transaction,
@@ -200,4 +201,10 @@ export function getDashboardCharts(range: TimeRange): Promise<APIResponse<ChartD
 
 export function getDashboardErrors(): Promise<APIResponse<DashboardErrors>> {
 	return api.get('/dashboard/errors');
+}
+
+// ===== Provider Stats =====
+
+export function getProviderStats(): Promise<APIResponse<ProviderStatsResponse>> {
+	return api.get('/admin/provider-stats');
 }

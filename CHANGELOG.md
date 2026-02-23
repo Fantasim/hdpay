@@ -1,5 +1,25 @@
 # Changelog
 
+## Provider Fixes + API Usage Counters — 2026-02-23
+
+#### Fixed
+- **BscScan API removed** — `api.bscscan.com` was shut down December 18, 2025. Replaced poller BSC provider (`BSCRPCPollerProvider`) with `eth_getLogs` (USDC/USDT Transfer events) + `eth_getBalance` delta (native BNB). Wallet scanner BSC pool now RPC-only (dead `BscScanProvider` removed from pool).
+- **Wrong rate limit constants** — Blockstream corrected 10→5 req/s, Mempool 10→3 req/s (per nginx configs), CoinGecko 10→30 req/min (Demo plan = 30 RPM).
+
+#### Added
+- **ProviderMetrics** (`internal/shared/scanner/metrics.go`) — per-provider atomic counters with lazy-reset period buckets (daily/weekly/monthly). No background goroutine needed.
+- **RateLimiter extended** — `NewRateLimiter(name, rps, knownMonthlyLimit)` now embeds `ProviderMetrics`. Added `RecordSuccess()`, `RecordFailure(is429 bool)`, `Stats()` methods.
+- **Known monthly limit constants** — `KnownMonthlyLimitBlockstream` (500K), `KnownMonthlyLimitHelius` (1M), `KnownMonthlyLimitCoinGecko` (10K), etc. in `constants.go`.
+- **Wallet `GET /api/health/providers`** — now merges DB circuit-breaker state with in-memory `MetricsSnapshot` per provider (`metrics` field in response).
+- **Poller `GET /api/admin/provider-stats`** — new authenticated admin endpoint returning daily/weekly/monthly request counters grouped by chain.
+- **Wallet scan page** — `ProviderStatus.svelte` extended with per-provider usage metrics row (today req, 429 count, monthly progress bar).
+- **Poller settings page** — new "Provider Usage" section with table showing today/month request counts and monthly limit progress bar per provider.
+
+#### Changed
+- Poller `NewProviderSet` now accepts a `monthlyLimits []int64` 4th argument for metrics tracking.
+- All provider test files updated for new `NewRateLimiter` (3-arg) and `NewProviderSet` (4-arg) signatures.
+- Old `BscScanProvider` tests replaced with `BSCRPCPollerProvider` tests (constructor + `weiToHuman` + synthetic hash confirmation).
+
 ## Poller Playwright Audit + Fund Transfer Testing — 2026-02-23
 
 #### Fixed

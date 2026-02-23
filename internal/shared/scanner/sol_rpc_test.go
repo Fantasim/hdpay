@@ -17,7 +17,7 @@ func newSolanaRPCTestProvider(t *testing.T, handler http.HandlerFunc) (*SolanaRP
 
 	server := httptest.NewServer(handler)
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &SolanaRPCProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -359,7 +359,7 @@ func TestSolanaRPCProvider_NativeContextCancellation(t *testing.T) {
 
 	provider := &SolanaRPCProvider{
 		client: http.DefaultClient,
-		rl:     NewRateLimiter("test", 100),
+		rl:     NewRateLimiter("test", 100, 0),
 		rpcURL: "http://localhost:1", // won't be called
 		name:   "TestSolana",
 	}

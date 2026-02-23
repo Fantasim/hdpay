@@ -27,7 +27,7 @@ func TestBscScanProvider_FetchNativeBalances(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -68,7 +68,7 @@ func TestBscScanProvider_FetchNativeBalances_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -105,7 +105,7 @@ func TestBscScanProvider_FetchNativeBalances_MissingAddress(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -159,7 +159,7 @@ func TestBscScanProvider_FetchTokenBalances(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -204,7 +204,7 @@ func TestBscScanProvider_FetchTokenBalances_ErrorCollection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -247,7 +247,7 @@ func TestBscScanProvider_FetchNativeBalances_HTTP500(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -272,7 +272,7 @@ func TestBscScanProvider_FetchNativeBalances_MalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BscScanProvider{
 		client: server.Client(),
 		rl:     rl,
@@ -296,7 +296,7 @@ func TestBscScanProvider_FetchNativeBalances_ContextCancellation(t *testing.T) {
 
 	provider := &BscScanProvider{
 		client: http.DefaultClient,
-		rl:     NewRateLimiter("test", 100),
+		rl:     NewRateLimiter("test", 100, 0),
 		apiURL: "http://localhost:1", // won't be called
 	}
 

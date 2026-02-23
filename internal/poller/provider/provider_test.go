@@ -44,7 +44,7 @@ func TestNewProviderSet(t *testing.T) {
 	p1 := &mockProvider{name: "mock1", chain: "BTC"}
 	p2 := &mockProvider{name: "mock2", chain: "BTC"}
 
-	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{10, 10})
+	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{10, 10}, []int64{0, 0})
 
 	if ps.Chain() != "BTC" {
 		t.Errorf("Chain() = %q, want %q", ps.Chain(), "BTC")
@@ -60,7 +60,7 @@ func TestProviderSet_ExecuteFetch_Success(t *testing.T) {
 	}
 	p1 := &mockProvider{name: "mock1", chain: "BTC", fetchResult: expectedTxs}
 
-	ps := NewProviderSet("BTC", []Provider{p1}, []int{100})
+	ps := NewProviderSet("BTC", []Provider{p1}, []int{100}, []int64{})
 
 	ctx := context.Background()
 	txs, err := ps.ExecuteFetch(ctx, "addr1", 0)
@@ -86,7 +86,7 @@ func TestProviderSet_ExecuteFetch_Rotation(t *testing.T) {
 	p1 := &mockProvider{name: "failing", chain: "BTC", fetchErr: errors.New("provider down")}
 	p2 := &mockProvider{name: "working", chain: "BTC", fetchResult: expectedTxs}
 
-	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100})
+	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100}, []int64{})
 
 	ctx := context.Background()
 	txs, err := ps.ExecuteFetch(ctx, "addr1", 0)
@@ -108,7 +108,7 @@ func TestProviderSet_ExecuteFetch_AllFail(t *testing.T) {
 	p1 := &mockProvider{name: "fail1", chain: "BTC", fetchErr: errors.New("down")}
 	p2 := &mockProvider{name: "fail2", chain: "BTC", fetchErr: errors.New("also down")}
 
-	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100})
+	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100}, []int64{})
 
 	ctx := context.Background()
 	_, err := ps.ExecuteFetch(ctx, "addr1", 0)
@@ -121,7 +121,7 @@ func TestProviderSet_ExecuteFetch_AllFail(t *testing.T) {
 }
 
 func TestProviderSet_ExecuteFetch_NoProviders(t *testing.T) {
-	ps := NewProviderSet("BTC", []Provider{}, []int{})
+	ps := NewProviderSet("BTC", []Provider{}, []int{}, []int64{})
 
 	ctx := context.Background()
 	_, err := ps.ExecuteFetch(ctx, "addr1", 0)
@@ -136,7 +136,7 @@ func TestProviderSet_ExecuteFetch_NoProviders(t *testing.T) {
 func TestProviderSet_ExecuteFetch_ContextCancelled(t *testing.T) {
 	p1 := &mockProvider{name: "mock1", chain: "BTC", fetchResult: []RawTransaction{}}
 
-	ps := NewProviderSet("BTC", []Provider{p1}, []int{1}) // 1 rps to ensure rate limit
+	ps := NewProviderSet("BTC", []Provider{p1}, []int{1}, []int64{}) // 1 rps to ensure rate limit
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -158,7 +158,7 @@ func TestProviderSet_ExecuteFetch_ContextCancelled(t *testing.T) {
 
 func TestProviderSet_ExecuteConfirmation(t *testing.T) {
 	p1 := &mockProvider{name: "mock1", chain: "BTC"}
-	ps := NewProviderSet("BTC", []Provider{p1}, []int{100})
+	ps := NewProviderSet("BTC", []Provider{p1}, []int{100}, []int64{})
 
 	ctx := context.Background()
 	confirmed, confirmations, err := ps.ExecuteConfirmation(ctx, "txhash1", 0)
@@ -175,7 +175,7 @@ func TestProviderSet_ExecuteConfirmation(t *testing.T) {
 
 func TestProviderSet_ExecuteGetBlock(t *testing.T) {
 	p1 := &mockProvider{name: "mock1", chain: "BSC"}
-	ps := NewProviderSet("BSC", []Provider{p1}, []int{100})
+	ps := NewProviderSet("BSC", []Provider{p1}, []int{100}, []int64{})
 
 	ctx := context.Background()
 	block, err := ps.ExecuteGetBlock(ctx)
@@ -194,7 +194,7 @@ func TestProviderSet_CircuitBreaker_SkipsOpenCircuit(t *testing.T) {
 		{TxHash: "ok"},
 	}}
 
-	ps := NewProviderSet("BTC", []Provider{failProvider, successProvider}, []int{100, 100})
+	ps := NewProviderSet("BTC", []Provider{failProvider, successProvider}, []int{100, 100}, []int64{})
 
 	ctx := context.Background()
 
@@ -220,7 +220,7 @@ func TestProviderSet_RoundRobin_CyclesCorrectly(t *testing.T) {
 	p1 := &mockProvider{name: "p1", chain: "BTC", fetchResult: []RawTransaction{{TxHash: "from-p1"}}}
 	p2 := &mockProvider{name: "p2", chain: "BTC", fetchResult: []RawTransaction{{TxHash: "from-p2"}}}
 
-	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100})
+	ps := NewProviderSet("BTC", []Provider{p1, p2}, []int{100, 100}, []int64{})
 
 	ctx := context.Background()
 
@@ -251,7 +251,7 @@ func TestNewHTTPClient(t *testing.T) {
 // Ensure the rate limiter is from HDPay's scanner package (integration check)
 func TestProviderSet_UsesHDPayRateLimiter(t *testing.T) {
 	// Simply verify we can construct with the HDPay rate limiter constants
-	rl := scanner.NewRateLimiter("test", hdconfig.RateLimitBlockstream)
+	rl := scanner.NewRateLimiter("test", hdconfig.RateLimitBlockstream, 0)
 	if rl == nil {
 		t.Fatal("scanner.NewRateLimiter returned nil")
 	}

@@ -87,11 +87,13 @@ const (
 
 // Provider URLs — BSC
 const (
-	BscScanAPIURL     = "https://api.bscscan.com/api"
+	// BscScanAPIURL is kept for reference only — api.bscscan.com was shut down Dec 18, 2025.
+	// Do NOT use this URL; all BSC scanning now goes through public RPC nodes.
+	BscScanAPIURL     = "https://api.bscscan.com/api" // DEPRECATED
 	BscRPCMainnetURL  = "https://bsc-dataseed.binance.org"
 	BscRPCMainnetURL2 = "https://rpc.ankr.com/bsc"
 	BscRPCTestnetURL  = "https://data-seed-prebsc-1-s1.binance.org:8545"
-	BscScanTestnetURL = "https://api-testnet.bscscan.com/api"
+	BscScanTestnetURL = "https://api-testnet.bscscan.com/api" // DEPRECATED
 )
 
 // Provider URLs — Solana
@@ -108,14 +110,26 @@ const (
 )
 
 // Rate Limiting (requests per second unless noted)
+// Values verified against provider nginx configs and official documentation (Feb 2026).
 const (
-	RateLimitBscScan       = 5
-	RateLimitBlockstream   = 10
-	RateLimitMempool       = 10
+	RateLimitBscScan        = 0  // Deprecated — api.bscscan.com shut down Dec 18, 2025
+	RateLimitBlockstream    = 5  // nginx heavylimitzone = 5r/s (was incorrectly set to 10)
+	RateLimitMempool        = 3  // nginx 200r/m ≈ 3.3r/s (was incorrectly set to 10)
 	RateLimitBlockchainInfo = 5
-	RateLimitSolanaRPC     = 10
-	RateLimitHelius        = 10
-	RateLimitCoinGecko     = 10 // requests per minute
+	RateLimitSolanaRPC      = 10
+	RateLimitHelius         = 10
+	RateLimitCoinGecko      = 30 // requests per minute — Demo plan = 30 RPM (was 10)
+)
+
+// Provider known monthly call limits (0 = no documented monthly cap).
+// Used by the provider usage dashboard to show "X / Y this month" progress.
+const (
+	KnownMonthlyLimitBlockstream = int64(500_000)   // free unauthenticated tier
+	KnownMonthlyLimitMempool     = int64(0)          // no monthly cap, only per-minute rate
+	KnownMonthlyLimitHelius      = int64(1_000_000)  // credits/month (1 credit per std RPC call)
+	KnownMonthlyLimitSolanaRPC   = int64(0)          // no monthly cap
+	KnownMonthlyLimitCoinGecko   = int64(10_000)     // Demo plan: 10K calls/month
+	KnownMonthlyLimitBSCRPC      = int64(0)          // public RPC — no monthly cap
 )
 
 // Transaction — General

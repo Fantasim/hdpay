@@ -2,287 +2,306 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/big"
-	"net/http"
-	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	hdconfig "github.com/Fantasim/hdpay/internal/shared/config"
 	pollerconfig "github.com/Fantasim/hdpay/internal/poller/config"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// bscScanResponse is the top-level BscScan API response envelope.
-type bscScanResponse struct {
-	Status  string          `json:"status"` // "1" = success, "0" = error
-	Message string          `json:"message"`
-	Result  json.RawMessage `json:"result"`
-}
+// transferEventTopic is keccak256("Transfer(address,address,uint256)").
+var transferEventTopic = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 
-// bscNormalTx represents a normal (BNB) transaction from BscScan txlist.
-type bscNormalTx struct {
-	Hash      string `json:"hash"`
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Value     string `json:"value"` // wei
-	IsError   string `json:"isError"`
-	TimeStamp string `json:"timeStamp"` // unix seconds
-}
-
-// bscTokenTx represents a token transfer from BscScan tokentx.
-type bscTokenTx struct {
-	Hash            string `json:"hash"`
-	From            string `json:"from"`
-	To              string `json:"to"`
-	Value           string `json:"value"`
-	ContractAddress string `json:"contractAddress"`
-	TokenDecimal    string `json:"tokenDecimal"`
-	TimeStamp       string `json:"timeStamp"`
-}
-
-// bscBlockNumberResult represents the eth_blockNumber proxy response.
-type bscBlockNumberResult struct {
-	Result string `json:"result"` // hex-encoded block number
-}
-
-// BscScanProvider detects BSC transactions via BscScan API.
-type BscScanProvider struct {
-	client  *http.Client
-	baseURL string
-	apiKey  string
+// BSCRPCPollerProvider detects incoming BSC transactions using public JSON-RPC.
+//
+// For token transfers (USDC/USDT): eth_getLogs with Transfer event filtered by
+// recipient address and known contract addresses.
+//
+// For native BNB: eth_getBalance polled every tick. An increase in balance
+// compared to the last known value is recorded as an incoming receipt. A
+// synthetic tx hash ("bnb-{address}-block-{block}") is used for deduplication
+// since native BNB transfers do not emit events.
+type BSCRPCPollerProvider struct {
+	client  *ethclient.Client
 	network string
+
+	// lastKnownBal maps address (lower-case) → last-seen confirmed balance.
+	// Used to detect BNB balance increases between polls.
+	lastKnownBal sync.Map
 }
 
-// NewBscScanProvider creates a BscScan provider for the given network.
-func NewBscScanProvider(client *http.Client, network, apiKey string) *BscScanProvider {
-	baseURL := hdconfig.BscScanAPIURL
+// NewBSCRPCPollerProvider creates a provider that connects to a public BSC RPC node.
+// api.bscscan.com was shut down Dec 18, 2025; this implementation uses only
+// go-ethereum ethclient and requires no external API key.
+// Rate limiting is handled externally by ProviderSet.
+func NewBSCRPCPollerProvider(network string) (*BSCRPCPollerProvider, error) {
+	rpcURL := hdconfig.BscRPCMainnetURL
 	if network == "testnet" {
-		baseURL = hdconfig.BscScanTestnetURL
+		rpcURL = hdconfig.BscRPCTestnetURL
 	}
 
-	slog.Info("bscscan provider created",
+	slog.Info("bsc rpc poller provider connecting",
+		"rpcURL", rpcURL,
 		"network", network,
-		"baseURL", baseURL,
-		"hasAPIKey", apiKey != "",
 	)
 
-	return &BscScanProvider{
-		client:  client,
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		network: network,
+	client, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		// Try the Ankr fallback immediately if the primary fails.
+		slog.Warn("primary BSC RPC failed, trying Ankr fallback",
+			"primary", rpcURL,
+			"fallback", hdconfig.BscRPCMainnetURL2,
+			"error", err,
+		)
+		if network != "testnet" {
+			client, err = ethclient.Dial(hdconfig.BscRPCMainnetURL2)
+			if err != nil {
+				return nil, fmt.Errorf("dial BSC RPC (primary + fallback): %w", err)
+			}
+			rpcURL = hdconfig.BscRPCMainnetURL2
+		} else {
+			return nil, fmt.Errorf("dial BSC RPC %s: %w", rpcURL, err)
+		}
 	}
+
+	slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
+
+	return &BSCRPCPollerProvider{
+		client:  client,
+		network: network,
+	}, nil
 }
 
-func (p *BscScanProvider) Name() string  { return "bscscan" }
-func (p *BscScanProvider) Chain() string  { return "BSC" }
+func (p *BSCRPCPollerProvider) Name() string  { return "bscrpc-poller" }
+func (p *BSCRPCPollerProvider) Chain() string { return "BSC" }
 
-// FetchTransactions returns incoming BSC transactions (BNB + USDC + USDT) for an address since cutoffUnix.
-func (p *BscScanProvider) FetchTransactions(ctx context.Context, address string, cutoffUnix int64) ([]RawTransaction, error) {
+// FetchTransactions returns incoming BSC transactions since cutoffUnix.
+// Token transfers are detected via eth_getLogs; native BNB via balance delta.
+// Rate limiting is handled externally by ProviderSet.
+func (p *BSCRPCPollerProvider) FetchTransactions(ctx context.Context, address string, cutoffUnix int64) ([]RawTransaction, error) {
+	latestBlock, err := p.client.BlockNumber(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("bsc rpc get block number: %w", err)
+	}
+
+	// Estimate fromBlock from cutoff. BSC produces a block ~every 3 seconds.
+	elapsed := time.Now().Unix() - cutoffUnix
+	blocksBack := elapsed / 3
+	if blocksBack < 0 {
+		blocksBack = 0
+	}
+	// Cap at 50 000 blocks (~41h) to avoid oversized log queries on public RPC.
+	if blocksBack > 50_000 {
+		blocksBack = 50_000
+	}
+	fromBlock := int64(latestBlock) - blocksBack
+	if fromBlock < 0 {
+		fromBlock = 0
+	}
+
+	slog.Debug("bsc rpc poller fetching",
+		"address", address,
+		"fromBlock", fromBlock,
+		"latestBlock", latestBlock,
+		"cutoffUnix", cutoffUnix,
+	)
+
 	var result []RawTransaction
 
-	// 1. Normal transactions (BNB)
-	normalTxs, err := p.fetchNormalTxs(ctx, address, cutoffUnix)
+	// 1. Token transfers (USDC + USDT) via eth_getLogs.
+	tokenTxs, err := p.fetchTokenLogs(ctx, address, fromBlock, int64(latestBlock))
 	if err != nil {
-		return nil, fmt.Errorf("bscscan fetch normal txs: %w", err)
+		slog.Warn("bsc rpc token log fetch failed",
+			"address", address,
+			"error", err,
+		)
+		// Non-fatal: continue to check BNB balance.
+	} else {
+		result = append(result, tokenTxs...)
 	}
-	result = append(result, normalTxs...)
 
-	// 2. Token transactions (USDC + USDT)
-	tokenTxs, err := p.fetchTokenTxs(ctx, address, cutoffUnix)
+	// 2. Native BNB via balance delta.
+	bnbTxs, err := p.fetchBNBDelta(ctx, address, latestBlock)
 	if err != nil {
-		return nil, fmt.Errorf("bscscan fetch token txs: %w", err)
+		slog.Warn("bsc rpc bnb balance check failed",
+			"address", address,
+			"error", err,
+		)
+	} else {
+		result = append(result, bnbTxs...)
 	}
-	result = append(result, tokenTxs...)
 
-	slog.Info("BSC transactions fetched",
+	slog.Info("BSC RPC transactions fetched",
 		"provider", p.Name(),
 		"address", address,
-		"normalCount", len(normalTxs),
 		"tokenCount", len(tokenTxs),
+		"bnbCount", len(bnbTxs),
 		"totalCount", len(result),
 	)
 
 	return result, nil
 }
 
-// fetchNormalTxs fetches normal (BNB) transactions from BscScan.
-func (p *BscScanProvider) fetchNormalTxs(ctx context.Context, address string, cutoffUnix int64) ([]RawTransaction, error) {
-	url := fmt.Sprintf("%s?module=account&action=txlist&address=%s&sort=desc&apikey=%s",
-		p.baseURL, address, p.apiKey)
+// fetchTokenLogs fetches USDC and USDT Transfer events directed to the watched address.
+func (p *BSCRPCPollerProvider) fetchTokenLogs(ctx context.Context, address string, fromBlock, toBlock int64) ([]RawTransaction, error) {
+	usdcAddr, usdtAddr, usdcDecimals, usdtDecimals := p.tokenConfig()
+	if usdcAddr == "" && usdtAddr == "" {
+		return nil, nil // no tokens configured for this network
+	}
 
-	slog.Debug("fetching BSC normal txs",
-		"provider", p.Name(),
-		"address", address,
-	)
+	// Build contract address list.
+	var contracts []common.Address
+	if usdcAddr != "" {
+		contracts = append(contracts, common.HexToAddress(usdcAddr))
+	}
+	if usdtAddr != "" {
+		contracts = append(contracts, common.HexToAddress(usdtAddr))
+	}
 
-	body, err := p.doGet(ctx, url)
+	// topics[2] = recipient address (left-padded to 32 bytes).
+	recipientTopic := common.BytesToHash(common.HexToAddress(address).Bytes())
+
+	query := ethereum.FilterQuery{
+		FromBlock: big.NewInt(fromBlock),
+		ToBlock:   big.NewInt(toBlock),
+		Addresses: contracts,
+		Topics: [][]common.Hash{
+			{transferEventTopic},
+			{}, // from — any address
+			{recipientTopic},
+		},
+	}
+
+	logs, err := p.client.FilterLogs(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("eth_getLogs: %w", err)
 	}
 
-	var resp bscScanResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("bscscan parse response: %w", err)
-	}
-
-	// BscScan returns status "0" with message "No transactions found" when empty
-	if resp.Status == "0" && resp.Message == "No transactions found" {
-		return nil, nil
-	}
-	if resp.Status == "0" {
-		return nil, fmt.Errorf("bscscan API error: %s", resp.Message)
-	}
-
-	var txs []bscNormalTx
-	if err := json.Unmarshal(resp.Result, &txs); err != nil {
-		return nil, fmt.Errorf("bscscan parse normal txs: %w", err)
-	}
+	usdcAddrLower := strings.ToLower(usdcAddr)
+	usdtAddrLower := strings.ToLower(usdtAddr)
+	now := time.Now().Unix()
 
 	var result []RawTransaction
-	for _, tx := range txs {
-		ts, err := strconv.ParseInt(tx.TimeStamp, 10, 64)
-		if err != nil {
-			slog.Warn("bscscan invalid timestamp", "txHash", tx.Hash, "timestamp", tx.TimeStamp)
+	for _, log := range logs {
+		if log.Removed {
 			continue
 		}
 
-		// Skip transactions older than cutoff
-		if ts < cutoffUnix {
-			break // sorted desc, so we can stop
-		}
-
-		// Skip outgoing transactions
-		if !strings.EqualFold(tx.To, address) {
+		contract := strings.ToLower(log.Address.Hex())
+		token := ""
+		decimals := 0
+		switch {
+		case contract == usdcAddrLower && usdcAddr != "":
+			token = "USDC"
+			decimals = usdcDecimals
+		case contract == usdtAddrLower && usdtAddr != "":
+			token = "USDT"
+			decimals = usdtDecimals
+		default:
 			continue
 		}
 
-		// Skip failed transactions
-		if tx.IsError == "1" {
-			slog.Debug("skipping failed BSC tx", "txHash", tx.Hash)
+		// Data field is the uint256 amount (32 bytes, big-endian).
+		if len(log.Data) < 32 {
+			slog.Warn("bsc rpc: short log data, skipping", "txHash", log.TxHash.Hex())
 			continue
 		}
+		amountInt := new(big.Int).SetBytes(log.Data[:32])
+		amountRaw := amountInt.String()
+		amountHuman := weiToHuman(amountRaw, decimals)
 
-		// Skip zero-value transactions
-		if tx.Value == "0" {
-			continue
-		}
-
-		amountHuman := weiToHuman(tx.Value, hdconfig.BNBDecimals)
-
-		slog.Debug("BSC BNB incoming tx detected",
-			"txHash", tx.Hash,
-			"address", address,
-			"wei", tx.Value,
-			"amountBNB", amountHuman,
-		)
-
-		result = append(result, RawTransaction{
-			TxHash:      tx.Hash,
-			Token:       "BNB",
-			AmountRaw:   tx.Value,
-			AmountHuman: amountHuman,
-			Decimals:    hdconfig.BNBDecimals,
-			BlockTime:   ts,
-			Confirmed:   true, // txlist only returns mined txs
-			BlockNumber: 0,    // will be populated below if needed
-		})
-	}
-
-	return result, nil
-}
-
-// fetchTokenTxs fetches token (USDC + USDT) transactions from BscScan.
-func (p *BscScanProvider) fetchTokenTxs(ctx context.Context, address string, cutoffUnix int64) ([]RawTransaction, error) {
-	url := fmt.Sprintf("%s?module=account&action=tokentx&address=%s&sort=desc&apikey=%s",
-		p.baseURL, address, p.apiKey)
-
-	slog.Debug("fetching BSC token txs",
-		"provider", p.Name(),
-		"address", address,
-	)
-
-	body, err := p.doGet(ctx, url)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp bscScanResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("bscscan parse response: %w", err)
-	}
-
-	if resp.Status == "0" && resp.Message == "No transactions found" {
-		return nil, nil
-	}
-	if resp.Status == "0" {
-		return nil, fmt.Errorf("bscscan API error: %s", resp.Message)
-	}
-
-	var txs []bscTokenTx
-	if err := json.Unmarshal(resp.Result, &txs); err != nil {
-		return nil, fmt.Errorf("bscscan parse token txs: %w", err)
-	}
-
-	// Resolve contract addresses based on network
-	usdcContract, usdtContract := p.tokenContracts()
-
-	var result []RawTransaction
-	for _, tx := range txs {
-		ts, err := strconv.ParseInt(tx.TimeStamp, 10, 64)
-		if err != nil {
-			slog.Warn("bscscan invalid token tx timestamp", "txHash", tx.Hash, "timestamp", tx.TimeStamp)
-			continue
-		}
-
-		if ts < cutoffUnix {
-			break
-		}
-
-		// Skip outgoing
-		if !strings.EqualFold(tx.To, address) {
-			continue
-		}
-
-		// Determine token from contract address
-		token, decimals := p.identifyToken(tx.ContractAddress, usdcContract, usdtContract)
-		if token == "" {
-			continue // not a tracked token
-		}
-
-		amountHuman := weiToHuman(tx.Value, decimals)
-
-		slog.Debug("BSC token incoming tx detected",
-			"txHash", tx.Hash,
-			"address", address,
+		slog.Debug("BSC token Transfer event detected",
+			"txHash", log.TxHash.Hex(),
 			"token", token,
 			"amount", amountHuman,
-			"contract", tx.ContractAddress,
+			"blockNumber", log.BlockNumber,
 		)
 
 		result = append(result, RawTransaction{
-			TxHash:      tx.Hash,
+			TxHash:      log.TxHash.Hex(),
 			Token:       token,
-			AmountRaw:   tx.Value,
+			AmountRaw:   amountRaw,
 			AmountHuman: amountHuman,
 			Decimals:    decimals,
-			BlockTime:   ts,
+			BlockTime:   now,
 			Confirmed:   true,
-			BlockNumber: 0,
+			BlockNumber: int64(log.BlockNumber),
 		})
 	}
 
 	return result, nil
 }
 
-// CheckConfirmation checks BSC transaction confirmation by comparing block numbers.
-func (p *BscScanProvider) CheckConfirmation(ctx context.Context, _ string, blockNumber int64) (bool, int, error) {
+// fetchBNBDelta checks whether the native BNB balance increased since last poll.
+// If so, a synthetic RawTransaction is returned for the detected delta.
+// The synthetic tx hash is stable within a block to ensure deduplication.
+func (p *BSCRPCPollerProvider) fetchBNBDelta(ctx context.Context, address string, currentBlock uint64) ([]RawTransaction, error) {
+	addr := common.HexToAddress(address)
+	currentBalance, err := p.client.BalanceAt(ctx, addr, nil) // nil = latest
+	if err != nil {
+		return nil, fmt.Errorf("eth_getBalance: %w", err)
+	}
+
+	addrKey := strings.ToLower(address)
+
+	var result []RawTransaction
+	if prev, loaded := p.lastKnownBal.Load(addrKey); loaded {
+		prevBal := prev.(*big.Int)
+		if currentBalance.Cmp(prevBal) > 0 {
+			delta := new(big.Int).Sub(currentBalance, prevBal)
+			amountRaw := delta.String()
+			amountHuman := weiToHuman(amountRaw, hdconfig.BNBDecimals)
+
+			// Synthetic hash: stable for this address + block combination.
+			syntheticHash := fmt.Sprintf("bnb-%s-block-%d", addrKey, currentBlock)
+
+			slog.Debug("BSC BNB balance increase detected",
+				"address", address,
+				"prevBalance", prevBal.String(),
+				"currentBalance", currentBalance.String(),
+				"delta", amountRaw,
+				"blockNumber", currentBlock,
+			)
+
+			result = append(result, RawTransaction{
+				TxHash:      syntheticHash,
+				Token:       "BNB",
+				AmountRaw:   amountRaw,
+				AmountHuman: amountHuman,
+				Decimals:    hdconfig.BNBDecimals,
+				BlockTime:   time.Now().Unix(),
+				Confirmed:   true,
+				BlockNumber: int64(currentBlock),
+			})
+		}
+	}
+
+	// Always update last known balance.
+	p.lastKnownBal.Store(addrKey, new(big.Int).Set(currentBalance))
+
+	return result, nil
+}
+
+// CheckConfirmation checks BSC transaction confirmation.
+// For synthetic BNB-balance hashes, returns confirmed immediately since
+// they are only emitted after reading confirmed chain state.
+func (p *BSCRPCPollerProvider) CheckConfirmation(ctx context.Context, txHash string, blockNumber int64) (bool, int, error) {
+	// Synthetic BNB hashes are already based on confirmed balance reads.
+	if strings.HasPrefix(txHash, "bnb-") {
+		return true, pollerconfig.ConfirmationsBSC, nil
+	}
+
 	currentBlock, err := p.GetCurrentBlock(ctx)
 	if err != nil {
-		return false, 0, fmt.Errorf("bscscan get current block: %w", err)
+		return false, 0, fmt.Errorf("bsc rpc get current block: %w", err)
 	}
 
 	if blockNumber <= 0 {
@@ -290,9 +309,13 @@ func (p *BscScanProvider) CheckConfirmation(ctx context.Context, _ string, block
 	}
 
 	confirmations := int(currentBlock) - int(blockNumber)
+	if confirmations < 0 {
+		confirmations = 0
+	}
 	confirmed := confirmations >= pollerconfig.ConfirmationsBSC
 
-	slog.Debug("BSC confirmation check",
+	slog.Debug("BSC RPC confirmation check",
+		"txHash", txHash,
 		"blockNumber", blockNumber,
 		"currentBlock", currentBlock,
 		"confirmations", confirmations,
@@ -303,122 +326,44 @@ func (p *BscScanProvider) CheckConfirmation(ctx context.Context, _ string, block
 	return confirmed, confirmations, nil
 }
 
-// GetCurrentBlock returns the latest BSC block number via BscScan proxy.
-func (p *BscScanProvider) GetCurrentBlock(ctx context.Context) (uint64, error) {
-	url := fmt.Sprintf("%s?module=proxy&action=eth_blockNumber&apikey=%s",
-		p.baseURL, p.apiKey)
-
-	slog.Debug("fetching BSC current block",
-		"provider", p.Name(),
-	)
-
-	body, err := p.doGet(ctx, url)
+// GetCurrentBlock returns the latest BSC block number.
+// Rate limiting is handled externally by ProviderSet.
+func (p *BSCRPCPollerProvider) GetCurrentBlock(ctx context.Context) (uint64, error) {
+	block, err := p.client.BlockNumber(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("bscscan get block number: %w", err)
+		return 0, fmt.Errorf("eth_blockNumber: %w", err)
 	}
 
-	var result bscBlockNumberResult
-	if err := json.Unmarshal(body, &result); err != nil {
-		return 0, fmt.Errorf("bscscan parse block number: %w", err)
-	}
-
-	// Parse hex block number (remove "0x" prefix)
-	blockStr := strings.TrimPrefix(result.Result, "0x")
-	block, err := strconv.ParseUint(blockStr, 16, 64)
-	if err != nil {
-		return 0, fmt.Errorf("bscscan parse hex block %q: %w", result.Result, err)
-	}
-
-	slog.Debug("BSC current block",
-		"block", block,
-	)
-
+	slog.Debug("BSC RPC current block", "block", block)
 	return block, nil
 }
 
-// tokenContracts returns the USDC and USDT contract addresses for the current network.
-func (p *BscScanProvider) tokenContracts() (usdc, usdt string) {
+// tokenConfig returns the USDC and USDT contract addresses and decimals for the current network.
+func (p *BSCRPCPollerProvider) tokenConfig() (usdcAddr, usdtAddr string, usdcDecimals, usdtDecimals int) {
 	if p.network == "testnet" {
-		return hdconfig.BSCTestnetUSDCContract, hdconfig.BSCTestnetUSDTContract
+		return hdconfig.BSCTestnetUSDCContract, hdconfig.BSCTestnetUSDTContract,
+			hdconfig.BSCUSDCDecimals, hdconfig.BSCUSDTDecimals
 	}
-	return hdconfig.BSCUSDCContract, hdconfig.BSCUSDTContract
+	return hdconfig.BSCUSDCContract, hdconfig.BSCUSDTContract,
+		hdconfig.BSCUSDCDecimals, hdconfig.BSCUSDTDecimals
 }
 
-// identifyToken determines the token name and decimals from a contract address.
-// Returns empty string if the contract is not a tracked token.
-func (p *BscScanProvider) identifyToken(contract, usdcContract, usdtContract string) (string, int) {
-	switch {
-	case strings.EqualFold(contract, usdcContract) && usdcContract != "":
-		return "USDC", p.tokenDecimals("USDC")
-	case strings.EqualFold(contract, usdtContract) && usdtContract != "":
-		return "USDT", p.tokenDecimals("USDT")
-	default:
-		return "", 0
-	}
-}
-
-// tokenDecimals returns the decimal count for a BSC token.
-func (p *BscScanProvider) tokenDecimals(token string) int {
-	if p.network == "testnet" {
-		// BSC testnet USDC is 6 decimals, USDT is 18
-		switch token {
-		case "USDC":
-			return 6 // BSCTestnetUSDCContract is 6 decimals
-		case "USDT":
-			return hdconfig.BSCUSDTDecimals
-		}
-	}
-	switch token {
-	case "USDC":
-		return hdconfig.BSCUSDCDecimals
-	case "USDT":
-		return hdconfig.BSCUSDTDecimals
-	default:
-		return 18
-	}
-}
-
-// doGet performs a GET request and returns the response body.
-func (p *BscScanProvider) doGet(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("http request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response body: %w", err)
-	}
-
-	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, fmt.Errorf("rate limited (HTTP 429) from bscscan")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d from bscscan: %s", resp.StatusCode, string(body))
-	}
-
-	return body, nil
-}
-
-// weiToHuman converts a raw amount string to human-readable using the given decimals.
-func weiToHuman(rawAmount string, decimals int) string {
-	amount := new(big.Float)
-	if _, ok := amount.SetString(rawAmount); !ok {
+// weiToHuman converts a raw integer amount string to a human-readable decimal string.
+// decimals is the number of decimal places (e.g. 18 for BNB/ETH, 6 for USDC on BSC).
+// Returns "0" on parse error.
+func weiToHuman(raw string, decimals int) string {
+	n, ok := new(big.Int).SetString(raw, 10)
+	if !ok {
 		return "0"
 	}
+	if decimals == 0 {
+		return n.String()
+	}
+	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	quotient := new(big.Int).Quo(n, divisor)
+	remainder := new(big.Int).Mod(n, divisor)
 
-	divisor := new(big.Float).SetInt(new(big.Int).Exp(
-		big.NewInt(10),
-		big.NewInt(int64(decimals)),
-		nil,
-	))
-
-	result := new(big.Float).Quo(amount, divisor)
-	return result.Text('f', decimals)
+	// Format remainder with leading zeros to fill the decimals positions.
+	fracFmt := fmt.Sprintf("%0*s", decimals, remainder.String())
+	return fmt.Sprintf("%s.%s", quotient.String(), fracFmt)
 }

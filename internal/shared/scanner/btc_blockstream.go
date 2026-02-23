@@ -54,6 +54,9 @@ func NewBlockstreamProvider(client *http.Client, rl *RateLimiter, network string
 func (p *BlockstreamProvider) Name() string              { return "Blockstream" }
 func (p *BlockstreamProvider) Chain() models.Chain        { return models.ChainBTC }
 func (p *BlockstreamProvider) MaxBatchSize() int          { return 1 }
+func (p *BlockstreamProvider) RecordSuccess()             { p.rl.RecordSuccess() }
+func (p *BlockstreamProvider) RecordFailure(is429 bool)   { p.rl.RecordFailure(is429) }
+func (p *BlockstreamProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 
 // FetchNativeBalances fetches BTC balance for each address (one API call per address).
 // Continues on per-address errors instead of early-returning, annotating failed results.

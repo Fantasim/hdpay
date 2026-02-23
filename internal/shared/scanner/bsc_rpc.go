@@ -53,6 +53,9 @@ func NewBSCRPCProvider(rl *RateLimiter, network string) (*BSCRPCProvider, error)
 func (p *BSCRPCProvider) Name() string              { return "BSCRPC" }
 func (p *BSCRPCProvider) Chain() models.Chain        { return models.ChainBSC }
 func (p *BSCRPCProvider) MaxBatchSize() int          { return 1 }
+func (p *BSCRPCProvider) RecordSuccess()             { p.rl.RecordSuccess() }
+func (p *BSCRPCProvider) RecordFailure(is429 bool)   { p.rl.RecordFailure(is429) }
+func (p *BSCRPCProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 
 // Close closes the underlying ethclient connection.
 func (p *BSCRPCProvider) Close() {

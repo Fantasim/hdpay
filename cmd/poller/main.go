@@ -124,14 +124,15 @@ func main() {
 
 	// Build API router with all dependencies.
 	deps := &pollerapi.Dependencies{
-		DB:         db,
-		Watcher:    w,
-		Calculator: calculator,
-		Allowlist:  allowlist,
-		Sessions:   sessions,
-		Config:     cfg,
-		Pricer:     pricer,
-		StaticFS:   staticFS,
+		DB:           db,
+		Watcher:      w,
+		Calculator:   calculator,
+		Allowlist:    allowlist,
+		Sessions:     sessions,
+		Config:       cfg,
+		Pricer:       pricer,
+		ProviderSets: providerSets,
+		StaticFS:     staticFS,
 	}
 	router := pollerapi.NewRouter(deps)
 
@@ -187,16 +188,26 @@ func initProviderSets(httpClient *http.Client, cfg *pollerconfig.Config) map[str
 		hdconfig.RateLimitBlockstream,
 		hdconfig.RateLimitMempool,
 	}
-	sets["BTC"] = provider.NewProviderSet("BTC", btcProviders, btcRPS)
+	sets["BTC"] = provider.NewProviderSet("BTC", btcProviders, btcRPS, []int64{
+		hdconfig.KnownMonthlyLimitBlockstream,
+		hdconfig.KnownMonthlyLimitMempool,
+	})
 
-	// BSC providers: BscScan.
-	bscProviders := []provider.Provider{
-		provider.NewBscScanProvider(httpClient, cfg.Network, cfg.BscScanAPIKey),
+	// BSC providers: BSC RPC (api.bscscan.com was shut down Dec 18, 2025).
+	bscRPCProvider, err := provider.NewBSCRPCPollerProvider(cfg.Network)
+	if err != nil {
+		slog.Error("failed to initialize BSC RPC provider", "error", err)
+		// Non-fatal — BSC watching will fail gracefully via ErrNoProviders.
 	}
-	bscRPS := []int{
-		hdconfig.RateLimitBscScan,
+	bscProviders := []provider.Provider{}
+	bscRPS := []int{}
+	bscMonthly := []int64{}
+	if bscRPCProvider != nil {
+		bscProviders = append(bscProviders, bscRPCProvider)
+		bscRPS = append(bscRPS, hdconfig.RateLimitSolanaRPC)
+		bscMonthly = append(bscMonthly, hdconfig.KnownMonthlyLimitBSCRPC)
 	}
-	sets["BSC"] = provider.NewProviderSet("BSC", bscProviders, bscRPS)
+	sets["BSC"] = provider.NewProviderSet("BSC", bscProviders, bscRPS, bscMonthly)
 
 	// SOL providers: Solana RPC + Helius (if API key provided).
 	solProviders := []provider.Provider{
@@ -205,13 +216,17 @@ func initProviderSets(httpClient *http.Client, cfg *pollerconfig.Config) map[str
 	solRPS := []int{
 		hdconfig.RateLimitSolanaRPC,
 	}
+	solMonthly := []int64{
+		hdconfig.KnownMonthlyLimitSolanaRPC,
+	}
 	if cfg.HeliusAPIKey != "" {
 		solProviders = append(solProviders,
 			provider.NewHeliusProvider(httpClient, cfg.Network, cfg.HeliusAPIKey),
 		)
 		solRPS = append(solRPS, hdconfig.RateLimitHelius)
+		solMonthly = append(solMonthly, hdconfig.KnownMonthlyLimitHelius)
 	}
-	sets["SOL"] = provider.NewProviderSet("SOL", solProviders, solRPS)
+	sets["SOL"] = provider.NewProviderSet("SOL", solProviders, solRPS, solMonthly)
 
 	slog.Info("provider sets initialized",
 		"btcProviders", len(btcProviders),

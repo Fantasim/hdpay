@@ -308,6 +308,24 @@ export type ProviderHealthStatus = 'healthy' | 'degraded' | 'down';
 // CircuitState represents the circuit breaker state.
 export type CircuitState = 'closed' | 'open' | 'half_open';
 
+// PeriodStats holds request counters for one time period (total/daily/weekly/monthly).
+export interface PeriodStats {
+	requests: number;
+	successes: number;
+	failures: number;
+	hits429: number;
+}
+
+// ProviderMetrics holds atomic usage counters for one provider.
+export interface ProviderMetrics {
+	name: string;
+	knownMonthlyLimit: number;
+	total: PeriodStats;
+	daily: PeriodStats;
+	weekly: PeriodStats;
+	monthly: PeriodStats;
+}
+
 // ProviderHealth represents a single provider's health from GET /api/health/providers.
 export interface ProviderHealth {
 	name: string;
@@ -319,6 +337,7 @@ export interface ProviderHealth {
 	lastSuccess: string;
 	lastError: string;
 	lastErrorMsg: string;
+	metrics: ProviderMetrics;
 }
 
 // ProviderHealthMap is the response data from GET /api/health/providers.

@@ -26,7 +26,7 @@ func TestBlockstreamProvider_FetchNativeBalances(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -71,7 +71,7 @@ func TestBlockstreamProvider_RateLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -106,7 +106,7 @@ func TestBlockstreamProvider_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -169,7 +169,7 @@ func TestBlockstreamProvider_ErrorCollection_PartialFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -227,7 +227,7 @@ func TestBlockstreamProvider_ErrorCollection_AllFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -268,7 +268,7 @@ func TestBlockstreamProvider_MalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BlockstreamProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -306,7 +306,7 @@ func TestBlockstreamProvider_ContextCancellation(t *testing.T) {
 
 	provider := &BlockstreamProvider{
 		client:  http.DefaultClient,
-		rl:      NewRateLimiter("test", 100),
+		rl:      NewRateLimiter("test", 100, 0),
 		baseURL: "http://localhost:1", // won't be called
 	}
 

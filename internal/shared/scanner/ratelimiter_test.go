@@ -8,14 +8,14 @@ import (
 )
 
 func TestRateLimiter_Name(t *testing.T) {
-	rl := NewRateLimiter("blockstream", 10)
+	rl := NewRateLimiter("blockstream", 10, 0)
 	if rl.Name() != "blockstream" {
 		t.Errorf("Name() = %q, want %q", rl.Name(), "blockstream")
 	}
 }
 
 func TestRateLimiter_WaitAllowsWithinLimit(t *testing.T) {
-	rl := NewRateLimiter("test-provider", 100) // high RPS so it doesn't block
+	rl := NewRateLimiter("test-provider", 100, 0) // high RPS so it doesn't block
 
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
@@ -27,7 +27,7 @@ func TestRateLimiter_WaitAllowsWithinLimit(t *testing.T) {
 
 func TestRateLimiter_WaitCancelledContext(t *testing.T) {
 	// 1 request per second — after the first request, the second must wait.
-	rl := NewRateLimiter("slow-provider", 1)
+	rl := NewRateLimiter("slow-provider", 1, 0)
 
 	ctx := context.Background()
 	// Consume the initial token.
@@ -46,7 +46,7 @@ func TestRateLimiter_WaitCancelledContext(t *testing.T) {
 }
 
 func TestRateLimiter_WaitContextTimeout(t *testing.T) {
-	rl := NewRateLimiter("slow-provider", 1)
+	rl := NewRateLimiter("slow-provider", 1, 0)
 
 	ctx := context.Background()
 	// Consume the initial token.
@@ -66,7 +66,7 @@ func TestRateLimiter_WaitContextTimeout(t *testing.T) {
 
 func TestRateLimiter_ConcurrentWaiters(t *testing.T) {
 	// 10 RPS — check that concurrent goroutines don't panic or deadlock.
-	rl := NewRateLimiter("concurrent-provider", 10)
+	rl := NewRateLimiter("concurrent-provider", 10, 0)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
@@ -96,7 +96,7 @@ func TestRateLimiter_ConcurrentWaiters(t *testing.T) {
 func TestRateLimiter_RateCompliance(t *testing.T) {
 	// 10 RPS with burst 1 — verify that 10 requests take at least ~900ms
 	// (first request is instant, next 9 each wait ~100ms).
-	rl := NewRateLimiter("rate-test", 10)
+	rl := NewRateLimiter("rate-test", 10, 0)
 
 	ctx := context.Background()
 	const requests = 10

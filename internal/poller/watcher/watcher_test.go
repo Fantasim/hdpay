@@ -158,7 +158,7 @@ func setupWatcher(t *testing.T, db *pollerdb.DB, mp *mockProvider) *Watcher {
 	calculator := points.NewPointsCalculator(tiers)
 
 	// Create mock provider set.
-	ps := provider.NewProviderSet(mp.Chain(), []provider.Provider{mp}, []int{100})
+	ps := provider.NewProviderSet(mp.Chain(), []provider.Provider{mp}, []int{100}, []int64{})
 	providers := map[string]*provider.ProviderSet{
 		mp.Chain(): ps,
 	}
@@ -879,7 +879,7 @@ func TestStop_GracefulShutdown(t *testing.T) {
 	tiers := defaultTiers()
 	calculator := points.NewPointsCalculator(tiers)
 	pricer := newTestPricer()
-	ps := provider.NewProviderSet(mp.Chain(), []provider.Provider{mp}, []int{100})
+	ps := provider.NewProviderSet(mp.Chain(), []provider.Provider{mp}, []int{100}, []int64{})
 	providers := map[string]*provider.ProviderSet{"BTC": ps}
 
 	w := NewWatcher(db, providers, pricer, calculator, cfg)

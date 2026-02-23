@@ -44,7 +44,7 @@ func newBSCRPCTestProvider(t *testing.T, handler http.HandlerFunc) (*BSCRPCProvi
 		t.Fatalf("failed to dial mock server: %v", err)
 	}
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &BSCRPCProvider{
 		client: client,
 		rl:     rl,

@@ -272,3 +272,24 @@ export interface WatchDefaults {
 	default_watch_timeout_min: number;
 	max_active_watches: number;
 }
+
+// Provider Stats — from GET /api/admin/provider-stats
+export interface PeriodStats {
+	requests: number;
+	successes: number;
+	failures: number;
+	hits429: number;
+}
+
+export interface ProviderMetrics {
+	name: string;
+	knownMonthlyLimit: number;
+	total: PeriodStats;
+	daily: PeriodStats;
+	weekly: PeriodStats;
+	monthly: PeriodStats;
+}
+
+export interface ProviderStatsResponse {
+	chains: Record<string, ProviderMetrics[]>;
+}

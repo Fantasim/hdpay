@@ -26,7 +26,7 @@ func TestMempoolProvider_FetchNativeBalances(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -71,7 +71,7 @@ func TestMempoolProvider_RateLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -106,7 +106,7 @@ func TestMempoolProvider_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -137,7 +137,7 @@ func TestMempoolProvider_MalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -175,7 +175,7 @@ func TestMempoolProvider_PartialFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -230,7 +230,7 @@ func TestMempoolProvider_AllFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rl := NewRateLimiter("test", 100)
+	rl := NewRateLimiter("test", 100, 0)
 	provider := &MempoolProvider{
 		client:  server.Client(),
 		rl:      rl,
@@ -266,7 +266,7 @@ func TestMempoolProvider_ContextCancellation(t *testing.T) {
 
 	provider := &MempoolProvider{
 		client:  http.DefaultClient,
-		rl:      NewRateLimiter("test", 100),
+		rl:      NewRateLimiter("test", 100, 0),
 		baseURL: "http://localhost:1",
 	}
 

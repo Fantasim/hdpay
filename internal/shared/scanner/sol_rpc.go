@@ -90,6 +90,9 @@ func NewSolanaRPCProvider(client *http.Client, rl *RateLimiter, rpcURL, name str
 func (p *SolanaRPCProvider) Name() string              { return p.name }
 func (p *SolanaRPCProvider) Chain() models.Chain        { return models.ChainSOL }
 func (p *SolanaRPCProvider) MaxBatchSize() int          { return config.ScanBatchSizeSolanaRPC }
+func (p *SolanaRPCProvider) RecordSuccess()             { p.rl.RecordSuccess() }
+func (p *SolanaRPCProvider) RecordFailure(is429 bool)   { p.rl.RecordFailure(is429) }
+func (p *SolanaRPCProvider) Stats() MetricsSnapshot     { return p.rl.Stats() }
 
 // FetchNativeBalances fetches SOL balances using getMultipleAccounts.
 func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses []models.Address) ([]BalanceResult, error) {

@@ -532,3 +532,39 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found int, stat
 	// finishScan is still writing final state.
 	s.removeScan(chain)
 }
+
+// GetAllProviderMetrics returns usage metric snapshots for every provider
+// across all registered pools. Used by the /api/health/providers endpoint.
+func (s *Scanner) GetAllProviderMetrics() []MetricsSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var snapshots []MetricsSnapshot
+	for _, pool := range s.pools {
+		for _, provider := range pool.providers {
+			if mr, ok := provider.(MetricsReporter); ok {
+				// MetricsReporter embeds the snapshot method via RateLimiter.
+				// We need the Stats() from the underlying RateLimiter.
+				// Use a type switch on known provider types.
+				snap := getProviderSnapshot(provider)
+				if snap != nil {
+					snapshots = append(snapshots, *snap)
+				}
+				_ = mr // interface satisfied
+			}
+		}
+	}
+	return snapshots
+}
+
+// getProviderSnapshot extracts a MetricsSnapshot from a provider via its embedded RateLimiter.
+func getProviderSnapshot(p Provider) *MetricsSnapshot {
+	type statsProvider interface {
+		Stats() MetricsSnapshot
+	}
+	if sp, ok := p.(statsProvider); ok {
+		snap := sp.Stats()
+		return &snap
+	}
+	return nil
+}

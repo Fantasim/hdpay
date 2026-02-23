@@ -166,12 +166,18 @@ func (p *Pool) FetchNativeBalances(ctx context.Context, addresses []models.Addre
 		if err == nil {
 			cb.RecordSuccess()
 			p.recordHealthSuccess(provider.Name())
+			if mr, ok := provider.(MetricsReporter); ok {
+				mr.RecordSuccess()
+			}
 			return results, nil
 		}
 
-		// Record failure in circuit breaker.
+		// Record failure in circuit breaker and usage metrics.
 		cb.RecordFailure()
 		p.recordHealthFailure(provider.Name(), cb.State(), err.Error())
+		if mr, ok := provider.(MetricsReporter); ok {
+			mr.RecordFailure(errors.Is(err, config.ErrProviderRateLimit))
+		}
 		allErrors = append(allErrors, fmt.Errorf("%s: %w", provider.Name(), err))
 
 		if errors.Is(err, config.ErrProviderRateLimit) ||
@@ -219,6 +225,9 @@ func (p *Pool) FetchTokenBalances(ctx context.Context, addresses []models.Addres
 		if err == nil {
 			cb.RecordSuccess()
 			p.recordHealthSuccess(provider.Name())
+			if mr, ok := provider.(MetricsReporter); ok {
+				mr.RecordSuccess()
+			}
 			return results, nil
 		}
 
@@ -227,9 +236,12 @@ func (p *Pool) FetchTokenBalances(ctx context.Context, addresses []models.Addres
 			continue
 		}
 
-		// Record failure in circuit breaker.
+		// Record failure in circuit breaker and usage metrics.
 		cb.RecordFailure()
 		p.recordHealthFailure(provider.Name(), cb.State(), err.Error())
+		if mr, ok := provider.(MetricsReporter); ok {
+			mr.RecordFailure(errors.Is(err, config.ErrProviderRateLimit))
+		}
 		allErrors = append(allErrors, fmt.Errorf("%s: %w", provider.Name(), err))
 
 		if errors.Is(err, config.ErrProviderRateLimit) ||

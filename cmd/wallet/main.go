@@ -397,14 +397,14 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	if cfg.Network == string(models.NetworkTestnet) {
 		btcProviderURLs = []string{config.BlockstreamTestnetURL, config.MempoolTestnetURL}
 		btcRateLimiters = []*scanner.RateLimiter{
-			scanner.NewRateLimiter("blockstream-testnet", config.RateLimitBlockstream),
-			scanner.NewRateLimiter("mempool-testnet", config.RateLimitMempool),
+			scanner.NewRateLimiter("blockstream-testnet", config.RateLimitBlockstream, 0),
+			scanner.NewRateLimiter("mempool-testnet", config.RateLimitMempool, 0),
 		}
 	} else {
 		btcProviderURLs = []string{config.BlockstreamMainnetURL, config.MempoolMainnetURL}
 		btcRateLimiters = []*scanner.RateLimiter{
-			scanner.NewRateLimiter("blockstream", config.RateLimitBlockstream),
-			scanner.NewRateLimiter("mempool", config.RateLimitMempool),
+			scanner.NewRateLimiter("blockstream", config.RateLimitBlockstream, config.KnownMonthlyLimitBlockstream),
+			scanner.NewRateLimiter("mempool", config.RateLimitMempool, config.KnownMonthlyLimitMempool),
 		}
 	}
 
