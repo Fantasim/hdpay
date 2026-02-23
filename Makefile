@@ -1,11 +1,17 @@
 .PHONY: dev dev-wallet-frontend dev-poller dev-poller-frontend \
-       build build-wallet-frontend build-poller build-poller-frontend \
+       build build-all build-wallet build-poller build-verify \
+       build-wallet-frontend build-poller-frontend \
        test test-backend test-wallet test-poller test-wallet-frontend \
        check-wallet-frontend lint clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 GO := PATH=$(PATH):/usr/local/go/bin go
+
+# ── Build All ────────────────────────────────────────
+
+# Build all binaries (wallet + poller + verify)
+build-all: build-wallet build-poller build-verify
 
 # ── Wallet ────────────────────────────────────────────
 
@@ -18,8 +24,8 @@ dev-wallet-frontend:
 	cd web/wallet && npm run dev
 
 # Build Wallet frontend then compile Go binary with embedded static files
-build: build-wallet-frontend
-	$(GO) build $(LDFLAGS) -o hdpay ./cmd/wallet
+build-wallet: build-wallet-frontend
+	$(GO) build $(LDFLAGS) -o bin/wallet ./cmd/wallet
 
 # Build Wallet frontend only
 build-wallet-frontend:
@@ -42,6 +48,12 @@ build-poller-frontend:
 # Build Poller binary (frontend + Go with embedded SPA)
 build-poller: build-poller-frontend
 	$(GO) build $(LDFLAGS) -o bin/poller ./cmd/poller
+
+# ── Verify ─────────────────────────────────────────────
+
+# Build Verify utility
+build-verify:
+	$(GO) build $(LDFLAGS) -o bin/verify ./cmd/verify
 
 # ── Tests ──────────────────────────────────────────────
 
@@ -76,6 +88,6 @@ lint:
 
 # Clean build artifacts
 clean:
+	rm -rf bin/
 	rm -f hdpay
-	rm -f bin/poller
 	rm -rf web/wallet/build web/wallet/.svelte-kit web/poller/build web/poller/.svelte-kit

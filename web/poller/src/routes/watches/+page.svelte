@@ -24,7 +24,7 @@
 			if (filterStatus) params.status = filterStatus;
 			if (filterChain) params.chain = filterChain;
 			const res = await listWatches(params);
-			watches = res.data;
+			watches = res.data ?? [];
 		} catch (err) {
 			console.error('Failed to fetch watches', err);
 		} finally {

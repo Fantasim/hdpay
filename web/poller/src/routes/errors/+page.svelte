@@ -10,6 +10,16 @@
 	let loading = $state(true);
 	let network = $state('mainnet');
 
+	async function fetchNetwork(): Promise<void> {
+		try {
+			const { getHealth } = await import('$lib/utils/api');
+			const res = await getHealth();
+			network = res.data.network ?? 'mainnet';
+		} catch {
+			// fallback to mainnet
+		}
+	}
+
 	async function fetchData(): Promise<void> {
 		loading = true;
 		try {
@@ -23,6 +33,7 @@
 	}
 
 	onMount(() => {
+		fetchNetwork();
 		fetchData();
 	});
 </script>

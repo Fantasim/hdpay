@@ -1,5 +1,26 @@
 # Changelog
 
+## Poller Playwright Audit + Fund Transfer Testing — 2026-02-23
+
+#### Fixed
+- **Nil-slice JSON serialization**: `ListWatchesHandler` and `GetAllowlistHandler` returned `{"data":null}` instead of `{"data":[]}` when empty, causing frontend crashes on iteration. Added nil-to-empty-slice conversion before JSON serialization (`internal/poller/api/handlers/watch.go`, `internal/poller/api/handlers/admin.go`)
+- **SOL explorer URLs missing devnet suffix**: Testnet SOL transaction links pointed to mainnet Solscan (missing `?cluster=devnet`). Added `EXPLORER_TX_URL_TESTNET_SUFFIX` constant and updated `getTxExplorerUrl()` to append suffix (`web/poller/src/lib/constants.ts`, `web/poller/src/lib/utils/explorer.ts`)
+- **Explorer URLs hardcoded to mainnet**: Transactions and errors pages used hardcoded `'mainnet'` network. Added `fetchNetwork()` to query `/api/health` for the actual network setting (`web/poller/src/routes/transactions/+page.svelte`, `web/poller/src/routes/errors/+page.svelte`)
+- **Frontend null-safety on API responses**: Added `?? []` fallback on `.data` for watches, points, pending points, and allowlist API responses to prevent crashes when backend returns null arrays (`web/poller/src/routes/watches/+page.svelte`, `web/poller/src/routes/points/+page.svelte`, `web/poller/src/routes/settings/+page.svelte`)
+
+#### Added
+- 3 regression tests: `TestListWatches_EmptyReturnsArray`, `TestGetAllowlist_EmptyReturnsArray`, `TestHealth_ReturnsNetworkField` (`internal/poller/api/handlers/handlers_test.go`)
+
+#### Changed
+- **Wallet `init` command**: `--count` flag is now required (was defaulting to 500K), with validation for range 1 to 500,000 (`cmd/wallet/main.go`)
+- **Makefile**: Renamed `build` to `build-wallet`, added `build-all` (wallet+poller+verify), `build-verify`, unified `clean` to remove `bin/` (`Makefile`)
+
+#### Verified (End-to-End)
+- SOL native sweep: 9.49 SOL from index 0 → index 1, confirmed on-chain (`4Q4a1pq...cTRX`)
+- BTC sweep: 168,551 sats from index 0 → index 1, confirmed on-chain (`42bb190...2646`)
+- Poller watch detection: Both SOL and BTC transfers detected by poller watches with correct points calculation
+- All explorer links verified correct via Playwright (BTC: blockstream.info/testnet, SOL: solscan.io/?cluster=devnet)
+
 ## Poller Bug Fixes — 2026-02-23
 
 #### Fixed

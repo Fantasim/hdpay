@@ -43,6 +43,9 @@ func GetAllowlistHandler(db *pollerdb.DB) http.HandlerFunc {
 			httputil.Error(w, http.StatusInternalServerError, pollerconfig.ErrorDatabase, "Failed to query allowlist")
 			return
 		}
+		if entries == nil {
+			entries = []models.IPAllowEntry{}
+		}
 		slog.Debug("allowlist listed", "count", len(entries))
 		httputil.JSON(w, http.StatusOK, entries)
 	}

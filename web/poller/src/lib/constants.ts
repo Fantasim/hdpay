@@ -101,7 +101,12 @@ export const EXPLORER_TX_URL: Record<Chain, string> = {
 export const EXPLORER_TX_URL_TESTNET: Record<Chain, string> = {
 	BTC: 'https://blockstream.info/testnet/tx/',
 	BSC: 'https://testnet.bscscan.com/tx/',
-	SOL: 'https://solscan.io/tx/?cluster=devnet/'
+	SOL: 'https://solscan.io/tx/'
+} as const;
+
+// Suffixes appended after the hash for testnet
+export const EXPLORER_TX_URL_TESTNET_SUFFIX: Partial<Record<Chain, string>> = {
+	SOL: '?cluster=devnet'
 } as const;
 
 // Confirmation thresholds

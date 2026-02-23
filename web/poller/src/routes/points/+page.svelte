@@ -29,8 +29,8 @@
 		loading = true;
 		try {
 			const [pointsRes, pendingRes] = await Promise.all([getPoints(), getPendingPoints()]);
-			const pointsData = pointsRes.data;
-			const pendingData = pendingRes.data;
+			const pointsData = pointsRes.data ?? [];
+			const pendingData = pendingRes.data ?? [];
 
 			// Build a map of pending points by address+chain
 			const pendingMap = new Map<string, number>();

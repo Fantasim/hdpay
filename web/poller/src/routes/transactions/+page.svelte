@@ -38,6 +38,16 @@
 	let loading = $state(true);
 	let network = $state('mainnet');
 
+	async function fetchNetwork(): Promise<void> {
+		try {
+			const { getHealth } = await import('$lib/utils/api');
+			const res = await getHealth();
+			network = res.data.network ?? 'mainnet';
+		} catch {
+			// fallback to mainnet
+		}
+	}
+
 	async function fetchData(): Promise<void> {
 		loading = true;
 		try {
@@ -53,8 +63,8 @@
 			if (filterMaxUsd) filters.max_usd = Number(filterMaxUsd);
 
 			const res = await getDashboardTransactions(filters);
-			transactions = res.data;
-			meta = res.meta;
+			transactions = res.data ?? [];
+			meta = res.meta ?? null;
 		} catch (err) {
 			console.error('Failed to fetch transactions', err);
 		} finally {
@@ -102,6 +112,7 @@
 	);
 
 	onMount(() => {
+		fetchNetwork();
 		fetchData();
 	});
 </script>

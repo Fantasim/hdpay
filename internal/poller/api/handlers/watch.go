@@ -153,6 +153,9 @@ func ListWatchesHandler(db *pollerdb.DB) http.HandlerFunc {
 			return
 		}
 
+		if watches == nil {
+			watches = []models.Watch{}
+		}
 		slog.Debug("watches listed", "count", len(watches), "filters", filters)
 		httputil.JSON(w, http.StatusOK, watches)
 	}

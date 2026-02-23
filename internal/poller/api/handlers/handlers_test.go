@@ -394,6 +394,115 @@ func TestListWatches_Empty(t *testing.T) {
 	}
 }
 
+// TestListWatches_EmptyReturnsArray verifies that an empty watches list
+// returns a JSON array [] (not null), preventing frontend crashes when
+// the frontend does `watches = res.data ?? []` and iterates.
+func TestListWatches_EmptyReturnsArray(t *testing.T) {
+	td := setupTestDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/watches", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	data, ok := resp["data"]
+	if !ok {
+		t.Fatal("expected 'data' key in response")
+	}
+
+	// data must be a JSON array [], not null.
+	arr, ok := data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be array, got %T (value: %v)", data, data)
+	}
+	if len(arr) != 0 {
+		t.Errorf("expected empty array, got %d items", len(arr))
+	}
+}
+
+// TestGetAllowlist_EmptyReturnsArray verifies that an empty allowlist
+// returns a JSON array [] (not null), preventing frontend crashes on
+// the settings page when iterating over allowlist entries.
+func TestGetAllowlist_EmptyReturnsArray(t *testing.T) {
+	td := setupTestDeps(t)
+	cookie := loginAndGetCookie(t, td)
+
+	req := httptest.NewRequest("GET", "/api/admin/allowlist", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	data, ok := resp["data"]
+	if !ok {
+		t.Fatal("expected 'data' key in response")
+	}
+
+	// data must be a JSON array [], not null.
+	arr, ok := data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be array, got %T (value: %v)", data, data)
+	}
+	if len(arr) != 0 {
+		t.Errorf("expected empty array, got %d items", len(arr))
+	}
+}
+
+// TestHealth_ReturnsNetworkField verifies that the health endpoint returns
+// the network field (testnet/mainnet), which the frontend relies on to
+// construct correct block explorer URLs (e.g. SOL devnet suffix).
+func TestHealth_ReturnsNetworkField(t *testing.T) {
+	td := setupTestDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/health", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+
+	td.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	data, ok := resp["data"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected data object in response")
+	}
+
+	network, ok := data["network"]
+	if !ok {
+		t.Fatal("health response missing 'network' field — frontend explorer URLs depend on this")
+	}
+	if network != "testnet" {
+		t.Errorf("expected network 'testnet' (from config), got %v", network)
+	}
+}
+
 func TestDashboardStats_NoAuth(t *testing.T) {
 	td := setupTestDeps(t)
 

@@ -1,4 +1,4 @@
-import { EXPLORER_TX_URL, EXPLORER_TX_URL_TESTNET } from '$lib/constants';
+import { EXPLORER_TX_URL, EXPLORER_TX_URL_TESTNET, EXPLORER_TX_URL_TESTNET_SUFFIX } from '$lib/constants';
 import type { Chain } from '$lib/types';
 
 /**
@@ -6,7 +6,8 @@ import type { Chain } from '$lib/types';
  * Handles SOL composite hashes (e.g. "signature:TOKEN") by stripping the suffix.
  */
 export function getTxExplorerUrl(chain: string, txHash: string, network: string): string {
-	const urls = network === 'testnet' ? EXPLORER_TX_URL_TESTNET : EXPLORER_TX_URL;
+	const isTestnet = network === 'testnet';
+	const urls = isTestnet ? EXPLORER_TX_URL_TESTNET : EXPLORER_TX_URL;
 	const baseUrl = urls[chain as Chain];
 	if (!baseUrl) return '#';
 
@@ -16,5 +17,6 @@ export function getTxExplorerUrl(chain: string, txHash: string, network: string)
 		cleanHash = txHash.split(':')[0];
 	}
 
-	return `${baseUrl}${cleanHash}`;
+	const suffix = isTestnet ? (EXPLORER_TX_URL_TESTNET_SUFFIX[chain as Chain] ?? '') : '';
+	return `${baseUrl}${cleanHash}${suffix}`;
 }

@@ -49,7 +49,7 @@
 			]);
 			settings = settingsRes.data;
 			health = healthRes.data;
-			allowlist = allowlistRes.data;
+			allowlist = allowlistRes.data ?? [];
 
 			// Initialize editable state
 			editTiers = settings.tiers.map((t) => ({ ...t }));

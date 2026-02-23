@@ -207,8 +207,18 @@ func runInit() error {
 	mnemonicFile := fs.String("mnemonic-file", "", "Path to file containing 24-word BIP-39 mnemonic (required)")
 	dbPath := fs.String("db", "", "Database path (default: from HDPAY_DB_PATH or ./data/hdpay.sqlite)")
 	network := fs.String("network", "", "Network: mainnet or testnet (default: from HDPAY_NETWORK or testnet)")
-	count := fs.Int("count", config.MaxAddressesPerChain, "Number of addresses per chain")
+	count := fs.Int("count", 0, "Number of addresses per chain (required, max: 500000)")
 	fs.Parse(os.Args[2:])
+
+	if *count == 0 {
+		return fmt.Errorf("--count is required: specify the number of addresses per chain (1 to %d)\n\nExample: hdpay init --mnemonic-file /path/to/mnemonic.txt --count 5000", config.MaxAddressesPerChain)
+	}
+	if *count < 0 {
+		return fmt.Errorf("--count must be positive, got %d", *count)
+	}
+	if *count > config.MaxAddressesPerChain {
+		return fmt.Errorf("--count must not exceed %d, got %d", config.MaxAddressesPerChain, *count)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
