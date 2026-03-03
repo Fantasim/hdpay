@@ -62,8 +62,28 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 	}
 
 	var bscProviders []Provider
+
+	// Multicall3 providers first — highest batch efficiency (200 addrs/call).
+	// One Multicall3 eth_call reads native + token balances for up to 200 addresses.
+	// These are tried before plain RPC providers; circuit breaker handles failover.
 	for _, rpcURL := range bscURLs {
-		// Derive a short name from the host for logging and metrics.
+		mcName := "Multicall3-" + bscProviderName(rpcURL)
+		mcRL := NewRateLimiter(mcName, config.RateLimitBSCRPC, config.KnownMonthlyLimitBSCRPC)
+		mcProvider, err := NewBSCMulticallProvider(mcRL, mcName, rpcURL)
+		if err != nil {
+			slog.Warn("BSC Multicall3 provider failed to connect, skipping",
+				"name", mcName,
+				"rpcURL", rpcURL,
+				"error", err,
+			)
+			continue
+		}
+		bscProviders = append(bscProviders, mcProvider)
+	}
+	slog.Info("BSC Multicall3 providers initialized", "count", len(bscProviders))
+
+	// Plain RPC providers as fallback (1→20 addrs/call with JSON-RPC batch).
+	for _, rpcURL := range bscURLs {
 		name := bscProviderName(rpcURL)
 		rl := NewRateLimiter(name, config.RateLimitBSCRPC, config.KnownMonthlyLimitBSCRPC)
 		provider, err := NewBSCRPCProvider(rl, name, rpcURL)

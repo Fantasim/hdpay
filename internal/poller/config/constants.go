@@ -146,6 +146,15 @@ const (
 	AdaptiveMaxMultiplier  = 4 // max interval multiplier (4x base interval)
 )
 
+// Smart Confirmation Scheduling — minimum elapsed time before first confirmation
+// recheck, based on chain block time × required confirmations.
+// Slightly less than theoretical minimum to avoid missing fast blocks.
+const (
+	ConfirmationMinWaitBTC = 8 * time.Minute  // ~10 min block time × 1 conf, check 2 min early
+	ConfirmationMinWaitBSC = 30 * time.Second  // ~3s block time × 12 conf = 36s, check 6s early
+	ConfirmationMinWaitSOL = 10 * time.Second  // finalization ~13s, check 3s early
+)
+
 // Per-Watch Error Tracking
 const (
 	WatchMaxConsecutiveErrors = 10 // consecutive fetch failures before logging system error

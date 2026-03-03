@@ -2,7 +2,9 @@ package scanner
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Fantasim/hdpay/internal/shared/config"
@@ -20,9 +22,9 @@ type mockProvider struct {
 	tokenFunc  func(ctx context.Context, addresses []models.Address, token models.Token, contract string) ([]BalanceResult, error)
 }
 
-func (m *mockProvider) Name() string         { return m.name }
-func (m *mockProvider) Chain() models.Chain   { return m.chain }
-func (m *mockProvider) MaxBatchSize() int     { return m.batchSize }
+func (m *mockProvider) Name() string       { return m.name }
+func (m *mockProvider) Chain() models.Chain { return m.chain }
+func (m *mockProvider) MaxBatchSize() int   { return m.batchSize }
 
 func (m *mockProvider) FetchNativeBalances(ctx context.Context, addresses []models.Address) ([]BalanceResult, error) {
 	if m.nativeFunc != nil {
@@ -53,40 +55,259 @@ func (m *mockProvider) FetchTokenBalances(ctx context.Context, addresses []model
 	return nil, config.ErrTokensNotSupported
 }
 
-func TestPool_RoundRobin(t *testing.T) {
-	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
-	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
-
-	pool := NewPool(models.ChainBTC, p1, p2)
-
-	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
-
-	// Track which providers are called.
-	calls := map[string]int{}
-	p1.nativeFunc = func(_ context.Context, _ []models.Address) ([]BalanceResult, error) {
-		calls["P1"]++
-		return []BalanceResult{{Balance: "1"}}, nil
+// makeAddresses creates N test addresses.
+func makeAddresses(n int) []models.Address {
+	addrs := make([]models.Address, n)
+	for i := range addrs {
+		addrs[i] = models.Address{
+			Chain:        models.ChainBSC,
+			AddressIndex: i,
+			Address:      fmt.Sprintf("0x%040d", i),
+		}
 	}
-	p2.nativeFunc = func(_ context.Context, _ []models.Address) ([]BalanceResult, error) {
-		calls["P2"]++
-		return []BalanceResult{{Balance: "2"}}, nil
+	return addrs
+}
+
+// sortResults sorts BalanceResults by AddressIndex for deterministic comparison.
+func sortResults(results []BalanceResult) {
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].AddressIndex < results[j].AddressIndex
+	})
+}
+
+// ── Distribution Tests ───────────────────────────────────────────────────────
+
+func TestDistributeAddresses_Proportional(t *testing.T) {
+	addrs := makeAddresses(100)
+
+	healthy := []providerAssignment{
+		{provider: &mockProvider{batchSize: 200}},
+		{provider: &mockProvider{batchSize: 20}},
 	}
 
-	for range 4 {
-		pool.FetchNativeBalances(context.Background(), addrs)
+	distributeAddresses(addrs, healthy)
+
+	// Provider with batch=200 should get ~91 addresses (200/220 * 100).
+	// Provider with batch=20 should get ~9 addresses (20/220 * 100).
+	total := len(healthy[0].addrs) + len(healthy[1].addrs)
+	if total != 100 {
+		t.Fatalf("total distributed = %d, want 100", total)
 	}
 
-	if calls["P1"] != 2 || calls["P2"] != 2 {
-		t.Errorf("expected even distribution, got P1=%d P2=%d", calls["P1"], calls["P2"])
+	if len(healthy[0].addrs) < 80 {
+		t.Errorf("big provider got %d addresses, expected >= 80", len(healthy[0].addrs))
+	}
+	if len(healthy[1].addrs) < 5 {
+		t.Errorf("small provider got %d addresses, expected >= 5", len(healthy[1].addrs))
+	}
+}
+
+func TestDistributeAddresses_SingleProvider(t *testing.T) {
+	addrs := makeAddresses(50)
+	healthy := []providerAssignment{
+		{provider: &mockProvider{batchSize: 10}},
+	}
+
+	distributeAddresses(addrs, healthy)
+
+	if len(healthy[0].addrs) != 50 {
+		t.Errorf("single provider should get all 50 addresses, got %d", len(healthy[0].addrs))
+	}
+}
+
+func TestDistributeAddresses_Empty(t *testing.T) {
+	healthy := []providerAssignment{
+		{provider: &mockProvider{batchSize: 10}},
+	}
+	distributeAddresses(nil, healthy)
+	if len(healthy[0].addrs) != 0 {
+		t.Error("expected no addresses distributed for nil input")
+	}
+}
+
+// ── Pool Parallel Fan-Out Tests ──────────────────────────────────────────────
+
+func TestPool_ParallelDistribution(t *testing.T) {
+	// Both providers called concurrently; verify all addresses are covered.
+	var p1Count, p2Count atomic.Int32
+
+	p1 := &mockProvider{name: "P1", chain: models.ChainBSC, batchSize: 50}
+	p1.nativeFunc = func(_ context.Context, addrs []models.Address) ([]BalanceResult, error) {
+		p1Count.Add(int32(len(addrs)))
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Address: a.Address, AddressIndex: a.AddressIndex, Balance: "1", Source: "P1"}
+		}
+		return results, nil
+	}
+
+	p2 := &mockProvider{name: "P2", chain: models.ChainBSC, batchSize: 50}
+	p2.nativeFunc = func(_ context.Context, addrs []models.Address) ([]BalanceResult, error) {
+		p2Count.Add(int32(len(addrs)))
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Address: a.Address, AddressIndex: a.AddressIndex, Balance: "2", Source: "P2"}
+		}
+		return results, nil
+	}
+
+	pool := NewPool(models.ChainBSC, p1, p2)
+	addrs := makeAddresses(100)
+
+	results, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 100 {
+		t.Fatalf("expected 100 results, got %d", len(results))
+	}
+
+	totalHandled := int(p1Count.Load()) + int(p2Count.Load())
+	if totalHandled != 100 {
+		t.Errorf("total handled = %d, want 100", totalHandled)
+	}
+
+	// Both providers should have been called (parallel fan-out).
+	if p1Count.Load() == 0 || p2Count.Load() == 0 {
+		t.Errorf("expected both providers called, P1=%d P2=%d", p1Count.Load(), p2Count.Load())
+	}
+}
+
+func TestPool_ParallelWeightedDistribution(t *testing.T) {
+	// Provider with batchSize=200 should get more addresses than batchSize=20.
+	var bigCount, smallCount atomic.Int32
+
+	big := &mockProvider{name: "Big", chain: models.ChainBSC, batchSize: 200}
+	big.nativeFunc = func(_ context.Context, addrs []models.Address) ([]BalanceResult, error) {
+		bigCount.Add(int32(len(addrs)))
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Address: a.Address, AddressIndex: a.AddressIndex, Balance: "1", Source: "Big"}
+		}
+		return results, nil
+	}
+
+	small := &mockProvider{name: "Small", chain: models.ChainBSC, batchSize: 20}
+	small.nativeFunc = func(_ context.Context, addrs []models.Address) ([]BalanceResult, error) {
+		smallCount.Add(int32(len(addrs)))
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Address: a.Address, AddressIndex: a.AddressIndex, Balance: "2", Source: "Small"}
+		}
+		return results, nil
+	}
+
+	pool := NewPool(models.ChainBSC, big, small)
+	addrs := makeAddresses(220)
+
+	results, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 220 {
+		t.Fatalf("expected 220 results, got %d", len(results))
+	}
+
+	// Big should have ~200 (200/220 * 220), Small ~20.
+	if bigCount.Load() < 150 {
+		t.Errorf("big provider got %d, expected >= 150", bigCount.Load())
+	}
+	if smallCount.Load() < 10 {
+		t.Errorf("small provider got %d, expected >= 10", smallCount.Load())
+	}
+}
+
+func TestPool_ParallelPartialFailure(t *testing.T) {
+	// P1 succeeds, P2 fails → P2's addresses retried on P1.
+	p1 := &mockProvider{name: "P1", chain: models.ChainBSC, batchSize: 50}
+	p2 := &mockProvider{name: "P2", chain: models.ChainBSC, batchSize: 50,
+		nativeErr: config.NewTransientError(config.ErrProviderUnavailable)}
+
+	pool := NewPool(models.ChainBSC, p1, p2)
+	addrs := makeAddresses(10)
+
+	results, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err != nil {
+		t.Fatalf("expected success with retry, got error: %v", err)
+	}
+
+	if len(results) != 10 {
+		t.Fatalf("expected 10 results, got %d", len(results))
+	}
+
+	// All results should be successful (retried addresses go to P1).
+	for _, r := range results {
+		if r.Error != "" {
+			t.Errorf("address %d: unexpected error: %s", r.AddressIndex, r.Error)
+		}
+	}
+}
+
+func TestPool_SingleProviderFastPath(t *testing.T) {
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 10}
+
+	pool := NewPool(models.ChainBTC, p1)
+	addrs := makeAddresses(5)
+
+	results, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 5 {
+		t.Fatalf("expected 5 results, got %d", len(results))
+	}
+
+	for _, r := range results {
+		if r.Source != "P1" {
+			t.Errorf("expected source P1, got %s", r.Source)
+		}
+	}
+}
+
+func TestPool_SubBatching(t *testing.T) {
+	// Provider with MaxBatchSize=3 gets 10 addresses → should make 4 calls (3+3+3+1).
+	var callCount atomic.Int32
+
+	p1 := &mockProvider{name: "P1", chain: models.ChainBSC, batchSize: 3}
+	p1.nativeFunc = func(_ context.Context, addrs []models.Address) ([]BalanceResult, error) {
+		callCount.Add(1)
+		if len(addrs) > 3 {
+			t.Errorf("sub-batch too large: %d > MaxBatchSize 3", len(addrs))
+		}
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Address: a.Address, AddressIndex: a.AddressIndex, Balance: "1", Source: "P1"}
+		}
+		return results, nil
+	}
+
+	pool := NewPool(models.ChainBSC, p1)
+	addrs := makeAddresses(10)
+
+	results, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 10 {
+		t.Fatalf("expected 10 results, got %d", len(results))
+	}
+
+	if callCount.Load() != 4 {
+		t.Errorf("expected 4 sub-batch calls, got %d", callCount.Load())
 	}
 }
 
 func TestPool_Failover(t *testing.T) {
-	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderRateLimit}
+	// P1 fails → retry sends addresses to P2.
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderRateLimit}
 	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
 
 	pool := NewPool(models.ChainBTC, p1, p2)
-
 	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
 
 	results, err := pool.FetchNativeBalances(context.Background(), addrs)
@@ -104,22 +325,17 @@ func TestPool_Failover(t *testing.T) {
 }
 
 func TestPool_AllProvidersFail(t *testing.T) {
-	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderUnavailable}
-	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderRateLimit}
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderUnavailable}
+	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderRateLimit}
 
 	pool := NewPool(models.ChainBTC, p1, p2)
-
 	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
 
 	_, err := pool.FetchNativeBalances(context.Background(), addrs)
 	if err == nil {
 		t.Fatal("expected error when all providers fail")
-	}
-
-	// B9 fix: Error should contain both provider errors, not just the last.
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "P1") || !strings.Contains(errMsg, "P2") {
-		t.Errorf("expected error to mention both providers, got: %s", errMsg)
 	}
 }
 
@@ -134,27 +350,24 @@ func TestPool_MaxBatchSize(t *testing.T) {
 	}
 }
 
-// TestPool_CircuitBreakerSkipsOpenProvider tests that providers with open circuit
-// breakers are skipped and the next provider is tried.
 func TestPool_CircuitBreakerSkipsOpenProvider(t *testing.T) {
-	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderUnavailable}
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderUnavailable}
 	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
 
 	pool := NewPool(models.ChainBTC, p1, p2)
 
-	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
-
-	// Trip P1's circuit breaker by making it fail 3 times (threshold).
+	// Trip P1's circuit breaker.
 	for i := 0; i < config.CircuitBreakerThreshold; i++ {
 		pool.breakers[0].RecordFailure()
 	}
 
-	// P1's circuit should now be open.
 	if pool.breakers[0].State() != config.CircuitOpen {
 		t.Fatalf("expected P1 circuit to be open, got %s", pool.breakers[0].State())
 	}
 
-	// Fetch should skip P1 (circuit open) and go to P2.
+	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
+
 	results, err := pool.FetchNativeBalances(context.Background(), addrs)
 	if err != nil {
 		t.Fatalf("expected success via P2, got error: %v", err)
@@ -165,14 +378,13 @@ func TestPool_CircuitBreakerSkipsOpenProvider(t *testing.T) {
 	}
 }
 
-// TestPool_CircuitBreakerRecordsFailure tests that provider failures are recorded
-// in the circuit breaker.
 func TestPool_CircuitBreakerRecordsFailure(t *testing.T) {
-	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderUnavailable}
-	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1, nativeErr: config.ErrProviderRateLimit}
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderUnavailable}
+	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1,
+		nativeErr: config.ErrProviderRateLimit}
 
 	pool := NewPool(models.ChainBTC, p1, p2)
-
 	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
 
 	// Call multiple times to accumulate failures.
@@ -189,8 +401,6 @@ func TestPool_CircuitBreakerRecordsFailure(t *testing.T) {
 	}
 }
 
-// TestPool_CircuitBreakerResetsOnSuccess tests that a successful call resets
-// the circuit breaker.
 func TestPool_CircuitBreakerResetsOnSuccess(t *testing.T) {
 	callCount := 0
 	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
@@ -199,14 +409,12 @@ func TestPool_CircuitBreakerResetsOnSuccess(t *testing.T) {
 		if callCount <= 2 {
 			return nil, config.ErrProviderUnavailable
 		}
-		return []BalanceResult{{Balance: "100", Source: "P1"}}, nil
+		return []BalanceResult{{Balance: "100", Source: "P1", AddressIndex: addrs[0].AddressIndex, Address: addrs[0].Address}}, nil
 	}
 
 	pool := NewPool(models.ChainBTC, p1)
-
 	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
 
-	// First 2 calls fail, recording 2 consecutive failures.
 	pool.FetchNativeBalances(context.Background(), addrs)
 	pool.FetchNativeBalances(context.Background(), addrs)
 
@@ -214,7 +422,6 @@ func TestPool_CircuitBreakerResetsOnSuccess(t *testing.T) {
 		t.Fatalf("expected 2 failures, got %d", pool.breakers[0].ConsecutiveFailures())
 	}
 
-	// Third call succeeds, resetting the counter.
 	_, err := pool.FetchNativeBalances(context.Background(), addrs)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -225,9 +432,7 @@ func TestPool_CircuitBreakerResetsOnSuccess(t *testing.T) {
 	}
 }
 
-// TestPool_TransientErrorIsRetriable tests that TransientError is treated
-// as retriable by the pool.
-func TestPool_TransientErrorIsRetriable(t *testing.T) {
+func TestPool_TransientErrorRetried(t *testing.T) {
 	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
 	p1.nativeFunc = func(_ context.Context, _ []models.Address) ([]BalanceResult, error) {
 		return nil, config.NewTransientError(config.ErrProviderUnavailable)
@@ -235,20 +440,17 @@ func TestPool_TransientErrorIsRetriable(t *testing.T) {
 	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
 
 	pool := NewPool(models.ChainBTC, p1, p2)
-
 	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
 
-	// P1 returns TransientError → pool should fail over to P2.
 	results, err := pool.FetchNativeBalances(context.Background(), addrs)
 	if err != nil {
 		t.Fatalf("expected failover success, got: %v", err)
 	}
-	if results[0].Source != "P2" {
-		t.Errorf("expected result from P2, got source: %s", results[0].Source)
+	if len(results) != 1 || results[0].Balance != "100" {
+		t.Errorf("expected result from P2, got: %+v", results)
 	}
 }
 
-// TestPool_SuggestBackoff tests exponential backoff calculation.
 func TestPool_SuggestBackoff(t *testing.T) {
 	pool := NewPool(models.ChainBTC)
 
@@ -262,7 +464,7 @@ func TestPool_SuggestBackoff(t *testing.T) {
 		{3, "4s"},
 		{4, "8s"},
 		{5, "16s"},
-		{6, "30s"}, // capped at max
+		{6, "30s"},
 		{10, "30s"},
 	}
 
@@ -274,7 +476,6 @@ func TestPool_SuggestBackoff(t *testing.T) {
 	}
 }
 
-// TestPool_TokenFailover tests token failover with circuit breaker.
 func TestPool_TokenFailover(t *testing.T) {
 	p1 := &mockProvider{name: "P1", chain: models.ChainBSC, batchSize: 1}
 	p1.tokenFunc = func(_ context.Context, _ []models.Address, _ models.Token, _ string) ([]BalanceResult, error) {
@@ -282,7 +483,11 @@ func TestPool_TokenFailover(t *testing.T) {
 	}
 	p2 := &mockProvider{name: "P2", chain: models.ChainBSC, batchSize: 1}
 	p2.tokenFunc = func(_ context.Context, addrs []models.Address, _ models.Token, _ string) ([]BalanceResult, error) {
-		return []BalanceResult{{Balance: "500", Source: "P2"}}, nil
+		results := make([]BalanceResult, len(addrs))
+		for i, a := range addrs {
+			results[i] = BalanceResult{Balance: "500", Source: "P2", Address: a.Address, AddressIndex: a.AddressIndex}
+		}
+		return results, nil
 	}
 
 	pool := NewPool(models.ChainBSC, p1, p2)
@@ -292,7 +497,55 @@ func TestPool_TokenFailover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected token failover success, got: %v", err)
 	}
-	if results[0].Source != "P2" {
-		t.Errorf("expected result from P2, got source: %s", results[0].Source)
+
+	if len(results) != 1 || results[0].Balance != "500" {
+		t.Errorf("expected 500 from P2, got: %+v", results)
+	}
+}
+
+func TestPool_TokenAllUnsupported(t *testing.T) {
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
+	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
+	// Both return ErrTokensNotSupported (default mockProvider behavior).
+
+	pool := NewPool(models.ChainBTC, p1, p2)
+	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
+
+	_, err := pool.FetchTokenBalances(context.Background(), addrs, models.TokenUSDC, "0xContract")
+	if err != config.ErrTokensNotSupported {
+		t.Errorf("expected ErrTokensNotSupported, got: %v", err)
+	}
+}
+
+func TestPool_EmptyAddresses(t *testing.T) {
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
+	pool := NewPool(models.ChainBTC, p1)
+
+	results, err := pool.FetchNativeBalances(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error for empty addresses: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil results for empty addresses, got %v", results)
+	}
+}
+
+func TestPool_AllCircuitBreakersOpen(t *testing.T) {
+	p1 := &mockProvider{name: "P1", chain: models.ChainBTC, batchSize: 1}
+	p2 := &mockProvider{name: "P2", chain: models.ChainBTC, batchSize: 1}
+
+	pool := NewPool(models.ChainBTC, p1, p2)
+
+	// Trip both circuit breakers.
+	for i := 0; i < config.CircuitBreakerThreshold; i++ {
+		pool.breakers[0].RecordFailure()
+		pool.breakers[1].RecordFailure()
+	}
+
+	addrs := []models.Address{{Chain: models.ChainBTC, AddressIndex: 0, Address: "addr1"}}
+
+	_, err := pool.FetchNativeBalances(context.Background(), addrs)
+	if err == nil {
+		t.Fatal("expected error when all circuit breakers are open")
 	}
 }

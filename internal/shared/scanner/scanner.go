@@ -181,7 +181,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 	// to prevent a race where a new scan starts while final state write is in flight.
 
 	startTime := time.Now()
-	batchSize := pool.MaxBatchSize()
+	batchSize := scanChunkSize(chain)
 	scanned := startIndex
 	found := 0
 	consecutivePoolFails := 0
@@ -555,6 +555,22 @@ func (s *Scanner) GetAllProviderMetrics() []MetricsSnapshot {
 		}
 	}
 	return snapshots
+}
+
+// scanChunkSize returns the number of addresses the scanner loads per iteration
+// for a given chain. This is decoupled from individual provider MaxBatchSize()
+// because the pool distributes addresses across multiple providers in parallel.
+func scanChunkSize(chain models.Chain) int {
+	switch chain {
+	case models.ChainBSC:
+		return config.ScanChunkSizeBSC
+	case models.ChainBTC:
+		return config.ScanChunkSizeBTC
+	case models.ChainSOL:
+		return config.ScanChunkSizeSOL
+	default:
+		return config.ScanChunkSizeBTC // conservative default
+	}
 }
 
 // getProviderSnapshot extracts a MetricsSnapshot from a provider via its embedded RateLimiter.

@@ -246,6 +246,22 @@ func (w *Watcher) checkOrphanedPending(ctx context.Context) {
 			continue
 		}
 
+		// Smart confirmation scheduling: skip if not enough time has elapsed.
+		detectedAt, parseErr := time.Parse(time.RFC3339, tx.DetectedAt)
+		if parseErr == nil {
+			minWait := confirmationMinWait(tx.Chain)
+			elapsed := time.Since(detectedAt)
+			if elapsed < minWait {
+				slog.Debug("orphan recovery: skipping confirmation check, too early",
+					"txHash", tx.TxHash,
+					"chain", tx.Chain,
+					"elapsed", elapsed,
+					"minWait", minWait,
+				)
+				continue
+			}
+		}
+
 		// Extract base signature for SOL composite tx_hash.
 		checkHash := tx.TxHash
 		if tx.Chain == "SOL" {

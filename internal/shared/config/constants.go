@@ -56,6 +56,25 @@ const (
 	ScanResumeThreshold    = 24 * time.Hour
 )
 
+// Multicall3 — deployed on all EVM chains including BSC mainnet + testnet.
+// Single eth_call reads hundreds of balances (native + BEP-20) in one request.
+const (
+	Multicall3Address   = "0xcA11bde05977b3631167028862bE2a173976CA11"
+	Multicall3BatchSize = 200 // 200 addrs × 3 subcalls = 600 subcalls ≈ 2M gas (safe under 50M cap)
+)
+
+// JSON-RPC Batch — fallback when Multicall3 is unavailable.
+const (
+	BSCRPCBatchSize = 20 // eth_getBalance calls per JSON-RPC batch POST
+)
+
+// Scanner Chunk Sizes — how many addresses per scanner iteration (pool distributes across providers).
+const (
+	ScanChunkSizeBSC = 500 // Multicall3 providers handle the bulk
+	ScanChunkSizeBTC = 100 // 3 providers × ~33 addrs each in parallel
+	ScanChunkSizeSOL = 100 // matches getMultipleAccounts, already optimal
+)
+
 // Scanner Orchestrator
 const (
 	ScanProgressBroadcastInterval = 500 * time.Millisecond

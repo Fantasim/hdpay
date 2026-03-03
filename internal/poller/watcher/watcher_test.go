@@ -597,7 +597,8 @@ func TestRecheckPending_Confirms(t *testing.T) {
 	}
 	db.CreateWatch(watch)
 
-	// Insert a pending transaction directly.
+	// Insert a pending transaction with DetectedAt far enough in the past
+	// to pass smart confirmation scheduling (BTC min wait = 8 min).
 	pendingTx := &models.Transaction{
 		WatchID:     watch.ID,
 		TxHash:      "tx-pending-recheck",
@@ -608,7 +609,7 @@ func TestRecheckPending_Confirms(t *testing.T) {
 		AmountHuman: "0.002",
 		Decimals:    8,
 		Status:      models.TxStatusPending,
-		DetectedAt:  time.Now().UTC().Format(time.RFC3339),
+		DetectedAt:  time.Now().UTC().Add(-10 * time.Minute).Format(time.RFC3339),
 	}
 	db.InsertTransaction(pendingTx)
 	db.GetOrCreatePoints(watch.Address, watch.Chain)
@@ -951,6 +952,112 @@ func TestParseAmountHuman(t *testing.T) {
 	}
 }
 
+func TestConfirmationMinWait(t *testing.T) {
+	if confirmationMinWait("BTC") != config.ConfirmationMinWaitBTC {
+		t.Errorf("BTC min wait mismatch: got %v, want %v", confirmationMinWait("BTC"), config.ConfirmationMinWaitBTC)
+	}
+	if confirmationMinWait("BSC") != config.ConfirmationMinWaitBSC {
+		t.Errorf("BSC min wait mismatch: got %v, want %v", confirmationMinWait("BSC"), config.ConfirmationMinWaitBSC)
+	}
+	if confirmationMinWait("SOL") != config.ConfirmationMinWaitSOL {
+		t.Errorf("SOL min wait mismatch: got %v, want %v", confirmationMinWait("SOL"), config.ConfirmationMinWaitSOL)
+	}
+	if confirmationMinWait("UNKNOWN") != 0 {
+		t.Errorf("unknown chain should return 0, got %v", confirmationMinWait("UNKNOWN"))
+	}
+}
+
+func TestRecheckPending_SkipsTooEarly(t *testing.T) {
+	db := setupTestDB(t)
+	mp := newMockProvider("test-btc", "BTC")
+	w := setupWatcher(t, db, mp)
+
+	watch := &models.Watch{
+		ID:      "test-watch-early",
+		Chain:   "BTC",
+		Address: "tb1qtk89me2ae95dmlp3yfl4q9ynpux8mxjujuf2fr",
+		Status:  models.WatchStatusActive,
+	}
+	db.CreateWatch(watch)
+
+	// Insert a pending tx detected just now — should be skipped by smart scheduling.
+	pendingTx := &models.Transaction{
+		WatchID:     watch.ID,
+		TxHash:      "tx-too-early",
+		Chain:       "BTC",
+		Address:     watch.Address,
+		Token:       "BTC",
+		AmountRaw:   "200000",
+		AmountHuman: "0.002",
+		Decimals:    8,
+		Status:      models.TxStatusPending,
+		DetectedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+	db.InsertTransaction(pendingTx)
+	db.GetOrCreatePoints(watch.Address, watch.Chain)
+
+	// Set mock to confirm — but it should never be called.
+	mp.setConfirmed(true, 6)
+
+	ps := w.providers["BTC"]
+	ctx := context.Background()
+	err := w.recheckPending(ctx, watch, ps)
+	if err != nil {
+		t.Fatalf("recheckPending failed: %v", err)
+	}
+
+	// Tx should still be PENDING because the min wait hasn't elapsed.
+	tx, _ := db.GetByTxHash("tx-too-early")
+	if tx.Status != models.TxStatusPending {
+		t.Errorf("expected PENDING (too early for BTC), got %s", tx.Status)
+	}
+}
+
+func TestRecheckPending_BSCNotSkipped(t *testing.T) {
+	db := setupTestDB(t)
+	mp := newMockProvider("test-bsc", "BSC")
+	w := setupWatcher(t, db, mp)
+
+	watch := &models.Watch{
+		ID:      "test-watch-bsc-fast",
+		Chain:   "BSC",
+		Address: "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb",
+		Status:  models.WatchStatusActive,
+	}
+	db.CreateWatch(watch)
+
+	// Insert a pending tx detected 35 seconds ago — should pass BSC min wait (30s).
+	pendingTx := &models.Transaction{
+		WatchID:     watch.ID,
+		TxHash:      "tx-bsc-ready",
+		Chain:       "BSC",
+		Address:     watch.Address,
+		Token:       "BNB",
+		AmountRaw:   "1000000000000000000",
+		AmountHuman: "1.0",
+		Decimals:    18,
+		Status:      models.TxStatusPending,
+		DetectedAt:  time.Now().UTC().Add(-35 * time.Second).Format(time.RFC3339),
+	}
+	db.InsertTransaction(pendingTx)
+	db.GetOrCreatePoints(watch.Address, watch.Chain)
+
+	mp.setConfirmed(true, 12)
+
+	ps := w.providers["BSC"]
+	ctx := context.Background()
+	err := w.recheckPending(ctx, watch, ps)
+	if err != nil {
+		t.Fatalf("recheckPending failed: %v", err)
+	}
+
+	// Tx should be CONFIRMED — BSC min wait (30s) was exceeded.
+	tx, _ := db.GetByTxHash("tx-bsc-ready")
+	if tx.Status != models.TxStatusConfirmed {
+		t.Errorf("expected CONFIRMED for BSC after 35s, got %s", tx.Status)
+	}
+}
+
 func TestPollInterval(t *testing.T) {
 	if pollInterval("BTC") != config.PollIntervalBTC {
 		t.Errorf("BTC interval mismatch")
@@ -1079,6 +1186,7 @@ func TestRecheckPending_ProviderError(t *testing.T) {
 	}
 	db.CreateWatch(watch)
 
+	// DetectedAt far enough in the past to pass smart confirmation scheduling.
 	pendingTx := &models.Transaction{
 		WatchID:     watch.ID,
 		TxHash:      "tx-provider-err",
@@ -1089,7 +1197,7 @@ func TestRecheckPending_ProviderError(t *testing.T) {
 		AmountHuman: "0.001",
 		Decimals:    8,
 		Status:      models.TxStatusPending,
-		DetectedAt:  time.Now().UTC().Format(time.RFC3339),
+		DetectedAt:  time.Now().UTC().Add(-10 * time.Minute).Format(time.RFC3339),
 	}
 	db.InsertTransaction(pendingTx)
 	db.GetOrCreatePoints(watch.Address, watch.Chain)

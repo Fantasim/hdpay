@@ -416,6 +416,24 @@ func (w *Watcher) recheckPending(ctx context.Context, watch *models.Watch, ps *p
 			return ctx.Err()
 		}
 
+		// Smart confirmation scheduling: skip recheck if not enough time has passed
+		// for the chain to produce enough blocks for confirmation.
+		// Saves ~80% of BTC confirmation API calls (~10 min block time vs 60s poll).
+		detectedAt, parseErr := time.Parse(time.RFC3339, tx.DetectedAt)
+		if parseErr == nil {
+			minWait := confirmationMinWait(watch.Chain)
+			elapsed := time.Since(detectedAt)
+			if elapsed < minWait {
+				slog.Debug("skipping confirmation check, too early for chain block time",
+					"txHash", tx.TxHash,
+					"chain", watch.Chain,
+					"elapsed", elapsed,
+					"minWait", minWait,
+				)
+				continue
+			}
+		}
+
 		// For SOL composite tx_hash, extract the base signature for confirmation check.
 		checkHash := tx.TxHash
 		if watch.Chain == "SOL" {
@@ -590,6 +608,22 @@ func (w *Watcher) logSystemError(severity, category, message, details string) {
 			"message", message,
 			"error", err,
 		)
+	}
+}
+
+// confirmationMinWait returns the minimum elapsed time before checking confirmation
+// for a pending transaction on the given chain. Based on block time × required
+// confirmations, slightly reduced to avoid missing fast blocks.
+func confirmationMinWait(chain string) time.Duration {
+	switch chain {
+	case "BTC":
+		return config.ConfirmationMinWaitBTC
+	case "BSC":
+		return config.ConfirmationMinWaitBSC
+	case "SOL":
+		return config.ConfirmationMinWaitSOL
+	default:
+		return 0
 	}
 }
 

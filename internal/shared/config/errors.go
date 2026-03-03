@@ -54,6 +54,9 @@ var (
 	ErrPartialResults     = errors.New("partial results returned")
 	ErrAllProvidersFailed = errors.New("all providers failed")
 
+	// Multicall3
+	ErrMulticall3Failed = errors.New("multicall3 aggregate call failed")
+
 	// TX Safety — Advanced (V2 Phase 4)
 	ErrUTXODiverged     = errors.New("UTXO set diverged significantly since preview")
 	ErrGasPriceSpiked   = errors.New("gas price increased more than 2x since preview")
@@ -157,4 +160,7 @@ const (
 	ErrorUTXODiverged   = "ERROR_UTXO_DIVERGED"
 	ErrorGasPriceSpiked = "ERROR_GAS_PRICE_SPIKED"
 	ErrorSweepNotFound  = "ERROR_SWEEP_NOT_FOUND"
+
+	// Multicall3
+	ErrorMulticall3Failed = "ERROR_MULTICALL3_FAILED"
 )
