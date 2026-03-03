@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -48,7 +49,8 @@ func NewSessionStore(username, password string) (*SessionStore, error) {
 
 // Login validates credentials and returns a session token on success.
 func (s *SessionStore) Login(username, password string) (string, error) {
-	if username != s.username {
+	// Constant-time comparison to prevent timing attacks on the username.
+	if subtle.ConstantTimeCompare([]byte(username), []byte(s.username)) != 1 {
 		slog.Warn("login attempt with wrong username", "attempted", username)
 		return "", fmt.Errorf(config.ErrorInvalidCredentials)
 	}

@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -63,7 +61,12 @@ func main() {
 		slog.Error("instance lock failed — another poller may be running", "pidFile", pidFile, "error", err)
 		os.Exit(1)
 	}
-	defer os.Remove(pidFile)
+	defer func() {
+		if pidLockFile != nil {
+			pidLockFile.Close()
+		}
+		os.Remove(pidFile)
+	}()
 
 	// Open database and run migrations.
 	db, err := pollerdb.New(cfg.DBPath)
@@ -110,6 +113,9 @@ func main() {
 	}
 	recoveryCancel()
 
+	// Start periodic orphan recovery (rechecks PENDING txs from expired watches).
+	w.StartOrphanRecovery()
+
 	// Initialize IP allowlist from DB.
 	ipCache, err := db.LoadAllIPsIntoMap()
 	if err != nil {
@@ -148,7 +154,7 @@ func main() {
 	router := pollerapi.NewRouter(deps)
 
 	// Start HTTP server.
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      router,
@@ -272,30 +278,41 @@ func initProviderSets(httpClient *http.Client, cfg *pollerconfig.Config) map[str
 	return sets
 }
 
-// acquirePIDLock creates a PID file to prevent multiple poller instances.
-// If the file exists and the process is still running, returns an error.
-func acquirePIDLock(pidFile string) error {
-	data, err := os.ReadFile(pidFile)
-	if err == nil {
-		// PID file exists — check if process is still alive.
-		pidStr := strings.TrimSpace(string(data))
-		pid, parseErr := strconv.Atoi(pidStr)
-		if parseErr == nil {
-			process, findErr := os.FindProcess(pid)
-			if findErr == nil {
-				// On Unix, FindProcess always succeeds. Send signal 0 to check if alive.
-				if err := process.Signal(syscall.Signal(0)); err == nil {
-					return fmt.Errorf("another poller is running (PID %d)", pid)
-				}
-			}
-		}
-		slog.Info("stale PID file found, overwriting", "pidFile", pidFile, "stalePID", pidStr)
-	}
+// pidLockFile holds the open PID lock file descriptor so the flock is held
+// for the lifetime of the process.
+var pidLockFile *os.File
 
-	// Write our PID.
+// acquirePIDLock creates a PID file with an exclusive flock to prevent multiple
+// poller instances. The flock is automatically released when the process exits.
+func acquirePIDLock(pidFile string) error {
 	dir := filepath.Dir(pidFile)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create PID directory: %w", err)
 	}
-	return os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644)
+
+	f, err := os.OpenFile(pidFile, os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to open PID file: %w", err)
+	}
+
+	// Try non-blocking exclusive lock — fails immediately if another process holds it.
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		f.Close()
+		return fmt.Errorf("another poller instance is running (flock on %s)", pidFile)
+	}
+
+	// Write our PID into the locked file.
+	if err := f.Truncate(0); err != nil {
+		f.Close()
+		return fmt.Errorf("failed to truncate PID file: %w", err)
+	}
+	if _, err := fmt.Fprintf(f, "%d\n", os.Getpid()); err != nil {
+		f.Close()
+		return fmt.Errorf("failed to write PID: %w", err)
+	}
+
+	// Keep file open so the flock persists for the process lifetime.
+	pidLockFile = f
+	slog.Info("PID lock acquired", "pidFile", pidFile, "pid", os.Getpid())
+	return nil
 }

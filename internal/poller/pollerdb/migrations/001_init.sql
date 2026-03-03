@@ -1,5 +1,7 @@
 -- Poller initial schema: watches, points, transactions, ip_allowlist, system_errors
 
+-- NOTE: This table is unused. Migration tracking uses schema_migrations (created in Go code).
+-- Kept for backwards compatibility with existing databases.
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY
 );

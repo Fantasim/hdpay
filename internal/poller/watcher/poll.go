@@ -19,9 +19,10 @@ import (
 func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provider.ProviderSet) {
 	defer w.wg.Done()
 	defer w.removeWatch(watch.ID)
+	defer ps.CleanupAddress(watch.Address) // release per-address state (e.g. BSC lastKnownBal)
 
 	// Resolve cutoff timestamp.
-	cutoff := w.resolveCutoff(watch.Address, w.cfg.StartDate)
+	cutoff := w.resolveCutoff(ctx, watch.Address, w.cfg.StartDate)
 
 	// Determine poll interval from chain.
 	interval := pollInterval(watch.Chain)
@@ -38,6 +39,13 @@ func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provide
 	defer ticker.Stop()
 
 	pollCount := watch.PollCount
+
+	// Adaptive polling: back off interval after consecutive empty ticks to reduce API waste.
+	consecutiveEmpty := 0
+	currentMultiplier := 1
+
+	// Per-watch error tracking.
+	consecutiveErrors := 0
 
 	for {
 		select {
@@ -66,6 +74,7 @@ func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provide
 				"watchID", watch.ID,
 				"chain", watch.Chain,
 				"pollCount", pollCount,
+				"intervalMultiplier", currentMultiplier,
 			)
 
 			// A. Fetch new transactions.
@@ -87,6 +96,24 @@ func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provide
 					fmt.Sprintf("fetch failed for watch %s on %s", watch.ID, watch.Chain),
 					fetchErr.Error(),
 				)
+
+				// Track consecutive errors.
+				consecutiveErrors++
+				if consecutiveErrors >= config.WatchMaxConsecutiveErrors {
+					w.logSystemError(config.ErrorSeverityError, config.ErrorCategoryWatcher,
+						fmt.Sprintf("watch %s: %d consecutive fetch failures", watch.ID, consecutiveErrors),
+						fetchErr.Error(),
+					)
+				}
+			} else {
+				// Reset error counter on successful fetch.
+				if consecutiveErrors > 0 {
+					slog.Debug("watch fetch recovered after errors",
+						"watchID", watch.ID,
+						"previousErrors", consecutiveErrors,
+					)
+					consecutiveErrors = 0
+				}
 			}
 
 			// B. Process each new transaction.
@@ -115,6 +142,36 @@ func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provide
 						"count", newDetected,
 					)
 				}
+			}
+
+			// Adaptive polling: adjust interval based on activity.
+			if fetchErr == nil && newDetected == 0 {
+				consecutiveEmpty++
+				newMultiplier := currentMultiplier
+				if consecutiveEmpty == config.AdaptiveEmptyThreshold && currentMultiplier < 2 {
+					newMultiplier = 2
+				} else if consecutiveEmpty == config.AdaptiveEmptyThreshold*3 && currentMultiplier < config.AdaptiveMaxMultiplier {
+					newMultiplier = config.AdaptiveMaxMultiplier
+				}
+				if newMultiplier != currentMultiplier {
+					currentMultiplier = newMultiplier
+					ticker.Reset(interval * time.Duration(currentMultiplier))
+					slog.Info("adaptive polling: backing off",
+						"watchID", watch.ID,
+						"multiplier", currentMultiplier,
+						"effectiveInterval", interval*time.Duration(currentMultiplier),
+						"consecutiveEmpty", consecutiveEmpty,
+					)
+				}
+			} else if newDetected > 0 && currentMultiplier > 1 {
+				// Activity detected — reset to base interval.
+				consecutiveEmpty = 0
+				currentMultiplier = 1
+				ticker.Reset(interval)
+				slog.Info("adaptive polling: reset to base interval",
+					"watchID", watch.ID,
+					"interval", interval,
+				)
 			}
 
 			// C. Re-check pending transactions.
@@ -157,8 +214,8 @@ func (w *Watcher) runWatch(ctx context.Context, watch *models.Watch, ps *provide
 
 // resolveCutoff determines the transaction cutoff timestamp for a watch.
 // Returns MAX(last recorded tx for address, startDate).
-func (w *Watcher) resolveCutoff(address string, startDate int64) int64 {
-	lastDetected, err := w.db.LastDetectedAt(address)
+func (w *Watcher) resolveCutoff(ctx context.Context, address string, startDate int64) int64 {
+	lastDetected, err := w.db.LastDetectedAt(ctx, address)
 	if err != nil {
 		slog.Warn("failed to query last detected_at, using startDate",
 			"address", address,
@@ -243,6 +300,20 @@ func (w *Watcher) processTransaction(ctx context.Context, watch *models.Watch, r
 		// Fetch price and calculate points.
 		usdPrice, priceErr := w.pricer.GetTokenPrice(ctx, raw.Token)
 		if priceErr != nil {
+			// Fallback: try cached price before degrading to PENDING.
+			cachedPrice, cacheErr := w.pricer.GetCachedPrice(raw.Token)
+			if cacheErr == nil {
+				slog.Warn("price fetch failed for confirmed tx, using cached price as fallback",
+					"txHash", raw.TxHash,
+					"token", raw.Token,
+					"cachedPrice", cachedPrice,
+					"error", priceErr,
+				)
+				usdPrice = cachedPrice
+				priceErr = nil
+			}
+		}
+		if priceErr != nil {
 			slog.Warn("price fetch failed for confirmed tx, inserting as PENDING for price retry",
 				"txHash", raw.TxHash,
 				"token", raw.Token,
@@ -273,20 +344,10 @@ func (w *Watcher) processTransaction(ctx context.Context, watch *models.Watch, r
 		tx.Points = calcResult.Points
 		tx.ConfirmedAt = &now
 
-		if _, err := w.db.InsertTransaction(tx); err != nil {
-			return fmt.Errorf("failed to insert confirmed tx: %w", err)
-		}
-
-		// Add to unclaimed points ledger.
-		if calcResult.Points > 0 {
-			if err := w.db.AddUnclaimed(watch.Address, watch.Chain, calcResult.Points); err != nil {
-				slog.Error("failed to add unclaimed points",
-					"address", watch.Address,
-					"chain", watch.Chain,
-					"points", calcResult.Points,
-					"error", err,
-				)
-			}
+		// Atomically insert confirmed tx and add points in a single DB transaction.
+		// This prevents points loss if the process crashes between the two operations.
+		if _, err := w.db.InsertConfirmedTxWithPoints(tx, watch.Address, watch.Chain, calcResult.Points); err != nil {
+			return fmt.Errorf("failed to insert confirmed tx with points: %w", err)
 		}
 
 		slog.Info("confirmed transaction processed",
@@ -390,6 +451,20 @@ func (w *Watcher) recheckPending(ctx context.Context, watch *models.Watch, ps *p
 
 		// Transaction confirmed — fetch price and calculate points.
 		usdPrice, priceErr := w.pricer.GetTokenPrice(ctx, tx.Token)
+		if priceErr != nil {
+			// Fallback: try cached price before skipping this tick.
+			cachedPrice, cacheErr := w.pricer.GetCachedPrice(tx.Token)
+			if cacheErr == nil {
+				slog.Warn("price fetch failed during confirmation, using cached price",
+					"txHash", tx.TxHash,
+					"token", tx.Token,
+					"cachedPrice", cachedPrice,
+					"error", priceErr,
+				)
+				usdPrice = cachedPrice
+				priceErr = nil
+			}
+		}
 		if priceErr != nil {
 			slog.Warn("price fetch failed during confirmation, will retry next tick",
 				"txHash", tx.TxHash,

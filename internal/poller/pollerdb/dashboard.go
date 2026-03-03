@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/Fantasim/hdpay/internal/poller/config"
 	"github.com/Fantasim/hdpay/internal/poller/models"
 )
 
@@ -86,7 +87,7 @@ func (d *DB) DailyStats(dateFrom, dateTo string) ([]models.DailyStatRow, error) 
 		args = append(args, dateTo)
 	}
 
-	query += " GROUP BY day ORDER BY day ASC"
+	query += fmt.Sprintf(" GROUP BY day ORDER BY day ASC LIMIT %d", config.MaxDashboardDailyRows)
 
 	rows, err := d.conn.Query(query, args...)
 	if err != nil {
@@ -296,7 +297,7 @@ func (d *DB) ChartWatchesByDay(dateFrom, dateTo string) ([]models.DailyWatchStat
 		args = append(args, dateTo)
 	}
 
-	query += " GROUP BY day ORDER BY day ASC"
+	query += fmt.Sprintf(" GROUP BY day ORDER BY day ASC LIMIT %d", config.MaxDashboardDailyRows)
 
 	rows, err := d.conn.Query(query, args...)
 	if err != nil {

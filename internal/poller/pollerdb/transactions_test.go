@@ -1,6 +1,7 @@
 package pollerdb
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -218,7 +219,7 @@ func TestLastDetectedAt(t *testing.T) {
 	seedWatch(t, db, "w1")
 
 	// No transactions yet.
-	ts, err := db.LastDetectedAt("addr1")
+	ts, err := db.LastDetectedAt(context.Background(), "addr1")
 	if err != nil {
 		t.Fatalf("LastDetectedAt() error = %v", err)
 	}
@@ -240,7 +241,7 @@ func TestLastDetectedAt(t *testing.T) {
 		Status: models.TxStatusPending, DetectedAt: "2026-01-02T15:00:00Z",
 	})
 
-	ts, err = db.LastDetectedAt("addr1")
+	ts, err = db.LastDetectedAt(context.Background(), "addr1")
 	if err != nil {
 		t.Fatalf("LastDetectedAt() error = %v", err)
 	}

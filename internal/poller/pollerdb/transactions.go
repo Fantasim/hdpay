@@ -1,6 +1,7 @@
 package pollerdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -263,11 +264,88 @@ func (d *DB) ConfirmTxAndMovePoints(
 	return nil
 }
 
+// InsertConfirmedTxWithPoints atomically inserts a confirmed transaction and
+// adds points to the unclaimed ledger in a single database transaction.
+// This prevents the crash-between-two-operations bug where a tx is recorded
+// as CONFIRMED but points are never credited.
+// If points == 0, the points UPDATE is skipped but the INSERT still runs atomically.
+func (d *DB) InsertConfirmedTxWithPoints(tx *models.Transaction, address, chain string, pts int) (int64, error) {
+	dbTx, err := d.conn.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin insert+points tx for %s: %w", tx.TxHash, err)
+	}
+	defer dbTx.Rollback()
+
+	// Step 1: Insert confirmed transaction.
+	result, err := dbTx.Exec(`
+		INSERT INTO transactions (
+			watch_id, tx_hash, chain, address, token,
+			amount_raw, amount_human, decimals,
+			usd_value, usd_price, tier, multiplier, points,
+			status, confirmations, block_number,
+			detected_at, confirmed_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tx.WatchID, tx.TxHash, tx.Chain, tx.Address, tx.Token,
+		tx.AmountRaw, tx.AmountHuman, tx.Decimals,
+		tx.USDValue, tx.USDPrice, tx.Tier, tx.Multiplier, tx.Points,
+		tx.Status, tx.Confirmations, tx.BlockNumber,
+		tx.DetectedAt, tx.ConfirmedAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert confirmed tx %s: %w", tx.TxHash, err)
+	}
+
+	// Step 2: Add to unclaimed points ledger (if any points earned).
+	if pts > 0 {
+		_, err = dbTx.Exec(`
+			UPDATE points SET unclaimed = unclaimed + ?, total = total + ?, updated_at = CURRENT_TIMESTAMP
+			WHERE address = ? AND chain = ?`,
+			pts, pts, address, chain,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("failed to add unclaimed points for %s/%s: %w", address, chain, err)
+		}
+	}
+
+	if err := dbTx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit insert+points for %s: %w", tx.TxHash, err)
+	}
+
+	id, _ := result.LastInsertId()
+
+	slog.Info("confirmed transaction recorded with points (atomic)",
+		"id", id,
+		"txHash", tx.TxHash,
+		"chain", tx.Chain,
+		"address", tx.Address,
+		"token", tx.Token,
+		"amountHuman", tx.AmountHuman,
+		"points", pts,
+	)
+	return id, nil
+}
+
+// ListOrphanedPending returns PENDING transactions whose watch is no longer ACTIVE.
+// These are txs that were detected but never confirmed because the watch expired,
+// completed, or was cancelled before confirmation arrived.
+func (d *DB) ListOrphanedPending() ([]models.Transaction, error) {
+	return d.queryTransactions(`
+		SELECT t.id, t.watch_id, t.tx_hash, t.chain, t.address, t.token,
+		       t.amount_raw, t.amount_human, t.decimals,
+		       t.usd_value, t.usd_price, t.tier, t.multiplier, t.points,
+		       t.status, t.confirmations, t.block_number,
+		       t.detected_at, t.confirmed_at, t.created_at
+		FROM transactions t
+		JOIN watches w ON t.watch_id = w.id
+		WHERE t.status = 'PENDING' AND w.status != 'ACTIVE'
+		ORDER BY t.detected_at ASC`)
+}
+
 // LastDetectedAt returns the most recent detected_at timestamp for a given address.
 // Returns empty string if no transactions exist for this address.
-func (d *DB) LastDetectedAt(address string) (string, error) {
+func (d *DB) LastDetectedAt(ctx context.Context, address string) (string, error) {
 	var detectedAt sql.NullString
-	err := d.conn.QueryRow(`
+	err := d.conn.QueryRowContext(ctx, `
 		SELECT MAX(detected_at) FROM transactions WHERE address = ?`, address,
 	).Scan(&detectedAt)
 	if err != nil {

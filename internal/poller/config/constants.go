@@ -124,3 +124,44 @@ var SupportedChains = []string{"BTC", "BSC", "SOL"}
 const (
 	MaxClaimBatchSize = 500 // max addresses per claim request
 )
+
+// BSC Provider
+const (
+	BSCBlockTimeSeconds = 3      // BSC produces a block ~every 3 seconds
+	BSCMaxLogBlockRange = 50_000 // cap for eth_getLogs fromBlock range (~41h at 3s blocks)
+	BNBSyntheticHashFmt = "bnb-%s-block-%d" // format for synthetic BNB balance-delta tx hashes
+)
+
+// SOL Provider
+const (
+	SOLSignaturePageSize = 20          // getSignaturesForAddress page size
+	SOLMaxSignaturePages = 10          // max pages to paginate (200 sigs safety cap)
+	SOLFetchCommitment   = "confirmed" // commitment level for fetching (not confirmation)
+	SOLMaxTxVersion      = 0           // maxSupportedTransactionVersion for getTransaction
+)
+
+// Adaptive Polling — reduces API waste on idle watches by backing off the poll interval.
+const (
+	AdaptiveEmptyThreshold = 5 // consecutive empty ticks before first backoff (2x)
+	AdaptiveMaxMultiplier  = 4 // max interval multiplier (4x base interval)
+)
+
+// Per-Watch Error Tracking
+const (
+	WatchMaxConsecutiveErrors = 10 // consecutive fetch failures before logging system error
+)
+
+// Dashboard
+const (
+	MaxDashboardDailyRows = 366 // max rows for daily-aggregation queries (prevents unbounded results)
+)
+
+// Recovery
+const (
+	RecoveryPerTxTimeout = 2 * time.Minute // max time per pending tx during recovery
+)
+
+// Orphan Recovery — periodic background check for PENDING txs from expired/completed watches.
+const (
+	OrphanRecoveryInterval = 5 * time.Minute // how often to check for orphaned pending txs
+)

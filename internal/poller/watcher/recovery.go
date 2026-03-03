@@ -56,8 +56,15 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 			return fmt.Errorf("recovery: cancelled: %w", ctx.Err())
 		}
 
+		// Per-tx timeout prevents a single problematic tx from exhausting the
+		// global recovery timeout. Previously the global 5-min timeout was shared
+		// across all pending txs, so many txs with 3 retries * 30s delay could
+		// silently truncate recovery.
+		txCtx, txCancel := context.WithTimeout(ctx, config.RecoveryPerTxTimeout)
+
 		ps, ok := w.providers[tx.Chain]
 		if !ok {
+			txCancel()
 			slog.Warn("recovery: no provider for chain, skipping tx",
 				"chain", tx.Chain,
 				"txHash", tx.TxHash,
@@ -69,8 +76,12 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 		// Retry confirmation check.
 		confirmedThisRound := false
 		for attempt := 1; attempt <= config.RecoveryPendingRetries; attempt++ {
-			if ctx.Err() != nil {
-				return fmt.Errorf("recovery: cancelled during retry: %w", ctx.Err())
+			if txCtx.Err() != nil {
+				slog.Warn("recovery: per-tx timeout reached",
+					"txHash", tx.TxHash,
+					"attempt", attempt,
+				)
+				break
 			}
 
 			// Extract base signature for SOL composite tx_hash.
@@ -84,7 +95,7 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 				blockNum = *tx.BlockNumber
 			}
 
-			confirmed, confirmations, checkErr := ps.ExecuteConfirmation(ctx, checkHash, blockNum)
+			confirmed, confirmations, checkErr := ps.ExecuteConfirmation(txCtx, checkHash, blockNum)
 			if checkErr != nil {
 				slog.Warn("recovery: confirmation check failed",
 					"txHash", tx.TxHash,
@@ -96,8 +107,8 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 				if attempt < config.RecoveryPendingRetries {
 					// Wait before next retry.
 					select {
-					case <-ctx.Done():
-						return fmt.Errorf("recovery: cancelled during wait: %w", ctx.Err())
+					case <-txCtx.Done():
+						break
 					case <-time.After(config.RecoveryPendingInterval):
 					}
 				}
@@ -113,8 +124,8 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 
 				if attempt < config.RecoveryPendingRetries {
 					select {
-					case <-ctx.Done():
-						return fmt.Errorf("recovery: cancelled during wait: %w", ctx.Err())
+					case <-txCtx.Done():
+						break
 					case <-time.After(config.RecoveryPendingInterval):
 					}
 				}
@@ -122,7 +133,7 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 			}
 
 			// Confirmed! Fetch price and update.
-			usdPrice, priceErr := w.pricer.GetTokenPrice(ctx, tx.Token)
+			usdPrice, priceErr := w.pricer.GetTokenPrice(txCtx, tx.Token)
 			if priceErr != nil {
 				slog.Warn("recovery: price fetch failed for confirmed tx",
 					"txHash", tx.TxHash,
@@ -162,6 +173,8 @@ func (w *Watcher) RunRecovery(ctx context.Context) error {
 			resolved++
 			break
 		}
+
+		txCancel()
 
 		if !confirmedThisRound {
 			unresolved++

@@ -27,25 +27,38 @@ var transferEventTopic = crypto.Keccak256Hash([]byte("Transfer(address,address,u
 //
 // For native BNB: eth_getBalance polled every tick. An increase in balance
 // compared to the last known value is recorded as an incoming receipt. A
-// synthetic tx hash ("bnb-{address}-block-{block}") is used for deduplication
-// since native BNB transfers do not emit events.
+// synthetic tx hash is used for deduplication since native BNB transfers
+// do not emit events.
+//
+// BNB balance-delta limitations (by design — archive node access is required
+// for internal transaction tracing, which is incompatible with free-tier RPCs):
+//   - If an address receives AND sends BNB between two poll ticks, the delta
+//     may be zero or negative — the incoming transfer is invisible.
+//   - Multiple BNB transfers in the same block produce a single synthetic tx
+//     (the delta is aggregated).
+//   - First poll for a new address stores the baseline balance but reports no tx.
+//
+// These limitations are acceptable for the use case of detecting incoming
+// payments to a watched address where the address is primarily a receiver.
 type BSCRPCPollerProvider struct {
-	client  *ethclient.Client
+	// clients holds multiple ethclient connections for failover.
+	// On RPC error, rotateClient() advances to the next connection.
+	clients []*ethclient.Client
+	mu      sync.Mutex
+	current int
+
 	network string
 
 	// lastKnownBal maps address (lower-case) → last-seen confirmed balance.
 	// Used to detect BNB balance increases between polls.
+	// Entries are cleaned up via ClearBalance() when a watch completes.
 	lastKnownBal sync.Map
 }
 
-// NewBSCRPCPollerProvider creates a provider that connects to a public BSC RPC node.
-// api.bscscan.com was shut down Dec 18, 2025; this implementation uses only
-// go-ethereum ethclient and requires no external API key.
+// NewBSCRPCPollerProvider creates a provider that connects to public BSC RPC nodes.
+// Multiple connections are established for failover — if one RPC fails mid-watch,
+// the provider rotates to the next.
 // Rate limiting is handled externally by ProviderSet.
-//
-// On startup, tries a prioritised list of mainnet RPC URLs and uses the first that responds.
-// This provider maintains per-address balance state (lastKnownBal) for native BNB change
-// detection, so only one instance should be created per pool.
 func NewBSCRPCPollerProvider(network string) (*BSCRPCPollerProvider, error) {
 	if network == "testnet" {
 		rpcURL := hdconfig.BscRPCTestnetURL
@@ -58,11 +71,13 @@ func NewBSCRPCPollerProvider(network string) (*BSCRPCPollerProvider, error) {
 			return nil, fmt.Errorf("dial BSC RPC %s: %w", rpcURL, err)
 		}
 		slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
-		return &BSCRPCPollerProvider{client: client, network: network}, nil
+		return &BSCRPCPollerProvider{
+			clients: []*ethclient.Client{client},
+			network: network,
+		}, nil
 	}
 
-	// Mainnet: try each URL in priority order until one connects.
-	// Multiple official dataseed nodes + Ankr + LlamaNodes + dRPC for maximum resilience.
+	// Mainnet: connect to multiple URLs for failover resilience.
 	mainnetURLs := []string{
 		hdconfig.BscRPCMainnetURL,  // bsc-dataseed.binance.org (official)
 		hdconfig.BscRPCMainnetURL2, // rpc.ankr.com/bsc (reliable, 30 req/s)
@@ -74,50 +89,100 @@ func NewBSCRPCPollerProvider(network string) (*BSCRPCPollerProvider, error) {
 		hdconfig.DRPCBSCURL,        // bsc.drpc.org (generous free tier)
 	}
 
-	for i, rpcURL := range mainnetURLs {
+	var clients []*ethclient.Client
+	for _, rpcURL := range mainnetURLs {
 		slog.Info("bsc rpc poller provider connecting",
 			"rpcURL", rpcURL,
-			"attempt", i+1,
-			"total", len(mainnetURLs),
 		)
 
 		client, err := ethclient.Dial(rpcURL)
 		if err != nil {
-			slog.Warn("bsc rpc url failed, trying next",
+			slog.Warn("bsc rpc url failed, skipping",
 				"rpcURL", rpcURL,
 				"error", err,
 			)
 			continue
 		}
 
+		clients = append(clients, client)
 		slog.Info("bsc rpc poller provider connected", "rpcURL", rpcURL)
-		return &BSCRPCPollerProvider{client: client, network: network}, nil
 	}
 
-	return nil, fmt.Errorf("dial BSC RPC: all %d mainnet URLs failed", len(mainnetURLs))
+	if len(clients) == 0 {
+		return nil, fmt.Errorf("dial BSC RPC: all %d mainnet URLs failed", len(mainnetURLs))
+	}
+
+	slog.Info("bsc rpc poller provider ready",
+		"connectedClients", len(clients),
+		"totalURLs", len(mainnetURLs),
+	)
+
+	return &BSCRPCPollerProvider{
+		clients: clients,
+		network: network,
+	}, nil
 }
 
 func (p *BSCRPCPollerProvider) Name() string  { return "bscrpc-poller" }
 func (p *BSCRPCPollerProvider) Chain() string { return "BSC" }
 
+// getClient returns the current ethclient connection.
+func (p *BSCRPCPollerProvider) getClient() *ethclient.Client {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.clients[p.current]
+}
+
+// rotateClient advances to the next ethclient connection on failure.
+func (p *BSCRPCPollerProvider) rotateClient() {
+	p.mu.Lock()
+	prev := p.current
+	p.current = (p.current + 1) % len(p.clients)
+	p.mu.Unlock()
+
+	slog.Warn("bsc rpc client rotated",
+		"from", prev,
+		"to", p.current,
+		"totalClients", len(p.clients),
+	)
+}
+
+// callCtx creates a per-call context with ProviderRequestTimeout to prevent
+// a single hung RPC call from blocking the entire poll tick.
+func callCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, hdconfig.ProviderRequestTimeout)
+}
+
+// ClearBalance removes the cached balance for an address.
+// Called when a watch for this address completes/expires to prevent
+// unbounded memory growth in lastKnownBal.
+func (p *BSCRPCPollerProvider) ClearBalance(address string) {
+	p.lastKnownBal.Delete(strings.ToLower(address))
+	slog.Debug("BSC balance cache cleared", "address", address)
+}
+
 // FetchTransactions returns incoming BSC transactions since cutoffUnix.
 // Token transfers are detected via eth_getLogs; native BNB via balance delta.
+// Each ethclient call uses a per-call timeout to prevent blocking on hung RPCs.
 // Rate limiting is handled externally by ProviderSet.
 func (p *BSCRPCPollerProvider) FetchTransactions(ctx context.Context, address string, cutoffUnix int64) ([]RawTransaction, error) {
-	latestBlock, err := p.client.BlockNumber(ctx)
+	cc, cancel := callCtx(ctx)
+	defer cancel()
+	latestBlock, err := p.getClient().BlockNumber(cc)
 	if err != nil {
+		p.rotateClient()
 		return nil, fmt.Errorf("bsc rpc get block number: %w", err)
 	}
 
-	// Estimate fromBlock from cutoff. BSC produces a block ~every 3 seconds.
+	// Estimate fromBlock from cutoff using BSC block time.
 	elapsed := time.Now().Unix() - cutoffUnix
-	blocksBack := elapsed / 3
+	blocksBack := elapsed / pollerconfig.BSCBlockTimeSeconds
 	if blocksBack < 0 {
 		blocksBack = 0
 	}
-	// Cap at 50 000 blocks (~41h) to avoid oversized log queries on public RPC.
-	if blocksBack > 50_000 {
-		blocksBack = 50_000
+	// Cap block range to avoid oversized log queries on public RPC.
+	if blocksBack > pollerconfig.BSCMaxLogBlockRange {
+		blocksBack = pollerconfig.BSCMaxLogBlockRange
 	}
 	fromBlock := int64(latestBlock) - blocksBack
 	if fromBlock < 0 {
@@ -197,8 +262,11 @@ func (p *BSCRPCPollerProvider) fetchTokenLogs(ctx context.Context, address strin
 		},
 	}
 
-	logs, err := p.client.FilterLogs(ctx, query)
+	cc, cancel := callCtx(ctx)
+	defer cancel()
+	logs, err := p.getClient().FilterLogs(cc, query)
 	if err != nil {
+		p.rotateClient()
 		return nil, fmt.Errorf("eth_getLogs: %w", err)
 	}
 
@@ -262,8 +330,11 @@ func (p *BSCRPCPollerProvider) fetchTokenLogs(ctx context.Context, address strin
 // The synthetic tx hash is stable within a block to ensure deduplication.
 func (p *BSCRPCPollerProvider) fetchBNBDelta(ctx context.Context, address string, currentBlock uint64) ([]RawTransaction, error) {
 	addr := common.HexToAddress(address)
-	currentBalance, err := p.client.BalanceAt(ctx, addr, nil) // nil = latest
+	cc, cancel := callCtx(ctx)
+	defer cancel()
+	currentBalance, err := p.getClient().BalanceAt(cc, addr, nil) // nil = latest
 	if err != nil {
+		p.rotateClient()
 		return nil, fmt.Errorf("eth_getBalance: %w", err)
 	}
 
@@ -278,7 +349,7 @@ func (p *BSCRPCPollerProvider) fetchBNBDelta(ctx context.Context, address string
 			amountHuman := weiToHuman(amountRaw, hdconfig.BNBDecimals)
 
 			// Synthetic hash: stable for this address + block combination.
-			syntheticHash := fmt.Sprintf("bnb-%s-block-%d", addrKey, currentBlock)
+			syntheticHash := fmt.Sprintf(pollerconfig.BNBSyntheticHashFmt, addrKey, currentBlock)
 
 			slog.Debug("BSC BNB balance increase detected",
 				"address", address,
@@ -346,8 +417,11 @@ func (p *BSCRPCPollerProvider) CheckConfirmation(ctx context.Context, txHash str
 // GetCurrentBlock returns the latest BSC block number.
 // Rate limiting is handled externally by ProviderSet.
 func (p *BSCRPCPollerProvider) GetCurrentBlock(ctx context.Context) (uint64, error) {
-	block, err := p.client.BlockNumber(ctx)
+	cc, cancel := callCtx(ctx)
+	defer cancel()
+	block, err := p.getClient().BlockNumber(cc)
 	if err != nil {
+		p.rotateClient()
 		return 0, fmt.Errorf("eth_blockNumber: %w", err)
 	}
 

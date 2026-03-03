@@ -119,6 +119,36 @@ func (p *Pricer) GetTokenPrice(ctx context.Context, token string) (float64, erro
 	return 0, fmt.Errorf("failed to fetch price for %s after %d attempts: %w", token, config.PriceRetryCount, lastErr)
 }
 
+// GetCachedPrice returns a cached USD price for a token without making any
+// network call. Returns an error only if no cached value exists.
+// Use as a fallback when GetTokenPrice fails for a confirmed transaction,
+// to avoid downgrading it to PENDING just because CoinGecko is unreachable.
+func (p *Pricer) GetCachedPrice(token string) (float64, error) {
+	// Stablecoins always return the fixed price.
+	if token == "USDC" || token == "USDT" {
+		return config.StablecoinPrice, nil
+	}
+
+	priceKey, err := tokenToPriceKey(token)
+	if err != nil {
+		return 0, err
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if usd, ok := p.cache[priceKey]; ok {
+		slog.Debug("cached price fallback used",
+			"token", token,
+			"price", usd,
+			"cacheAge", time.Since(p.cacheTime).Round(time.Second),
+		)
+		return usd, nil
+	}
+
+	return 0, fmt.Errorf("no cached price for %s", token)
+}
+
 // tokenToPriceKey maps a Poller token string to the key used in HDPay's
 // PriceService response map.
 func tokenToPriceKey(token string) (string, error) {

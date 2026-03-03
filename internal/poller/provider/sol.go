@@ -107,8 +107,8 @@ type signatureStatus struct {
 	ConfirmationStatus string      `json:"confirmationStatus"`
 }
 
-// SOL signature page size for getSignaturesForAddress.
-const solSignaturePageSize = 20
+// SOL constants are in pollerconfig (config/constants.go).
+// Imported as pollerconfig.SOLSignaturePageSize, etc.
 
 // SolanaRPCProvider detects SOL transactions via Solana JSON-RPC.
 type SolanaRPCProvider struct {
@@ -345,52 +345,85 @@ func (p *SolanaRPCProvider) GetCurrentBlock(_ context.Context) (uint64, error) {
 	return 0, nil
 }
 
-// getSignaturesForAddress fetches recent signatures for an address, filtering by cutoff.
+// getSignaturesForAddress fetches recent signatures for an address, paginating
+// until the cutoff timestamp is reached or the safety cap is hit.
+// Previously only fetched a single page of 20 — this caused silent transaction
+// loss on busy addresses receiving >20 txs between poll ticks.
 func (p *SolanaRPCProvider) getSignaturesForAddress(ctx context.Context, address string, cutoffUnix int64) ([]signatureInfo, error) {
-	params := map[string]interface{}{
-		"limit":      solSignaturePageSize,
-		"commitment": "confirmed",
-	}
+	var allSigs []signatureInfo
+	var beforeSig string
 
-	body, err := p.rpcCall(ctx, "getSignaturesForAddress", []interface{}{address, params})
-	if err != nil {
-		return nil, err
-	}
-
-	var sigs []signatureInfo
-	if err := json.Unmarshal(body, &sigs); err != nil {
-		return nil, fmt.Errorf("parse getSignaturesForAddress: %w", err)
-	}
-
-	// Filter by cutoff and skip failed transactions
-	var result []signatureInfo
-	for _, sig := range sigs {
-		// Skip if older than cutoff
-		if sig.BlockTime != nil && *sig.BlockTime < cutoffUnix {
-			break // ordered newest first
+	for page := 0; page < pollerconfig.SOLMaxSignaturePages; page++ {
+		if ctx.Err() != nil {
+			return allSigs, ctx.Err()
 		}
 
-		// Skip failed transactions
-		if sig.Err != nil {
-			slog.Debug("skipping failed SOL tx",
-				"signature", sig.Signature,
-				"err", sig.Err,
-			)
-			continue
+		params := map[string]interface{}{
+			"limit":      pollerconfig.SOLSignaturePageSize,
+			"commitment": pollerconfig.SOLFetchCommitment,
+		}
+		if beforeSig != "" {
+			params["before"] = beforeSig
 		}
 
-		result = append(result, sig)
+		body, err := p.rpcCall(ctx, "getSignaturesForAddress", []interface{}{address, params})
+		if err != nil {
+			return allSigs, err
+		}
+
+		var sigs []signatureInfo
+		if err := json.Unmarshal(body, &sigs); err != nil {
+			return allSigs, fmt.Errorf("parse getSignaturesForAddress page %d: %w", page, err)
+		}
+
+		if len(sigs) == 0 {
+			break
+		}
+
+		// Filter by cutoff and skip failed transactions.
+		hitCutoff := false
+		for _, sig := range sigs {
+			if sig.BlockTime != nil && *sig.BlockTime < cutoffUnix {
+				hitCutoff = true
+				break // ordered newest first — all remaining are older
+			}
+
+			if sig.Err != nil {
+				slog.Debug("skipping failed SOL tx",
+					"signature", sig.Signature,
+					"err", sig.Err,
+				)
+				continue
+			}
+
+			allSigs = append(allSigs, sig)
+		}
+
+		// Stop paginating if: hit cutoff, partial page (no more results), or empty.
+		if hitCutoff || len(sigs) < pollerconfig.SOLSignaturePageSize {
+			break
+		}
+
+		// Set cursor for next page.
+		beforeSig = sigs[len(sigs)-1].Signature
+
+		slog.Debug("SOL signature pagination continuing",
+			"provider", p.Name(),
+			"address", address,
+			"page", page+1,
+			"sigsSoFar", len(allSigs),
+		)
 	}
 
-	return result, nil
+	return allSigs, nil
 }
 
 // parseTransaction fetches a full transaction and extracts incoming transfers to the address.
 // Returns separate RawTransaction entries for native SOL and each SPL token transfer.
 func (p *SolanaRPCProvider) parseTransaction(ctx context.Context, signature, address string) ([]RawTransaction, error) {
 	params := map[string]interface{}{
-		"commitment":                     "confirmed",
-		"maxSupportedTransactionVersion": 0,
+		"commitment":                     pollerconfig.SOLFetchCommitment,
+		"maxSupportedTransactionVersion": pollerconfig.SOLMaxTxVersion,
 	}
 
 	body, err := p.rpcCall(ctx, "getTransaction", []interface{}{signature, params})

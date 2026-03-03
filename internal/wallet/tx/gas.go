@@ -251,7 +251,17 @@ func (s *GasPreSeedService) Execute(
 				"staleNonce", nonce,
 			)
 			freshNonce, nonceErr := s.ethClient.PendingNonceAt(ctx, sourceAddr)
-			if nonceErr == nil && freshNonce > nonce {
+			if nonceErr != nil {
+				slog.Error("gas pre-seed: nonce refresh failed, aborting remaining targets",
+					"target", targetAddr,
+					"staleNonce", nonce,
+					"error", nonceErr,
+				)
+				result.TxResults = append(result.TxResults, txResult)
+				result.FailCount++
+				break
+			}
+			if freshNonce > nonce {
 				nonce = freshNonce
 				slog.Info("gas pre-seed: nonce refreshed, retrying",
 					"target", targetAddr,

@@ -577,6 +577,15 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 		// Uses context.Background() because the HTTP request context is dead after return.
 		go func() {
 			defer mu.Unlock()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("PANIC in background sweep goroutine — recovered",
+						"sweepID", sweepID,
+						"chain", req.Chain,
+						"panic", fmt.Sprintf("%v", r),
+					)
+				}
+			}()
 
 			start := time.Now()
 			bgCtx := context.Background()

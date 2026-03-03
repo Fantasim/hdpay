@@ -636,7 +636,7 @@ func TestResolveCutoff_NoHistory(t *testing.T) {
 	w := setupWatcher(t, db, mp)
 
 	startDate := int64(1700000000)
-	cutoff := w.resolveCutoff("unknown-address", startDate)
+	cutoff := w.resolveCutoff(context.Background(), "unknown-address", startDate)
 	if cutoff != startDate {
 		t.Errorf("expected startDate %d, got %d", startDate, cutoff)
 	}
@@ -674,7 +674,7 @@ func TestResolveCutoff_WithHistory(t *testing.T) {
 	}
 	db.InsertTransaction(tx)
 
-	cutoff := w.resolveCutoff(addr, startDate)
+	cutoff := w.resolveCutoff(context.Background(), addr, startDate)
 	if cutoff != 1700100000 {
 		t.Errorf("expected 1700100000, got %d", cutoff)
 	}

@@ -246,6 +246,19 @@ func (ps *ProviderSet) Stats() []scanner.MetricsSnapshot {
 	return out
 }
 
+// CleanupAddress notifies all providers in this set that a watch for the given
+// address has ended. Providers with per-address state (e.g. BSC's lastKnownBal)
+// can release that memory.
+func (ps *ProviderSet) CleanupAddress(address string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	for _, wp := range ps.providers {
+		if cleaner, ok := wp.provider.(interface{ ClearBalance(string) }); ok {
+			cleaner.ClearBalance(address)
+		}
+	}
+}
+
 // NewHTTPClient creates a configured HTTP client for provider use.
 // Uses HDPay's connection pool constants.
 func NewHTTPClient() *http.Client {

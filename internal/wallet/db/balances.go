@@ -46,6 +46,7 @@ func (d *DB) UpsertBalanceBatch(balances []models.Balance) error {
 	if err != nil {
 		return fmt.Errorf("begin balance batch transaction: %w", err)
 	}
+	defer tx.Rollback() // No-op after successful commit.
 
 	stmt, err := tx.Prepare(
 		`INSERT INTO balances (chain, network, address_index, token, balance, last_scanned)
@@ -53,14 +54,12 @@ func (d *DB) UpsertBalanceBatch(balances []models.Balance) error {
 		 ON CONFLICT(chain, network, address_index, token) DO UPDATE SET balance = excluded.balance, last_scanned = excluded.last_scanned`,
 	)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("prepare balance upsert: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, b := range balances {
 		if _, err := stmt.Exec(string(b.Chain), d.network, b.AddressIndex, string(b.Token), b.Balance, now); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("exec balance upsert %s/%d/%s: %w", b.Chain, b.AddressIndex, b.Token, err)
 		}
 	}
