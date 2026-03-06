@@ -72,7 +72,7 @@ func NewRouter(deps *Dependencies) chi.Router {
 			r.Get("/settings", handlers.GetSettingsHandler(deps.Config, deps.Watcher, deps.Calculator))
 			r.Put("/tiers", handlers.UpdateTiersHandler(deps.Config, deps.Calculator))
 			r.Put("/watch-defaults", handlers.UpdateWatchDefaultsHandler(deps.Watcher))
-			r.Get("/provider-stats", handlers.GetProviderStatsHandler(deps.ProviderSets))
+			r.Get("/provider-stats", handlers.GetProviderStatsHandler(deps.DB, deps.ProviderSets))
 		})
 
 		// Dashboard — IP-restricted + session required.

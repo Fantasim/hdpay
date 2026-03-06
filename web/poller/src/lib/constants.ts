@@ -106,7 +106,7 @@ export const EXPLORER_TX_URL_TESTNET: Record<Chain, string> = {
 
 // Suffixes appended after the hash for testnet
 export const EXPLORER_TX_URL_TESTNET_SUFFIX: Partial<Record<Chain, string>> = {
-	SOL: '?cluster=devnet'
+	SOL: '?cluster=testnet'
 } as const;
 
 // Confirmation thresholds

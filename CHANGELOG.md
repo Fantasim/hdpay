@@ -1,5 +1,22 @@
 # Changelog
 
+## Poller: Provider Usage Persistence + Devnet Fix — 2026-03-06
+
+#### Fixed
+- Solana explorer links in poller frontend used `?cluster=devnet` instead of `?cluster=testnet` (missed in scanner audit)
+
+#### Added
+- **DB-backed provider usage tracking**: API call counters now persist across process restarts via `provider_usage` SQLite table (daily granularity)
+- `provider_usage` migration (003) with composite primary key (chain, provider, date)
+- `IncrementUsage`, `GetDailyUsage`, `GetMonthlyUsage`, `GetAllMonthlyUsage` DB methods with 8 tests
+- `OnRecord` callback on `ProviderSet` — invoked after every provider API call (success or failure)
+- Provider stats API handler now reads daily/monthly counters from DB instead of in-memory (monthly limits still from config)
+- `ProviderUsageDateFormat` and `ProviderUsageMonthDays` constants
+
+#### Changed
+- `GetProviderStatsHandler` now accepts `*pollerdb.DB` in addition to provider sets
+- Settings page provider usage table requires zero frontend changes — same API response shape
+
 ## Scanner Audit: Solana Devnet→Testnet + Diagnostics — 2026-03-06
 
 #### Fixed

@@ -48,6 +48,10 @@ type wrappedProvider struct {
 	circuitBreaker *scanner.CircuitBreaker
 }
 
+// RecordFunc is called after each provider API call with the result.
+// Used to persist usage metrics to the database.
+type RecordFunc func(chain, provider string, success bool, is429 bool)
+
 // ProviderSet manages a set of providers for one chain with round-robin rotation.
 // Thread-safe. On failure, rotates to the next provider and retries.
 type ProviderSet struct {
@@ -55,6 +59,7 @@ type ProviderSet struct {
 	providers []wrappedProvider
 	current   int
 	chain     string
+	onRecord  RecordFunc
 }
 
 // NewProviderSet creates a ProviderSet for a specific chain.
@@ -187,6 +192,9 @@ func (ps *ProviderSet) executeFetch(ctx context.Context, fn func(Provider) ([]Ra
 		if err != nil {
 			wp.circuitBreaker.RecordFailure()
 			wp.rateLimiter.RecordFailure(false) // BSC RPC doesn't return 429s
+			if ps.onRecord != nil {
+				ps.onRecord(ps.chain, wp.provider.Name(), false, false)
+			}
 			slog.Warn("provider call failed, rotating",
 				"chain", ps.chain,
 				"provider", wp.provider.Name(),
@@ -205,6 +213,9 @@ func (ps *ProviderSet) executeFetch(ctx context.Context, fn func(Provider) ([]Ra
 
 		wp.circuitBreaker.RecordSuccess()
 		wp.rateLimiter.RecordSuccess()
+		if ps.onRecord != nil {
+			ps.onRecord(ps.chain, wp.provider.Name(), true, false)
+		}
 
 		slog.Debug("provider call succeeded",
 			"chain", ps.chain,
@@ -218,6 +229,13 @@ func (ps *ProviderSet) executeFetch(ctx context.Context, fn func(Provider) ([]Ra
 		"lastError", lastErr,
 	)
 	return nil, fmt.Errorf("%w: chain=%s: %v", ErrAllProvidersFailed, ps.chain, lastErr)
+}
+
+// SetOnRecord sets a callback invoked after each provider API call.
+func (ps *ProviderSet) SetOnRecord(fn RecordFunc) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.onRecord = fn
 }
 
 // Chain returns the chain this provider set serves.

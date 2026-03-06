@@ -174,3 +174,9 @@ const (
 const (
 	OrphanRecoveryInterval = 5 * time.Minute // how often to check for orphaned pending txs
 )
+
+// Provider Usage — DB-backed API call tracking with daily granularity.
+const (
+	ProviderUsageDateFormat = "2006-01-02" // Go date format for YYYY-MM-DD
+	ProviderUsageMonthDays  = 30           // days to aggregate for monthly stats
+)

@@ -102,6 +102,20 @@ func main() {
 	httpClient := provider.NewHTTPClient()
 	providerSets := initProviderSets(httpClient, cfg)
 
+	// Wire up DB-backed provider usage tracking.
+	for _, ps := range providerSets {
+		ps.SetOnRecord(func(chain, prov string, success bool, is429 bool) {
+			if err := db.IncrementUsage(chain, prov, success, is429); err != nil {
+				slog.Warn("failed to record provider usage",
+					"chain", chain,
+					"provider", prov,
+					"error", err,
+				)
+			}
+		})
+	}
+	slog.Info("provider usage tracking wired to database")
+
 	// Initialize watcher.
 	w := watcher.NewWatcher(db, providerSets, pricer, calculator, cfg)
 

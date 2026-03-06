@@ -43,7 +43,7 @@ func TestNew_CreatesDatabaseFile(t *testing.T) {
 func TestRunMigrations_CreatesAllTables(t *testing.T) {
 	db := newTestDB(t)
 
-	tables := []string{"watches", "points", "transactions", "ip_allowlist", "system_errors"}
+	tables := []string{"watches", "points", "transactions", "ip_allowlist", "system_errors", "provider_usage"}
 	for _, table := range tables {
 		var name string
 		err := db.Conn().QueryRow(
