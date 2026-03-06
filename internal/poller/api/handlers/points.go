@@ -36,6 +36,7 @@ type pendingTxResponse struct {
 	AmountHuman           string  `json:"amount_human"`
 	USDValue              float64 `json:"usd_value"`
 	Tier                  int     `json:"tier"`
+	Multiplier            float64 `json:"multiplier"`
 	Points                int     `json:"points"`
 	Status                string  `json:"status"`
 	Confirmations         int     `json:"confirmations"`
@@ -133,6 +134,7 @@ func GetPendingPointsHandler(db *pollerdb.DB) http.HandlerFunc {
 						AmountHuman:           tx.AmountHuman,
 						USDValue:              tx.USDValue,
 						Tier:                  tx.Tier,
+						Multiplier:            tx.Multiplier,
 						Points:                tx.Points,
 						Status:                string(tx.Status),
 						Confirmations:         tx.Confirmations,
