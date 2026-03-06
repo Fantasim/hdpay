@@ -119,22 +119,41 @@ func SetupScanner(database *db.DB, cfg *config.Config, hub *SSEHub) (*Scanner, e
 	// Round-robin across public and optional key-based providers.
 	solanaRPCURL := config.SolanaMainnetRPCURL
 	if cfg.Network == string(models.NetworkTestnet) {
-		solanaRPCURL = config.SolanaDevnetRPCURL
+		solanaRPCURL = config.SolanaTestnetRPCURL
 	}
 
-	solProviders := []Provider{
-		NewSolanaRPCProvider(httpClient,
-			NewRateLimiter("SolanaPublicRPC", config.RateLimitSolanaRPC, config.KnownMonthlyLimitSolanaRPC),
-			solanaRPCURL, "SolanaPublicRPC"),
-		NewSolanaRPCProvider(httpClient,
-			NewRateLimiter("AnkrSOL", config.RateLimitAnkrSOL, config.KnownMonthlyLimitAnkrSOL),
-			ankrSolanaURL(cfg.Network), "AnkrSOL"),
-		NewSolanaRPCProvider(httpClient,
-			NewRateLimiter("DRPCSOL", config.RateLimitDRPC, config.KnownMonthlyLimitDRPC),
-			drpcSolanaURL(cfg.Network), "DRPCSOL"),
-		NewSolanaRPCProvider(httpClient,
-			NewRateLimiter("OnFinalitySOL", config.RateLimitOnFinality, config.KnownMonthlyLimitOnFinality),
-			onFinalitySolanaURL(cfg.Network), "OnFinalitySOL"),
+	// Build SOL provider list, deduplicating by URL.
+	// On testnet, dRPC and OnFinality fall back to the same Solana testnet URL
+	// as the public RPC — adding them would triple the load on the same endpoint.
+	type solProviderDef struct {
+		name       string
+		url        string
+		rateLimit  int
+		monthlyCap int64
+	}
+	solDefs := []solProviderDef{
+		{"SolanaPublicRPC", solanaRPCURL, config.RateLimitSolanaRPC, config.KnownMonthlyLimitSolanaRPC},
+		{"AnkrSOL", ankrSolanaURL(cfg.Network), config.RateLimitAnkrSOL, config.KnownMonthlyLimitAnkrSOL},
+		{"DRPCSOL", drpcSolanaURL(cfg.Network), config.RateLimitDRPC, config.KnownMonthlyLimitDRPC},
+		{"OnFinalitySOL", onFinalitySolanaURL(cfg.Network), config.RateLimitOnFinality, config.KnownMonthlyLimitOnFinality},
+	}
+
+	seenURLs := make(map[string]bool)
+	var solProviders []Provider
+	for _, def := range solDefs {
+		if seenURLs[def.url] {
+			slog.Info("skipping duplicate SOL provider URL",
+				"name", def.name,
+				"url", def.url,
+			)
+			continue
+		}
+		seenURLs[def.url] = true
+		solProviders = append(solProviders,
+			NewSolanaRPCProvider(httpClient,
+				NewRateLimiter(def.name, def.rateLimit, def.monthlyCap),
+				def.url, def.name),
+		)
 	}
 
 	// Helius: optional key-based (1M credits/month, 10 req/s).
@@ -251,25 +270,25 @@ func bscProviderName(rpcURL string) string {
 // ankrSolanaURL returns the Ankr Solana RPC URL for the given network.
 func ankrSolanaURL(network string) string {
 	if network == string(models.NetworkTestnet) {
-		return config.AnkrSolanaDevnetURL
+		return config.AnkrSolanaTestnetURL
 	}
 	return config.AnkrSolanaMainnetURL
 }
 
 // drpcSolanaURL returns the dRPC Solana RPC URL for the given network.
-// dRPC does not have a documented devnet endpoint; falls back to Solana devnet.
+// dRPC does not have a documented testnet endpoint; falls back to Solana testnet.
 func drpcSolanaURL(network string) string {
 	if network == string(models.NetworkTestnet) {
-		return config.SolanaDevnetRPCURL
+		return config.SolanaTestnetRPCURL
 	}
 	return config.DRPCSolanaURL
 }
 
 // onFinalitySolanaURL returns the OnFinality Solana RPC URL for the given network.
-// OnFinality does not have a documented devnet endpoint; falls back to Solana devnet.
+// OnFinality does not have a documented testnet endpoint; falls back to Solana testnet.
 func onFinalitySolanaURL(network string) string {
 	if network == string(models.NetworkTestnet) {
-		return config.SolanaDevnetRPCURL
+		return config.SolanaTestnetRPCURL
 	}
 	return config.OnFinalitySolanaURL
 }
@@ -277,7 +296,7 @@ func onFinalitySolanaURL(network string) string {
 // alchemySolanaURL returns the Alchemy Solana RPC URL with the API key embedded in the path.
 func alchemySolanaURL(network, apiKey string) string {
 	if network == string(models.NetworkTestnet) {
-		return fmt.Sprintf(config.AlchemySolanaDevnetURLFmt, apiKey)
+		return fmt.Sprintf(config.AlchemySolanaTestnetURLFmt, apiKey)
 	}
 	return fmt.Sprintf(config.AlchemySolanaMainnetURLFmt, apiKey)
 }

@@ -226,7 +226,7 @@ func TestBuildProviderChecks_Testnet(t *testing.T) {
 	}
 	checks := buildProviderChecks(cfg)
 
-	// Should have testnet BTC providers, BSC providers, SOL devnet, and CoinGecko.
+	// Should have testnet BTC providers, BSC providers, SOL testnet, and CoinGecko.
 	if len(checks) < 4 {
 		t.Errorf("expected at least 4 checks for testnet, got %d", len(checks))
 	}

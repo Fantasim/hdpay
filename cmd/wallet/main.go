@@ -465,7 +465,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	// SOL services.
 	var solRPCURLs []string
 	if cfg.Network == string(models.NetworkTestnet) {
-		solRPCURLs = []string{config.SolanaDevnetRPCURL}
+		solRPCURLs = []string{config.SolanaTestnetRPCURL}
 	} else {
 		solRPCURLs = []string{config.SolanaMainnetRPCURL}
 		if cfg.HeliusAPIKey != "" {

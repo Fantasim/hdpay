@@ -28,8 +28,8 @@ func buildTokenConfig(network string) map[models.Chain][]tokenConfigEntry {
 				{Token: models.TokenUSDT, Contract: config.BSCTestnetUSDTContract},
 			},
 			models.ChainSOL: {
-				{Token: models.TokenUSDC, Contract: config.SOLDevnetUSDCMint},
-				{Token: models.TokenUSDT, Contract: config.SOLDevnetUSDTMint},
+				{Token: models.TokenUSDC, Contract: config.SOLTestnetUSDCMint},
+				{Token: models.TokenUSDT, Contract: config.SOLTestnetUSDTMint},
 			},
 		}
 	}
@@ -103,6 +103,29 @@ func (s *Scanner) StartScan(ctx context.Context, chain models.Chain, maxID int) 
 		"maxID", maxID,
 	)
 
+	// Pre-scan: verify addresses exist in the DB for this chain.
+	addrCount, err := s.db.CountAddresses(chain)
+	if err != nil {
+		s.removeScan(chain)
+		return fmt.Errorf("count addresses for %s: %w", chain, err)
+	}
+	if addrCount == 0 {
+		s.removeScan(chain)
+		slog.Error("no addresses generated for chain, cannot scan",
+			"chain", chain,
+		)
+		return fmt.Errorf("%w: no addresses generated for %s — run address generation first", config.ErrScanFailed, chain)
+	}
+	if addrCount < maxID {
+		slog.Warn("fewer addresses in DB than maxID, capping scan range",
+			"chain", chain,
+			"addressCount", addrCount,
+			"requestedMaxID", maxID,
+			"effectiveMaxID", addrCount,
+		)
+		maxID = addrCount
+	}
+
 	// Always start from index 0 on user-initiated scans.
 	// Users expect a full rescan when they click "Scan".
 	startIndex := 0
@@ -110,6 +133,7 @@ func (s *Scanner) StartScan(ctx context.Context, chain models.Chain, maxID int) 
 	slog.Info("scan starting fresh from index 0",
 		"chain", chain,
 		"maxID", maxID,
+		"addressesInDB", addrCount,
 	)
 
 	// Set initial scan state.
@@ -184,6 +208,8 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 	batchSize := scanChunkSize(chain)
 	scanned := startIndex
 	found := 0
+	checkedCount := 0
+	errorCount := 0
 	consecutivePoolFails := 0
 
 	slog.Info("scan goroutine started",
@@ -259,18 +285,21 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				"count", count,
 				"error", err,
 			)
-			s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+			s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime, err)
 			return
 		}
 
 		if len(addresses) == 0 {
-			slog.Debug("no addresses in batch, skipping",
+			slog.Warn("no addresses found in DB for batch — possible generation gap",
 				"chain", chain,
-				"start", i,
+				"startIndex", i,
+				"count", count,
 			)
 			scanned = end
 			continue
 		}
+
+		checkedCount += len(addresses)
 
 		// --- Fetch native balances (B8: failure does not block tokens) ---
 		var nativeBalances []models.Balance
@@ -299,7 +328,13 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 		} else {
 			consecutivePoolFails = 0
 			nativeBalances = make([]models.Balance, 0, len(nativeResults))
+			batchErrors := 0
 			for _, r := range nativeResults {
+				if r.Error != "" {
+					// Don't store "0" balance for addresses that weren't actually checked.
+					batchErrors++
+					continue
+				}
 				nativeBalances = append(nativeBalances, models.Balance{
 					Chain:        chain,
 					AddressIndex: r.AddressIndex,
@@ -308,6 +343,25 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				})
 				if r.Balance != "0" {
 					found++
+				}
+			}
+			if batchErrors > 0 {
+				errorCount += batchErrors
+				slog.Warn("some native balance results had errors",
+					"chain", chain,
+					"batchStart", i,
+					"totalResults", len(nativeResults),
+					"errorResults", batchErrors,
+					"storedResults", len(nativeBalances),
+				)
+				if batchErrors == len(nativeResults) {
+					// All results had errors — treat as native failure.
+					nativeFailed = true
+					consecutivePoolFails++
+					slog.Error("all native results had errors, treating as batch failure",
+						"chain", chain,
+						"batchStart", i,
+					)
 				}
 			}
 		}
@@ -366,7 +420,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					"chain", chain,
 					"error", err,
 				)
-				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime, err)
 				return
 			}
 
@@ -377,7 +431,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 						"chain", chain,
 						"error", err,
 					)
-					s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+					s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime, err)
 					return
 				}
 			}
@@ -393,7 +447,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					"chain", chain,
 					"error", err,
 				)
-				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime, err)
 				return
 			}
 
@@ -402,7 +456,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 					"chain", chain,
 					"error", err,
 				)
-				s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime, err)
+				s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime, err)
 				return
 			}
 		} else {
@@ -441,7 +495,7 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				"chain", chain,
 				"consecutiveFailures", consecutivePoolFails,
 			)
-			s.finishScan(chain, maxID, scanned, found, db.ScanStatusFailed, startTime,
+			s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusFailed, startTime,
 				fmt.Errorf("aborted after %d consecutive all-provider failures", consecutivePoolFails))
 			return
 		}
@@ -455,6 +509,8 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 				Scanned: scanned,
 				Total:   maxID,
 				Found:   found,
+				Checked: checkedCount,
+				Errors:  errorCount,
 				Elapsed: elapsed.String(),
 			},
 		})
@@ -464,17 +520,35 @@ func (s *Scanner) runScan(ctx context.Context, chain models.Chain, pool *Pool, s
 			"scanned", scanned,
 			"total", maxID,
 			"found", found,
+			"checked", checkedCount,
+			"errors", errorCount,
 			"nativeFailed", nativeFailed,
 			"elapsed", elapsed,
 		)
 	}
 
+	// Warn if no addresses were actually checked despite "completing" the scan.
+	if checkedCount == 0 {
+		slog.Error("scan completed but zero addresses were actually checked — addresses may not exist in DB",
+			"chain", chain,
+			"maxID", maxID,
+		)
+		s.hub.Broadcast(Event{
+			Type: "scan_error",
+			Data: ScanErrorData{
+				Chain:   string(chain),
+				Error:   config.ErrorNoAddressesGenerated,
+				Message: fmt.Sprintf("no addresses found in database for %s — run address generation first", chain),
+			},
+		})
+	}
+
 	// Scan complete.
-	s.finishScan(chain, maxID, scanned, found, db.ScanStatusCompleted, startTime, nil)
+	s.finishScan(chain, maxID, scanned, found, checkedCount, errorCount, db.ScanStatusCompleted, startTime, nil)
 }
 
 // finishScan updates state and broadcasts completion/error events.
-func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found int, status string, startTime time.Time, scanErr error) {
+func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found, checked, errors int, status string, startTime time.Time, scanErr error) {
 	duration := time.Since(startTime).Round(time.Second)
 
 	if err := s.db.UpsertScanState(models.ScanState{
@@ -502,6 +576,8 @@ func (s *Scanner) finishScan(chain models.Chain, maxID, scanned, found int, stat
 				Chain:    string(chain),
 				Scanned: scanned,
 				Found:   found,
+				Checked: checked,
+				Errors:  errors,
 				Duration: duration.String(),
 			},
 		})

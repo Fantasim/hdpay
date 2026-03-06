@@ -54,6 +54,9 @@ var (
 	ErrPartialResults     = errors.New("partial results returned")
 	ErrAllProvidersFailed = errors.New("all providers failed")
 
+	// Scanner
+	ErrScanFailed         = errors.New("scan failed")
+
 	// Multicall3
 	ErrMulticall3Failed = errors.New("multicall3 aggregate call failed")
 
@@ -163,4 +166,8 @@ const (
 
 	// Multicall3
 	ErrorMulticall3Failed = "ERROR_MULTICALL3_FAILED"
+
+	// Scanner Diagnostics
+	ErrorNoAddressesGenerated    = "ERROR_NO_ADDRESSES_GENERATED"
+	ErrorAllProvidersReturnedNull = "ERROR_ALL_PROVIDERS_NULL"
 )

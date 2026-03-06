@@ -152,7 +152,7 @@ func buildProviderChecks(cfg *config.Config) []ProviderCheck {
 	// SOL providers.
 	if isTestnet {
 		checks = append(checks,
-			ProviderCheck{Name: "Solana-Devnet", Chain: models.ChainSOL, CheckFn: makeSolanaRPCCheck(config.SolanaDevnetRPCURL)},
+			ProviderCheck{Name: "Solana-Testnet", Chain: models.ChainSOL, CheckFn: makeSolanaRPCCheck(config.SolanaTestnetRPCURL)},
 		)
 	} else {
 		checks = append(checks,

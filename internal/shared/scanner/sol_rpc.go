@@ -203,6 +203,21 @@ func (p *SolanaRPCProvider) FetchNativeBalances(ctx context.Context, addresses [
 		)
 	}
 
+	// Aggregate null-result diagnostic: if ALL accounts returned null, warn about
+	// possible network mismatch or unfunded addresses.
+	nullCount := 0
+	for _, r := range results {
+		if r.Balance == "0" && r.Error == "" {
+			nullCount++
+		}
+	}
+	if nullCount == len(results) && len(results) > 0 {
+		slog.Warn("all accounts returned null/zero from RPC — possible network mismatch or all addresses unfunded",
+			"provider", p.name,
+			"count", len(results),
+		)
+	}
+
 	return results, nil
 }
 

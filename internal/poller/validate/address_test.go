@@ -98,9 +98,9 @@ func TestAddress_SOL_Valid(t *testing.T) {
 		name    string
 		address string
 	}{
-		{"devnet index 0", "3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx"},
-		{"devnet index 1", "5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA"},
-		{"devnet index 2", "3SuKj3MZU9dMZ9oR1R7afttihZFkWpfUmduuv9rmfMa1"},
+		{"testnet index 0", "3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx"},
+		{"testnet index 1", "5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA"},
+		{"testnet index 2", "3SuKj3MZU9dMZ9oR1R7afttihZFkWpfUmduuv9rmfMa1"},
 	}
 
 	for _, tt := range tests {

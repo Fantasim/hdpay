@@ -471,7 +471,7 @@ func TestGetAllowlist_EmptyReturnsArray(t *testing.T) {
 
 // TestHealth_ReturnsNetworkField verifies that the health endpoint returns
 // the network field (testnet/mainnet), which the frontend relies on to
-// construct correct block explorer URLs (e.g. SOL devnet suffix).
+// construct correct block explorer URLs (e.g. SOL testnet suffix).
 func TestHealth_ReturnsNetworkField(t *testing.T) {
 	td := setupTestDeps(t)
 

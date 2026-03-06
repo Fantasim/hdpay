@@ -20,6 +20,8 @@ type ScanProgressData struct {
 	Scanned int    `json:"scanned"`
 	Total   int    `json:"total"`
 	Found   int    `json:"found"`
+	Checked int    `json:"checked"` // addresses actually sent to RPC (may differ from Scanned if DB gaps)
+	Errors  int    `json:"errors"`  // addresses where provider returned an error
 	Elapsed string `json:"elapsed"`
 }
 
@@ -28,6 +30,8 @@ type ScanCompleteData struct {
 	Chain    string `json:"chain"`
 	Scanned int    `json:"scanned"`
 	Found   int    `json:"found"`
+	Checked int    `json:"checked"`
+	Errors  int    `json:"errors"`
 	Duration string `json:"duration"`
 }
 

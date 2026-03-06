@@ -1065,8 +1065,8 @@ func TestGetTokenContractAddress(t *testing.T) {
 		{"BSC USDT testnet", models.ChainBSC, models.TokenUSDT, "testnet", config.BSCTestnetUSDTContract},
 		{"SOL USDC mainnet", models.ChainSOL, models.TokenUSDC, "mainnet", config.SOLUSDCMint},
 		{"SOL USDT mainnet", models.ChainSOL, models.TokenUSDT, "mainnet", config.SOLUSDTMint},
-		{"SOL USDC testnet", models.ChainSOL, models.TokenUSDC, "testnet", config.SOLDevnetUSDCMint},
-		{"SOL USDT testnet", models.ChainSOL, models.TokenUSDT, "testnet", config.SOLDevnetUSDTMint},
+		{"SOL USDC testnet", models.ChainSOL, models.TokenUSDC, "testnet", config.SOLTestnetUSDCMint},
+		{"SOL USDT testnet", models.ChainSOL, models.TokenUSDT, "testnet", config.SOLTestnetUSDTMint},
 		{"BTC NATIVE (no contract)", models.ChainBTC, models.TokenNative, "mainnet", ""},
 		{"BSC NATIVE (no contract)", models.ChainBSC, models.TokenNative, "mainnet", ""},
 	}

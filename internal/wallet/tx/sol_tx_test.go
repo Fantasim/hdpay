@@ -304,7 +304,7 @@ func TestSOLTokenSweep_WithExistingATA(t *testing.T) {
 		addresses,
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
-		config.SOLDevnetUSDCMint,
+		config.SOLTestnetUSDCMint,
 		"test-sweep",
 		nil,
 	)
@@ -355,7 +355,7 @@ func TestSOLTokenSweep_WithATACreation(t *testing.T) {
 		addresses,
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
-		config.SOLDevnetUSDCMint,
+		config.SOLTestnetUSDCMint,
 		"test-sweep",
 		nil,
 	)
@@ -398,7 +398,7 @@ func TestSOLTokenSweep_InsufficientSOLForFee(t *testing.T) {
 		addresses,
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
-		config.SOLDevnetUSDCMint,
+		config.SOLTestnetUSDCMint,
 		"test-sweep",
 		nil,
 	)
@@ -514,7 +514,7 @@ func TestSOLTokenSweep_Preview_WithATACreation(t *testing.T) {
 		addresses,
 		"5frqxtii9LeGq2bz3dSNokvZcEooF483MzeU24JrhcTA",
 		models.TokenUSDC,
-		config.SOLDevnetUSDCMint,
+		config.SOLTestnetUSDCMint,
 	)
 	if err != nil {
 		t.Fatalf("PreviewTokenSweep error = %v", err)

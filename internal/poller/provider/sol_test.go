@@ -171,7 +171,7 @@ func TestSolanaRPCProvider_FetchTransactions_SPLToken(t *testing.T) {
 					PreTokenBalances: []tokenBalance{
 						{
 							AccountIndex: 2,
-							Mint:         hdconfig.SOLDevnetUSDCMint,
+							Mint:         hdconfig.SOLTestnetUSDCMint,
 							Owner:        address,
 							UITokenAmount: uiTokenAmount{
 								Amount:   "5000000",
@@ -182,7 +182,7 @@ func TestSolanaRPCProvider_FetchTransactions_SPLToken(t *testing.T) {
 					PostTokenBalances: []tokenBalance{
 						{
 							AccountIndex: 2,
-							Mint:         hdconfig.SOLDevnetUSDCMint,
+							Mint:         hdconfig.SOLTestnetUSDCMint,
 							Owner:        address,
 							UITokenAmount: uiTokenAmount{
 								Amount:   "25000000", // received 20 USDC

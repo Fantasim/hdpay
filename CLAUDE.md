@@ -70,7 +70,7 @@ All scanning uses free-tier APIs with round-robin rotation to stay within limits
 |-------|----------|
 | BTC Testnet | `blockstream.info/testnet/api`, `mempool.space/testnet/api` |
 | BSC Testnet | `data-seed-prebsc-1-s1.binance.org:8545`, BscScan testnet API |
-| SOL Devnet | `api.devnet.solana.com` |
+| SOL Testnet | `api.testnet.solana.com` |
 
 ---
 
@@ -406,10 +406,10 @@ const (
     BSC_Testnet_USDT_Contract = "" // Set when available
 )
 
-// Token Contract Addresses — SOL Devnet
+// Token Contract Addresses — SOL Testnet
 const (
-    SOL_Devnet_USDC_Mint = "" // Set when available
-    SOL_Devnet_USDT_Mint = "" // Set when available
+    SOL_Testnet_USDC_Mint = "" // Set when available
+    SOL_Testnet_USDT_Mint = "" // Set when available
 )
 
 // Scanning

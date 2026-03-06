@@ -1,5 +1,25 @@
 # Changelog
 
+## Scanner Audit: Solana Devnet→Testnet + Diagnostics — 2026-03-06
+
+#### Fixed
+- **CRITICAL**: Solana scanning used devnet (`api.devnet.solana.com`) instead of testnet (`api.testnet.solana.com`) — funded addresses on testnet were never detected
+- All Solana devnet references replaced with testnet across ~14 files (constants, providers, health checks, poller, tests, docs)
+- Scanner no longer stores false "0" balance for addresses where providers returned errors — error results are now skipped instead of stored as zero
+
+#### Added
+- **Pre-scan validation**: Scanner checks address count in DB before starting; returns clear error if no addresses exist for the chain
+- **Checked/Errors fields** in SSE progress and completion events — frontend can distinguish "20 scanned, 0 checked" from "20 scanned, 20 checked, 0 funded"
+- **Aggregate null-result diagnostic**: Solana RPC provider logs WARN when all accounts in a batch return null (helps identify network mismatch)
+- **Empty batch warning**: Scanner logs at WARN level (not DEBUG) when `GetAddressesBatch` returns 0 addresses
+- **Provider deduplication**: On testnet, SOL providers that resolve to the same URL are deduplicated (prevents 3× requests to same endpoint)
+- New error codes: `ERROR_NO_ADDRESSES_GENERATED`, `ERROR_ALL_PROVIDERS_NULL`
+- `SOLTestnetUSDCMint` placeholder constant for test infrastructure
+
+#### Changed
+- `finishScan` signature now includes `checked` and `errors` counts
+- `maxID` is automatically capped to actual address count if fewer addresses exist in DB than requested
+
 ## Provider Audit & Expansion — 2026-02-23
 
 #### Added

@@ -36,10 +36,13 @@ const (
 	BSCTestnetUSDTContract = "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd" // 18 decimals
 )
 
-// Token Contract Addresses — SOL Devnet
+// Token Contract Addresses — SOL Testnet
+// Note: Solana testnet does not have official Circle USDC/USDT deployments.
+// These addresses are used as placeholders for test infrastructure; update to
+// actual deployed mint addresses if/when available on testnet.
 const (
-	SOLDevnetUSDCMint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // Official Circle devnet USDC
-	SOLDevnetUSDTMint = ""                                                // No official devnet USDT exists
+	SOLTestnetUSDCMint = "CpMah17kQEL2wqyMKt3mZBdTnZbkbfx4nqmQMFDP5vwp" // placeholder — no official Circle testnet USDC
+	SOLTestnetUSDTMint = ""                                                 // no testnet USDT exists
 )
 
 // Pagination
@@ -132,15 +135,15 @@ const (
 const (
 	SolanaMainnetRPCURL      = "https://api.mainnet-beta.solana.com"
 	HeliusMainnetRPCURL      = "https://mainnet.helius-rpc.com"
-	SolanaDevnetRPCURL       = "https://api.devnet.solana.com"
+	SolanaTestnetRPCURL      = "https://api.testnet.solana.com"
 	AnkrSolanaMainnetURL     = "https://rpc.ankr.com/solana"
-	AnkrSolanaDevnetURL      = "https://rpc.ankr.com/solana_devnet"
+	AnkrSolanaTestnetURL     = "https://rpc.ankr.com/solana_testnet"
 	DRPCSolanaURL            = "https://solana.drpc.org"
 	OnFinalitySolanaURL      = "https://solana.api.onfinality.io/public"
 	// Alchemy Solana RPC — requires API key from alchemy.com.
 	// API key is embedded in the URL path: /v2/{api_key}
 	AlchemySolanaMainnetURLFmt = "https://solana-mainnet.g.alchemy.com/v2/%s"
-	AlchemySolanaDevnetURLFmt  = "https://solana-devnet.g.alchemy.com/v2/%s"
+	AlchemySolanaTestnetURLFmt = "https://solana-testnet.g.alchemy.com/v2/%s"
 )
 
 // Solana Program IDs
@@ -304,7 +307,7 @@ const (
 	ExplorerBSCMainnet  = "https://bscscan.com/tx/"
 	ExplorerBSCTestnet  = "https://testnet.bscscan.com/tx/"
 	ExplorerSOLMainnet  = "https://solscan.io/tx/"
-	ExplorerSOLDevnet   = "https://solscan.io/tx/" // append ?cluster=devnet
+	ExplorerSOLTestnet  = "https://solscan.io/tx/" // append ?cluster=testnet
 )
 
 // Circuit Breaker

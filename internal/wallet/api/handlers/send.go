@@ -118,13 +118,13 @@ func getTokenContractAddress(chain models.Chain, token models.Token, network str
 	case models.ChainSOL:
 		if token == models.TokenUSDC {
 			if isTestnet {
-				return config.SOLDevnetUSDCMint
+				return config.SOLTestnetUSDCMint
 			}
 			return config.SOLUSDCMint
 		}
 		if token == models.TokenUSDT {
 			if isTestnet {
-				return config.SOLDevnetUSDTMint
+				return config.SOLTestnetUSDTMint
 			}
 			return config.SOLUSDTMint
 		}
