@@ -28,6 +28,7 @@ import (
 type SendDeps struct {
 	DB         *db.DB
 	Config     *config.Config
+	KeyService *tx.KeyService
 	BTCService *tx.BTCConsolidationService
 	BSCService *tx.BSCConsolidationService
 	SOLService *tx.SOLConsolidationService
@@ -524,6 +525,18 @@ func ExecuteSend(deps *SendDeps) http.HandlerFunc {
 			return
 		}
 
+		// Pre-flight: ensure mnemonic file is accessible before committing to the sweep.
+		// Supports external-disk workflow where the mnemonic lives on removable media.
+		if err := deps.KeyService.CheckMnemonicAvailable(); err != nil {
+			slog.Warn("mnemonic file not accessible for send",
+				"chain", req.Chain,
+				"error", err,
+			)
+			writeError(w, http.StatusBadRequest, config.ErrorMnemonicUnavailable,
+				"mnemonic file not accessible — is your wallet disk plugged in?")
+			return
+		}
+
 		// Re-fetch funded addresses (may have changed since preview).
 		funded, err := deps.DB.GetFundedAddressesJoined(req.Chain, req.Token)
 		if err != nil {
@@ -866,6 +879,14 @@ func GasPreSeedHandler(deps *SendDeps) http.HandlerFunc {
 
 		if len(req.TargetAddresses) == 0 {
 			writeError(w, http.StatusBadRequest, config.ErrorGasPreSeedFailed, "no target addresses provided")
+			return
+		}
+
+		// Pre-flight: ensure mnemonic file is accessible.
+		if err := deps.KeyService.CheckMnemonicAvailable(); err != nil {
+			slog.Warn("mnemonic file not accessible for gas pre-seed", "error", err)
+			writeError(w, http.StatusBadRequest, config.ErrorMnemonicUnavailable,
+				"mnemonic file not accessible — is your wallet disk plugged in?")
 			return
 		}
 

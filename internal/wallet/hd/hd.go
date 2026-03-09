@@ -1,6 +1,7 @@
 package hd
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"os"
@@ -57,6 +58,53 @@ func ReadMnemonicFromFile(path string) (string, error) {
 
 	slog.Info("mnemonic read and validated from file")
 	return mnemonic, nil
+}
+
+// ZeroBytes overwrites a byte slice with zeros to remove secrets from memory.
+// Must be called via defer immediately after obtaining the sensitive slice.
+func ZeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}
+
+// ReadMnemonicBytesFromFile reads a mnemonic from a file as raw bytes, trims whitespace, and validates it.
+// Returns a new []byte (not aliasing the file read buffer) so the caller can zero it after use.
+func ReadMnemonicBytesFromFile(path string) ([]byte, error) {
+	slog.Info("reading mnemonic from file", "path", path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read mnemonic file %q: %w", path, err)
+	}
+	defer ZeroBytes(data) // Always zero the raw file buffer.
+
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, fmt.Errorf("mnemonic file %q is empty: %w", path, ErrInvalidMnemonic)
+	}
+
+	if err := ValidateMnemonic(string(trimmed)); err != nil {
+		return nil, fmt.Errorf("mnemonic file %q: %w", path, err)
+	}
+
+	// Copy to a new slice so the caller owns it (not aliasing the zeroed data buffer).
+	mnemonic := make([]byte, len(trimmed))
+	copy(mnemonic, trimmed)
+
+	slog.Info("mnemonic read and validated from file")
+	return mnemonic, nil
+}
+
+// MnemonicBytesToSeed converts a BIP-39 mnemonic (as []byte) to a 64-byte seed (empty passphrase).
+func MnemonicBytesToSeed(mnemonic []byte) ([]byte, error) {
+	seed, err := bip39.NewSeedWithErrorChecking(string(mnemonic), "")
+	if err != nil {
+		return nil, fmt.Errorf("mnemonic to seed: %w", err)
+	}
+
+	slog.Debug("seed derived from mnemonic", "seedLen", len(seed))
+	return seed, nil
 }
 
 // DeriveMasterKey derives a BIP-32 master extended key from a seed.

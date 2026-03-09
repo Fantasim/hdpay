@@ -298,6 +298,48 @@ func TestKeyService_DeriveSOLPrivateKey_MultipleIndices(t *testing.T) {
 	}
 }
 
+func TestKeyService_CheckMnemonicAvailable_Exists(t *testing.T) {
+	path := writeTempMnemonic(t, testMnemonic24)
+	ks := NewKeyService(path, "mainnet")
+
+	if err := ks.CheckMnemonicAvailable(); err != nil {
+		t.Errorf("CheckMnemonicAvailable() error = %v, want nil", err)
+	}
+}
+
+func TestKeyService_CheckMnemonicAvailable_Missing(t *testing.T) {
+	ks := NewKeyService("/nonexistent/path/mnemonic.txt", "mainnet")
+
+	err := ks.CheckMnemonicAvailable()
+	if err == nil {
+		t.Fatal("CheckMnemonicAvailable() expected error for missing file")
+	}
+}
+
+func TestKeyService_CheckMnemonicAvailable_EmptyPath(t *testing.T) {
+	ks := NewKeyService("", "mainnet")
+
+	err := ks.CheckMnemonicAvailable()
+	if err == nil {
+		t.Fatal("CheckMnemonicAvailable() expected error for empty path")
+	}
+}
+
+func TestZeroEd25519Key(t *testing.T) {
+	// Create a fake ed25519 key (64 bytes).
+	key := make([]byte, 64)
+	for i := range key {
+		key[i] = byte(i + 1)
+	}
+
+	ZeroEd25519Key(key)
+	for i, v := range key {
+		if v != 0 {
+			t.Errorf("ZeroEd25519Key() byte %d = %d, want 0", i, v)
+		}
+	}
+}
+
 // itoa is a simple int to string converter for test names.
 func itoa(n int) string {
 	if n == 0 {

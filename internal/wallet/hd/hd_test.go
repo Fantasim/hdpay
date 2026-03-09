@@ -151,6 +151,103 @@ func TestDeriveMasterKey(t *testing.T) {
 	}
 }
 
+func TestZeroBytes(t *testing.T) {
+	b := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+	ZeroBytes(b)
+	for i, v := range b {
+		if v != 0 {
+			t.Errorf("ZeroBytes() byte %d = %d, want 0", i, v)
+		}
+	}
+
+	// Empty slice should not panic.
+	ZeroBytes(nil)
+	ZeroBytes([]byte{})
+}
+
+func TestReadMnemonicBytesFromFile(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("valid file", func(t *testing.T) {
+		path := filepath.Join(dir, "valid_bytes.txt")
+		if err := os.WriteFile(path, []byte(testMnemonic24+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		b, err := ReadMnemonicBytesFromFile(path)
+		if err != nil {
+			t.Fatalf("ReadMnemonicBytesFromFile() error = %v", err)
+		}
+
+		if string(b) != testMnemonic24 {
+			t.Errorf("ReadMnemonicBytesFromFile() = %q, want %q", string(b), testMnemonic24)
+		}
+
+		// Verify zeroing works on the returned slice.
+		ZeroBytes(b)
+		for i, v := range b {
+			if v != 0 {
+				t.Errorf("after ZeroBytes() byte %d = %d, want 0", i, v)
+			}
+		}
+	})
+
+	t.Run("empty file", func(t *testing.T) {
+		path := filepath.Join(dir, "empty_bytes.txt")
+		if err := os.WriteFile(path, []byte(""), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := ReadMnemonicBytesFromFile(path)
+		if err == nil {
+			t.Error("ReadMnemonicBytesFromFile() expected error for empty file")
+		}
+	})
+
+	t.Run("nonexistent file", func(t *testing.T) {
+		_, err := ReadMnemonicBytesFromFile(filepath.Join(dir, "nonexistent.txt"))
+		if err == nil {
+			t.Error("ReadMnemonicBytesFromFile() expected error for missing file")
+		}
+	})
+}
+
+func TestMnemonicBytesToSeed(t *testing.T) {
+	seed, err := MnemonicBytesToSeed([]byte(testMnemonic24))
+	if err != nil {
+		t.Fatalf("MnemonicBytesToSeed() error = %v", err)
+	}
+
+	if len(seed) != 64 {
+		t.Errorf("MnemonicBytesToSeed() seed length = %d, want 64", len(seed))
+	}
+
+	// Should produce the same seed as the string-based version.
+	seedStr, err := MnemonicToSeed(testMnemonic24)
+	if err != nil {
+		t.Fatalf("MnemonicToSeed() error = %v", err)
+	}
+
+	for i := range seed {
+		if seed[i] != seedStr[i] {
+			t.Fatalf("MnemonicBytesToSeed() differs from MnemonicToSeed() at byte %d", i)
+		}
+	}
+}
+
+func TestMlockBytes(t *testing.T) {
+	// mlock/munlock should not panic, even if they fail due to permissions.
+	b := make([]byte, 64)
+	MlockBytes(b)
+	MunlockBytes(b)
+
+	// Empty/nil should not panic.
+	MlockBytes(nil)
+	MunlockBytes(nil)
+	MlockBytes([]byte{})
+	MunlockBytes([]byte{})
+}
+
 func TestNetworkParams(t *testing.T) {
 	if p := NetworkParams("mainnet"); p != &chaincfg.MainNetParams {
 		t.Error("NetworkParams(mainnet) did not return MainNetParams")

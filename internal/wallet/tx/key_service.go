@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -75,6 +76,34 @@ func ZeroECDSAKey(key *ecdsa.PrivateKey) {
 		return
 	}
 	key.D.SetInt64(0)
+}
+
+// ZeroEd25519Key overwrites an ed25519 private key slice with zeros.
+// The caller should defer this immediately after obtaining the key.
+func ZeroEd25519Key(key ed25519.PrivateKey) {
+	for i := range key {
+		key[i] = 0
+	}
+}
+
+// CheckMnemonicAvailable checks whether the mnemonic file is accessible (exists and is readable).
+// This is a fast pre-flight check (os.Stat only, no read) for the external-disk workflow
+// where the mnemonic lives on removable media that may not be plugged in.
+func (ks *KeyService) CheckMnemonicAvailable() error {
+	if ks.mnemonicFilePath == "" {
+		return config.ErrMnemonicFileNotSet
+	}
+
+	if _, err := os.Stat(ks.mnemonicFilePath); err != nil {
+		slog.Warn("mnemonic file not accessible",
+			"path", ks.mnemonicFilePath,
+			"error", err,
+		)
+		return fmt.Errorf("%w: %s", config.ErrMnemonicFileUnavailable, err)
+	}
+
+	slog.Debug("mnemonic file accessible", "path", ks.mnemonicFilePath)
+	return nil
 }
 
 // DeriveBSCPrivateKey derives a BSC (EVM) ECDSA private key at the given address index.
@@ -155,16 +184,27 @@ func deriveBSCPrivKeyAtIndex(masterKey *hdkeychain.ExtendedKey, index uint32) (*
 }
 
 // deriveMasterKey reads the mnemonic file, converts to seed, and derives the BIP-32 master key.
+// Sensitive data (mnemonic bytes, seed) is mlocked to prevent swapping and zeroed after use.
 func (ks *KeyService) deriveMasterKey() (*hdkeychain.ExtendedKey, error) {
-	mnemonic, err := hd.ReadMnemonicFromFile(ks.mnemonicFilePath)
+	mnemonicBytes, err := hd.ReadMnemonicBytesFromFile(ks.mnemonicFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("read mnemonic: %w", err)
 	}
+	hd.MlockBytes(mnemonicBytes)
+	defer func() {
+		hd.MunlockBytes(mnemonicBytes)
+		hd.ZeroBytes(mnemonicBytes)
+	}()
 
-	seed, err := hd.MnemonicToSeed(mnemonic)
+	seed, err := hd.MnemonicBytesToSeed(mnemonicBytes)
 	if err != nil {
 		return nil, fmt.Errorf("mnemonic to seed: %w", err)
 	}
+	hd.MlockBytes(seed)
+	defer func() {
+		hd.MunlockBytes(seed)
+		hd.ZeroBytes(seed)
+	}()
 
 	net := hd.NetworkParams(ks.network)
 	masterKey, err := hd.DeriveMasterKey(seed, net)
@@ -190,15 +230,25 @@ func (ks *KeyService) DeriveSOLPrivateKey(ctx context.Context, index uint32) (ed
 		return nil, fmt.Errorf("context cancelled before SOL key derivation: %w", err)
 	}
 
-	mnemonic, err := hd.ReadMnemonicFromFile(ks.mnemonicFilePath)
+	mnemonicBytes, err := hd.ReadMnemonicBytesFromFile(ks.mnemonicFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("read mnemonic for SOL key at index %d: %w", index, err)
 	}
+	hd.MlockBytes(mnemonicBytes)
+	defer func() {
+		hd.MunlockBytes(mnemonicBytes)
+		hd.ZeroBytes(mnemonicBytes)
+	}()
 
-	seed, err := hd.MnemonicToSeed(mnemonic)
+	seed, err := hd.MnemonicBytesToSeed(mnemonicBytes)
 	if err != nil {
 		return nil, fmt.Errorf("mnemonic to seed for SOL key at index %d: %w", index, err)
 	}
+	hd.MlockBytes(seed)
+	defer func() {
+		hd.MunlockBytes(seed)
+		hd.ZeroBytes(seed)
+	}()
 
 	privKey, err := hd.DeriveSOLPrivateKey(seed, index)
 	if err != nil {

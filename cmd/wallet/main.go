@@ -484,6 +484,7 @@ func setupSendDeps(database *db.DB, cfg *config.Config, hubCtx context.Context) 
 	return &handlers.SendDeps{
 		DB:         database,
 		Config:     cfg,
+		KeyService: keyService,
 		BTCService: btcService,
 		BSCService: bscService,
 		SOLService: solService,

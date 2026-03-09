@@ -1,5 +1,20 @@
 # Changelog
 
+## Mnemonic Security Hardening — 2026-03-09
+
+#### Added
+- **Pre-send mnemonic check**: `CheckMnemonicAvailable()` validates mnemonic file accessibility before accepting a sweep, returning clear `ERROR_MNEMONIC_UNAVAILABLE` error (supports external-disk workflow)
+- **Byte-based mnemonic API**: `ReadMnemonicBytesFromFile()` and `MnemonicBytesToSeed()` return `[]byte` instead of `string` so callers can explicitly zero secrets after use
+- **Explicit memory zeroing**: `ZeroBytes()` helper; mnemonic bytes and seed are zeroed via `defer` in `deriveMasterKey()` and `DeriveSOLPrivateKey()`
+- **Memory locking (mlock)**: `MlockBytes()`/`MunlockBytes()` pin secret pages in RAM to prevent OS swap-to-disk (Linux via `syscall.Mlock`, no-op on other platforms)
+- **Ed25519 key zeroing**: `ZeroEd25519Key()` for SOL private key cleanup
+- Tests for all new functions: `TestZeroBytes`, `TestReadMnemonicBytesFromFile`, `TestMnemonicBytesToSeed`, `TestMlockBytes`, `TestCheckMnemonicAvailable`, `TestZeroEd25519Key`
+
+#### Changed
+- `KeyService.deriveMasterKey()` and `DeriveSOLPrivateKey()` now use byte-based mnemonic API with mlock + defer-zero
+- `SendDeps` struct includes `KeyService` for pre-flight mnemonic check
+- `ExecuteSend` and `GasPreSeedHandler` validate mnemonic file before proceeding
+
 ## Poller: Provider Usage Persistence + Devnet Fix — 2026-03-06
 
 #### Fixed

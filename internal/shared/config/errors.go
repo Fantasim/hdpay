@@ -66,6 +66,9 @@ var (
 	ErrSOLATANotVisible = errors.New("ATA not visible after creation confirmation")
 	ErrNonceConflict    = errors.New("nonce conflict detected")
 
+	// Mnemonic security
+	ErrMnemonicFileUnavailable = errors.New("mnemonic file not accessible (is your wallet disk plugged in?)")
+
 	// Config validation
 	ErrInvalidConfig = errors.New("invalid configuration")
 )
@@ -163,6 +166,9 @@ const (
 	ErrorUTXODiverged   = "ERROR_UTXO_DIVERGED"
 	ErrorGasPriceSpiked = "ERROR_GAS_PRICE_SPIKED"
 	ErrorSweepNotFound  = "ERROR_SWEEP_NOT_FOUND"
+
+	// Mnemonic security
+	ErrorMnemonicUnavailable = "ERROR_MNEMONIC_UNAVAILABLE"
 
 	// Multicall3
 	ErrorMulticall3Failed = "ERROR_MULTICALL3_FAILED"
